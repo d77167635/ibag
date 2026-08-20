@@ -1,0 +1,23 @@
+{
+  "name": "ibag-api",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "dependencies": {
+    "express": "4.22.2",
+    "pg": "8.16.3",
+    "bcrypt": "6.0.0",
+    "jsonwebtoken": "9.0.3",
+    "jose": "6.2.3",
+    "plaid": "45.0.0",
+    "dotenv": "16.4.5",
+    "express-rate-limit": "7.5.0",
+    "cors": "2.8.6",
+    "nodemailer": "8.0.9"
+  },
+  "scripts": {
+    "start": "node apps/api/src/index.js",
+    "test": "node --test"
+  }
+}
