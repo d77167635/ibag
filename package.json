@@ -18,6 +18,7 @@
   },
   "scripts": {
     "start": "node apps/api/src/index.js",
+    "worker": "node apps/api/src/worker.js",
     "test": "node --test"
   }
 }
