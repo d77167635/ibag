@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iBag</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 60px auto; padding: 0 16px; text-align: center; }
+  #status { margin-top: 24px; padding: 12px; border-radius: 6px; }
+  .ok { background: #e6f4ea; color: #1e7e34; }
+  .err { background: #fdecea; color: #b00020; }
+</style>
+</head>
+<body>
+  <h1>iBag</h1>
+  <p>Deployment check — this page confirms Render, GitHub, and Supabase are wired together.</p>
+  <div id="status">Checking...</div>
+
+  <script>
+    fetch('/health')
+      .then((r) => r.json())
+      .then((data) => {
+        const el = document.getElementById('status');
+        if (data.status === 'ok') {
+          el.textContent = '✅ Server is up and connected to the database.';
+          el.className = 'ok';
+        } else {
+          el.textContent = '⚠️ Server is up, but database connection failed: ' + (data.message || data.code);
+          el.className = 'err';
+        }
+      })
+      .catch((err) => {
+        const el = document.getElementById('status');
+        el.textContent = '❌ Could not reach /health at all: ' + err.message;
+        el.className = 'err';
+      });
+  </script>
+</body>
+</html>
