@@ -1,0 +1,597 @@
+/* ---------------------------------------------------------------
+   Iris design tokens
+
+   Concept: the iris — of an eye, and of a camera aperture — is
+   the part that focuses and controls what light gets through.
+   That's the product's real job: focus scattered spending into
+   something you can actually see. The palette stays calm and
+   paper-like so the numbers (not the chrome) carry the page;
+   the one accent is a deep violet-ink rather than a fintech-blue
+   default, with a muted gold reserved for the money figure itself.
+------------------------------------------------------------------ */
+
+:root {
+  /* color */
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-border: #dbe1e9;
+  --ink: #12141c;
+  --ink-muted: #5b6472;
+  --ink-faint: #8890a0;
+  --accent: #453868;
+  --accent-strong: #302650;
+  --accent-tint: #ece8f3;
+  --gold: #a8791f;
+  --positive: #2f7a56;
+  --negative: #a83f3f;
+  --focus: #6a5a96;
+
+  /* type */
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* layout */
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow-card: 0 1px 2px rgba(18, 20, 28, 0.04), 0 8px 24px -12px rgba(18, 20, 28, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+input {
+  font-family: var(--font-body);
+  font-size: inherit;
+  color: var(--ink);
+}
+
+a {
+  color: var(--accent);
+}
+
+/* visible keyboard focus everywhere, no exceptions */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Auth page
+------------------------------------------------------------------ */
+
+.auth-screen {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .auth-screen {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.auth-brand {
+  display: none;
+  background: var(--accent);
+  color: #f4f2f8;
+  padding: 64px;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+@media (min-width: 900px) {
+  .auth-brand {
+    display: flex;
+  }
+}
+
+.auth-brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-display);
+  font-size: 22px;
+}
+
+.auth-brand-copy {
+  max-width: 380px;
+}
+
+.auth-brand-copy h1 {
+  font-size: 40px;
+  line-height: 1.1;
+  color: #ffffff;
+  margin-bottom: 16px;
+}
+
+.auth-brand-copy p {
+  color: #d6cfe4;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.auth-brand-foot {
+  color: #a99bc4;
+  font-size: 13px;
+}
+
+.auth-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+}
+
+.auth-card-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+@media (min-width: 900px) {
+  .auth-card-mark {
+    display: none;
+  }
+}
+
+.auth-card-mark span {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.auth-heading {
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+
+.auth-subheading {
+  color: var(--ink-muted);
+  font-size: 14px;
+  margin-bottom: 28px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  margin-bottom: 6px;
+}
+
+.field-input-row {
+  position: relative;
+}
+
+.field input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color 0.15s ease;
+}
+
+.field input:hover {
+  border-color: var(--ink-faint);
+}
+
+.field input:focus-visible {
+  border-color: var(--accent);
+}
+
+.field input.has-error {
+  border-color: var(--negative);
+}
+
+.field-error {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--negative);
+}
+
+.field-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.password-toggle:hover {
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.btn-primary:disabled {
+  background: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-link:hover {
+  color: var(--accent-strong);
+}
+
+.auth-form-foot {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.auth-switch-row {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--surface-border);
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.banner {
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 13px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.banner-error {
+  background: #fbeded;
+  color: #832d2d;
+  border: 1px solid #f2caca;
+}
+
+.banner-success {
+  background: #eaf3ee;
+  color: #235c40;
+  border: 1px solid #c6e2d2;
+}
+
+/* ---------------------------------------------------------------
+   Dashboard
+------------------------------------------------------------------ */
+
+.app-shell {
+  min-height: 100%;
+  padding: 24px 20px 64px;
+}
+
+@media (min-width: 720px) {
+  .app-shell {
+    padding: 40px 32px 80px;
+  }
+}
+
+.app-container {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.app-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--surface-border);
+  color: var(--ink-muted);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-ghost:hover {
+  border-color: var(--ink-faint);
+  color: var(--ink);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-accent:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.btn-accent:disabled {
+  background: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+.balance-card {
+  background: var(--accent);
+  color: #f4f2f8;
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-card);
+}
+
+.balance-label {
+  font-size: 13px;
+  color: #cabfdd;
+  margin-bottom: 10px;
+}
+
+.balance-figure {
+  font-family: var(--font-mono);
+  font-size: 42px;
+  font-weight: 500;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.balance-note {
+  margin-top: 14px;
+  font-size: 13px;
+  color: #cabfdd;
+  line-height: 1.5;
+  max-width: 46ch;
+}
+
+.section {
+  margin-bottom: 28px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-head h2 {
+  font-size: 17px;
+}
+
+.section-count {
+  font-size: 13px;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+}
+
+.empty-state {
+  background: var(--surface);
+  border: 1px dashed var(--surface-border);
+  border-radius: var(--radius);
+  padding: 22px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.account-list {
+  display: grid;
+  gap: 8px;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  padding: 13px 16px;
+}
+
+.account-name {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.account-mask {
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  font-size: 13px;
+  margin-left: 6px;
+}
+
+.account-type {
+  font-size: 12px;
+  color: var(--ink-muted);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.tx-table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.tx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.tx-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-faint);
+  font-size: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.tx-table th:last-child,
+.tx-table td:last-child {
+  text-align: right;
+}
+
+.tx-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bg);
+  vertical-align: top;
+}
+
+.tx-table tr:last-child td {
+  border-bottom: none;
+}
+
+.tx-date {
+  color: var(--ink-faint);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.tx-merchant {
+  font-weight: 500;
+}
+
+.tx-pending {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 6px;
+}
+
+.tx-category {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.tx-amount {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tx-amount.negative {
+  color: var(--positive);
+}
+
+.state-line {
+  padding: 60px 0;
+  text-align: center;
+  color: var(--ink-muted);
+}

@@ -24,7 +24,7 @@ export default function App() {
   if (!checkedAuth) return null;
 
   if (!session) {
-    return <Auth onAuthed={() => {}} />;
+    return <Auth />;
   }
 
   return <Dashboard />;

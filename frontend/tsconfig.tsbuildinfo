@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/backend.ts","./src/api/supabase.ts","./src/components/Auth.tsx","./src/components/Dashboard.tsx","./src/components/IrisMark.tsx","./src/components/PlaidLink.tsx"],"version":"5.9.3"}
