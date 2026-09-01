@@ -45,11 +45,14 @@ interface Intelligence {
   cash_flow_safety: {
     safeToSpend: number | null;
     currentAvailable: number | null;
+    essentialBillsTotal: number;
     upcomingBills: { merchant: string; amount: number; expectedDate: string }[];
     billCollisions: { window_start: string; bills: string[] }[];
     horizonDays: number;
   };
   roundup_projection: { dailyRate: number | null; projected: number | null; basisDays: number; projectDays?: number };
+  cash_flow: { inflow: number | null; outflow: number | null; net: number | null; netChangePct: number | null; windowDays: number };
+  spending_by_domain: { key: string; label: string; amount: number; changePct: number | null }[];
 }
 
 export function Dashboard() {
@@ -170,9 +173,13 @@ export function Dashboard() {
                     ? `$${intelligence.cash_flow_safety.safeToSpend.toFixed(2)}`
                     : "—"}
                 </p>
-                <p className="metric-note">
-                  Checking balance minus bills expected in the next {intelligence.cash_flow_safety.horizonDays} days.
-                </p>
+                {intelligence.cash_flow_safety.safeToSpend !== null && (
+                  <p className="metric-note">
+                    ${intelligence.cash_flow_safety.currentAvailable?.toFixed(2)} available minus $
+                    {intelligence.cash_flow_safety.essentialBillsTotal.toFixed(2)} in essential bills due within{" "}
+                    {intelligence.cash_flow_safety.horizonDays} days.
+                  </p>
+                )}
               </div>
               <div className="metric-card">
                 <p className="metric-label">Liquid assets</p>
@@ -210,6 +217,68 @@ export function Dashboard() {
                 </p>
               </div>
             </div>
+
+            {intelligence.cash_flow.net !== null && (
+              <div className="cashflow-row">
+                <div className="cashflow-item">
+                  <p className="metric-label">
+                    {intelligence.cash_flow.windowDays}-day inflow
+                  </p>
+                  <p className="cashflow-value positive">+${intelligence.cash_flow.inflow!.toFixed(2)}</p>
+                </div>
+                <div className="cashflow-item">
+                  <p className="metric-label">
+                    {intelligence.cash_flow.windowDays}-day outflow
+                  </p>
+                  <p className="cashflow-value negative">-${intelligence.cash_flow.outflow!.toFixed(2)}</p>
+                </div>
+                <div className="cashflow-item">
+                  <p className="metric-label">Net cash movement</p>
+                  <p className={`cashflow-value ${intelligence.cash_flow.net >= 0 ? "positive" : "negative"}`}>
+                    {intelligence.cash_flow.net >= 0 ? "+" : "-"}${Math.abs(intelligence.cash_flow.net).toFixed(2)}
+                  </p>
+                  {intelligence.cash_flow.netChangePct !== null && (
+                    <p className="metric-note">
+                      {intelligence.cash_flow.netChangePct >= 0 ? "↑" : "↓"}{" "}
+                      {Math.abs(intelligence.cash_flow.netChangePct).toFixed(0)}% vs previous {intelligence.cash_flow.windowDays} days
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {intelligence.spending_by_domain.length > 0 && (
+              <div className="spend-breakdown">
+                <p className="metric-label" style={{ marginBottom: 8 }}>
+                  Where money went (last 30 days)
+                </p>
+                {intelligence.spending_by_domain.map((d) => (
+                  <div className="spend-row" key={d.key}>
+                    <span className="spend-label">{d.label}</span>
+                    <span className="spend-bar-track">
+                      <span
+                        className="spend-bar-fill"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            (d.amount / Math.max(...intelligence.spending_by_domain.map((x) => x.amount))) * 100
+                          )}%`,
+                        }}
+                      />
+                    </span>
+                    <span className="spend-amount">
+                      ${d.amount.toFixed(2)}
+                      {d.changePct !== null && (
+                        <span className="spend-change">
+                          {" "}
+                          ({d.changePct >= 0 ? "↑" : "↓"}{Math.abs(d.changePct).toFixed(0)}%)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {intelligence.cash_flow_safety.billCollisions.length > 0 && (
               <div className="banner banner-error" style={{ marginTop: 16 }}>

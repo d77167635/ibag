@@ -194,6 +194,7 @@ export async function computeCashFlowSafety(userId: string, horizonDays = 14, co
   return {
     safeToSpend,
     currentAvailable,
+    essentialBillsTotal: totalUpcomingBills,
     upcomingBills: upcoming.map((s: any) => ({
       merchant: s.merchants?.canonical_name ?? "Unknown",
       amount: Number(s.typical_amount),
@@ -239,4 +240,84 @@ export async function computeRoundupProjection(userId: string, projectDays = 30)
     basisDays: spanDays,
     projectDays,
   };
+}
+
+/**
+ * 30-day cash flow with a genuine period-over-period comparison — both
+ * windows computed from real transaction dates/amounts, nothing modeled
+ * or invented. "vs previous period" is a plain percentage of real totals.
+ */
+export async function computeCashFlow(userId: string, windowDays = 30) {
+  const now = Date.now();
+  const windowStart = new Date(now - windowDays * 86_400_000).toISOString().slice(0, 10);
+  const priorWindowStart = new Date(now - 2 * windowDays * 86_400_000).toISOString().slice(0, 10);
+
+  const { data: txs } = await supabaseAdmin
+    .from("transactions")
+    .select("amount, posted_date")
+    .eq("user_id", userId)
+    .eq("pending", false)
+    .gte("posted_date", priorWindowStart);
+
+  if (!txs || txs.length === 0) {
+    return { inflow: null, outflow: null, net: null, netChangePct: null, windowDays };
+  }
+
+  const current = txs.filter((t) => t.posted_date >= windowStart);
+  const prior = txs.filter((t) => t.posted_date < windowStart);
+
+  const sum = (rows: typeof txs, sign: "in" | "out") =>
+    rows
+      .filter((t) => (sign === "in" ? Number(t.amount) < 0 : Number(t.amount) > 0))
+      .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+
+  const inflow = sum(current, "in");
+  const outflow = sum(current, "out");
+  const net = inflow - outflow;
+
+  const priorNet = sum(prior, "in") - sum(prior, "out");
+  const netChangePct = prior.length > 0 && priorNet !== 0 ? ((net - priorNet) / Math.abs(priorNet)) * 100 : null;
+
+  return { inflow, outflow, net, netChangePct, windowDays };
+}
+
+/**
+ * Spending broken down by domain for a window, each with a real
+ * period-over-period comparison — same computation as cash flow, just
+ * grouped by the classification we already compute during sync.
+ */
+export async function computeSpendingByDomain(userId: string, windowDays = 30) {
+  const now = Date.now();
+  const windowStart = new Date(now - windowDays * 86_400_000).toISOString().slice(0, 10);
+  const priorWindowStart = new Date(now - 2 * windowDays * 86_400_000).toISOString().slice(0, 10);
+
+  const { data: txs } = await supabaseAdmin
+    .from("transactions")
+    .select("amount, posted_date, subdomains(domains(key, label))")
+    .eq("user_id", userId)
+    .eq("pending", false)
+    .gt("amount", 0)
+    .gte("posted_date", priorWindowStart);
+
+  if (!txs || txs.length === 0) return [];
+
+  const byDomain = new Map<string, { label: string; current: number; prior: number }>();
+  for (const tx of txs as any[]) {
+    const domain = tx.subdomains?.domains;
+    const key = domain?.key ?? "uncategorized";
+    const label = domain?.label ?? "Uncategorized";
+    const entry = byDomain.get(key) ?? { label, current: 0, prior: 0 };
+    if (tx.posted_date >= windowStart) entry.current += Number(tx.amount);
+    else entry.prior += Number(tx.amount);
+    byDomain.set(key, entry);
+  }
+
+  return Array.from(byDomain.entries())
+    .map(([key, v]) => ({
+      key,
+      label: v.label,
+      amount: v.current,
+      changePct: v.prior > 0 ? ((v.current - v.prior) / v.prior) * 100 : null,
+    }))
+    .sort((a, b) => b.amount - a.amount);
 }
