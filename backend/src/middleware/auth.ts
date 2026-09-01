@@ -10,6 +10,7 @@ export interface AuthedRequest extends Request {
 export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
+    console.warn(`auth rejected: no bearer token on ${req.method} ${req.path}`);
     return res.status(401).json({ error: "Missing bearer token" });
   }
 
@@ -17,6 +18,7 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   const { data, error } = await supabaseAdmin.auth.getUser(token);
 
   if (error || !data.user) {
+    console.warn(`auth rejected: invalid/expired token on ${req.method} ${req.path} — ${error?.message}`);
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 
