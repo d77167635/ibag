@@ -34,6 +34,8 @@ function formatType(subtype: string | null, type: string | null) {
   return raw.replace(/_/g, " ");
 }
 
+import { BalanceTrendChart } from "./BalanceTrendChart";
+
 interface Intelligence {
   net_worth: { liquid_assets: number | null; as_of: string | null };
   debt_health: {
@@ -53,6 +55,7 @@ interface Intelligence {
   roundup_projection: { dailyRate: number | null; projected: number | null; basisDays: number; projectDays?: number };
   cash_flow: { inflow: number | null; outflow: number | null; net: number | null; netChangePct: number | null; windowDays: number };
   spending_by_domain: { key: string; label: string; amount: number; changePct: number | null }[];
+  balance_history: { date: string; liquidAssets: number }[];
 }
 
 export function Dashboard() {
@@ -165,6 +168,10 @@ export function Dashboard() {
             <div className="section-head">
               <h2>Financial picture</h2>
             </div>
+            {intelligence.balance_history.length > 1 && (
+              <BalanceTrendChart data={intelligence.balance_history} />
+            )}
+
             <div className="metric-grid">
               <div className="metric-card">
                 <p className="metric-label">Safe-to-spend</p>

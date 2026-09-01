@@ -722,3 +722,23 @@ a {
   color: var(--ink-faint);
   font-size: 11px;
 }
+
+.trend-chart-wrap {
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px 10px;
+}
+
+.trend-chart-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+
+.trend-chart-note {
+  color: var(--ink-muted);
+}

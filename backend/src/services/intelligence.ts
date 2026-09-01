@@ -321,3 +321,50 @@ export async function computeSpendingByDomain(userId: string, windowDays = 30) {
     }))
     .sort((a, b) => b.amount - a.amount);
 }
+
+/**
+ * Reconstructs a daily liquid-assets trend for the trailing `days` days.
+ * There's no stored historical balance snapshot — only the current one —
+ * so this works backward: balance_at(D) = current_balance + sum(amount
+ * for transactions posted after D). Since Plaid's convention is amount>0
+ * for debits (money out), adding back everything that happened after D
+ * correctly un-does it to reconstruct the earlier balance. This is exact
+ * arithmetic on real transaction data, not modeled or estimated — but it
+ * is a reconstruction, not a stored record, and is labeled as such.
+ */
+export async function computeBalanceHistory(userId: string, days = 90) {
+  const { data: accounts } = await supabaseAdmin
+    .from("plaid_accounts")
+    .select("id, current_balance")
+    .eq("user_id", userId)
+    .eq("type", "depository")
+    .not("current_balance", "is", null);
+
+  if (!accounts || accounts.length === 0) return [];
+
+  const currentTotal = accounts.reduce((sum, a) => sum + Number(a.current_balance), 0);
+  const accountIds = accounts.map((a) => a.id);
+
+  const windowStart = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+
+  const { data: txs } = await supabaseAdmin
+    .from("transactions")
+    .select("amount, posted_date")
+    .in("account_id", accountIds)
+    .eq("pending", false)
+    .gte("posted_date", windowStart)
+    .order("posted_date", { ascending: true });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const series: { date: string; liquidAssets: number }[] = [];
+
+  for (let i = days; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+    const afterD = (txs ?? []).filter((t) => t.posted_date > d);
+    const reconstructed = currentTotal + afterD.reduce((s, t) => s + Number(t.amount), 0);
+    series.push({ date: d, liquidAssets: reconstructed });
+    if (d === today) break;
+  }
+
+  return series;
+}

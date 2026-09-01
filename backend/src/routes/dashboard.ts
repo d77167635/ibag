@@ -2,7 +2,7 @@ import { Router } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
-import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain } from "../services/intelligence.js";
+import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain, computeBalanceHistory } from "../services/intelligence.js";
 
 export const dashboardRouter = Router();
 
@@ -118,12 +118,13 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
   const userId = req.userId!;
 
   try {
-    const [balances, cashFlowSafety, roundupProjection, cashFlow, spendingByDomain] = await Promise.all([
+    const [balances, cashFlowSafety, roundupProjection, cashFlow, spendingByDomain, balanceHistory] = await Promise.all([
       computeBalanceMetrics(userId),
       computeCashFlowSafety(userId),
       computeRoundupProjection(userId),
       computeCashFlow(userId),
       computeSpendingByDomain(userId),
+      computeBalanceHistory(userId),
     ]);
 
     res.json({
@@ -141,6 +142,7 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       roundup_projection: roundupProjection,
       cash_flow: cashFlow,
       spending_by_domain: spendingByDomain,
+      balance_history: balanceHistory,
     });
   } catch (err) {
     console.error("dashboard/intelligence error:", err);
