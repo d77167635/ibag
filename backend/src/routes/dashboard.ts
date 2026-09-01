@@ -10,7 +10,11 @@ export const dashboardRouter = Router();
 dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedRequest, res) => {
   const userId = req.userId!;
 
-  const [{ data: accounts }, { data: recentTx }, { data: ibag }] = await Promise.all([
+  const [
+    { data: accounts, error: accountsErr },
+    { data: recentTx, error: txErr },
+    { data: ibag, error: ibagErr },
+  ] = await Promise.all([
     supabaseAdmin.from("plaid_accounts").select("*").eq("user_id", userId),
     supabaseAdmin
       .from("transactions")
@@ -20,6 +24,16 @@ dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedReques
       .limit(50),
     supabaseAdmin.from("virtual_ibag_balance").select("*").eq("user_id", userId).maybeSingle(),
   ]);
+
+  if (accountsErr) console.error("dashboard/overview accounts query error:", accountsErr.message);
+  if (txErr) console.error("dashboard/overview transactions query error:", txErr.message);
+  if (ibagErr) console.error("dashboard/overview ibag query error:", ibagErr.message);
+
+  const withMerchant = (recentTx ?? []).filter((t: any) => t.merchants).length;
+  const withSubdomain = (recentTx ?? []).filter((t: any) => t.subdomains).length;
+  console.log(
+    `dashboard/overview for user ${userId}: ${recentTx?.length ?? 0} tx, ${withMerchant} with merchant join, ${withSubdomain} with subdomain join`
+  );
 
   res.json({
     accounts: accounts ?? [],
