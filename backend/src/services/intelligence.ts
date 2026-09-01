@@ -133,10 +133,10 @@ export async function computeCashFlowSafety(userId: string, horizonDays = 14, co
     .eq("type", "depository")
     .eq("subtype", "checking");
 
-  const currentAvailable = (checkingAccounts ?? []).reduce(
-    (sum, a) => sum + Number(a.available_balance ?? 0),
-    0
-  );
+  const knownBalances = (checkingAccounts ?? []).filter((a) => a.available_balance !== null);
+  const currentAvailable = knownBalances.length
+    ? knownBalances.reduce((sum, a) => sum + Number(a.available_balance), 0)
+    : null;
 
   const { data: series } = await supabaseAdmin
     .from("recurring_series")
@@ -151,7 +151,7 @@ export async function computeCashFlowSafety(userId: string, horizonDays = 14, co
     .sort((a, b) => a.next_expected_date.localeCompare(b.next_expected_date));
 
   const totalUpcomingBills = upcoming.reduce((sum, s) => sum + Number(s.typical_amount), 0);
-  const safeToSpend = checkingAccounts && checkingAccounts.length > 0 ? currentAvailable - totalUpcomingBills : null;
+  const safeToSpend = currentAvailable !== null ? currentAvailable - totalUpcomingBills : null;
 
   const collisions: { window_start: string; bills: string[] }[] = [];
   for (let i = 0; i < upcoming.length; i++) {
@@ -175,7 +175,7 @@ export async function computeCashFlowSafety(userId: string, horizonDays = 14, co
 
   return {
     safeToSpend,
-    currentAvailable: checkingAccounts && checkingAccounts.length > 0 ? currentAvailable : null,
+    currentAvailable,
     upcomingBills: upcoming.map((s: any) => ({
       merchant: s.merchants?.canonical_name ?? "Unknown",
       amount: Number(s.typical_amount),
@@ -187,33 +187,38 @@ export async function computeCashFlowSafety(userId: string, horizonDays = 14, co
 }
 
 /**
- * Projected round-up accumulation: extrapolates the trailing 30-day
- * sweep rate forward. Explicitly a trend projection based on recent
- * activity, not a guarantee — framed that way in the returned label.
+ * Projected round-up accumulation: derives the daily accrual rate from the
+ * actual dates of posted spending transactions (ceil(amount)-amount summed,
+ * divided by the real span of days those transactions cover) — not from
+ * when sweep events were logged, which can cluster around whenever a sync
+ * happened to run rather than when the underlying spending occurred. This
+ * is a trailing-rate projection based on observed history, not a guarantee.
  */
 export async function computeRoundupProjection(userId: string, projectDays = 30) {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
-
-  const { data: recentSweeps } = await supabaseAdmin
-    .from("roundup_sweep_events")
-    .select("amount, created_at")
+  const { data: txs } = await supabaseAdmin
+    .from("transactions")
+    .select("amount, posted_date")
     .eq("user_id", userId)
-    .eq("event_type", "simulated_sweep")
-    .gte("created_at", thirtyDaysAgo);
+    .eq("pending", false)
+    .gt("amount", 0);
 
-  if (!recentSweeps || recentSweeps.length === 0) {
+  if (!txs || txs.length === 0) {
     return { dailyRate: null, projected: null, basisDays: 0 };
   }
 
-  const dates = recentSweeps.map((s) => new Date(s.created_at).getTime());
-  const basisDays = Math.max(1, Math.round((Date.now() - Math.min(...dates)) / 86_400_000));
-  const totalSwept = recentSweeps.reduce((sum, s) => sum + Number(s.amount), 0);
-  const dailyRate = totalSwept / basisDays;
+  const totalRoundup = txs.reduce((sum, tx) => {
+    const amount = Number(tx.amount);
+    return sum + (Math.ceil(amount) - amount);
+  }, 0);
+
+  const dates = txs.map((tx) => new Date(tx.posted_date).getTime());
+  const spanDays = Math.max(1, Math.round((Math.max(...dates) - Math.min(...dates)) / 86_400_000));
+  const dailyRate = totalRoundup / spanDays;
 
   return {
     dailyRate,
     projected: dailyRate * projectDays,
-    basisDays,
+    basisDays: spanDays,
     projectDays,
   };
 }

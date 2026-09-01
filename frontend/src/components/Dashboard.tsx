@@ -205,8 +205,8 @@ export function Dashboard() {
                 </p>
                 <p className="metric-note">
                   {intelligence.roundup_projection.dailyRate !== null
-                    ? `Projected over next ${intelligence.roundup_projection.projectDays} days, based on the last ${intelligence.roundup_projection.basisDays} days.`
-                    : "Not enough sweep history yet to project."}
+                    ? `Trend projection over next ${intelligence.roundup_projection.projectDays} days, based on ${intelligence.roundup_projection.basisDays} days of transaction history.`
+                    : "Not enough transaction history yet to project."}
                 </p>
               </div>
             </div>
