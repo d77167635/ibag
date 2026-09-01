@@ -1,0 +1,219 @@
+import { supabaseAdmin } from "../config/supabase.js";
+
+/**
+ * Recurring transaction detection — rule-based, not ML. A "series" is
+ * declared when a merchant has 3+ posted, same-sign (all outflows)
+ * transactions whose amounts are within 10% of their median and whose
+ * day-gaps are within 5 days of their median gap. Anything less regular
+ * (e.g. alternating charges/refunds, one-off large purchases) is
+ * correctly left undetected rather than force-fit into a pattern.
+ */
+export async function detectRecurringSeries(userId: string) {
+  const { data: txs, error } = await supabaseAdmin
+    .from("transactions")
+    .select("merchant_id, amount, posted_date")
+    .eq("user_id", userId)
+    .eq("pending", false)
+    .not("merchant_id", "is", null)
+    .gt("amount", 0) // outflows only — bills, not refunds/income
+    .order("posted_date", { ascending: true });
+
+  if (error) throw error;
+
+  const byMerchant = new Map<string, { amount: number; date: string }[]>();
+  for (const tx of txs ?? []) {
+    const list = byMerchant.get(tx.merchant_id) ?? [];
+    list.push({ amount: Number(tx.amount), date: tx.posted_date });
+    byMerchant.set(tx.merchant_id, list);
+  }
+
+  const median = (nums: number[]) => {
+    const sorted = [...nums].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+
+  const daysBetween = (a: string, b: string) =>
+    Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000);
+
+  for (const [merchantId, occurrences] of byMerchant) {
+    if (occurrences.length < 3) continue;
+
+    const amounts = occurrences.map((o) => o.amount);
+    const medianAmount = median(amounts);
+    const amountsConsistent = amounts.every(
+      (a) => Math.abs(a - medianAmount) / medianAmount <= 0.1
+    );
+    if (!amountsConsistent) continue;
+
+    const gaps: number[] = [];
+    for (let i = 1; i < occurrences.length; i++) {
+      gaps.push(daysBetween(occurrences[i - 1].date, occurrences[i].date));
+    }
+    const medianGap = median(gaps);
+    const gapsConsistent = gaps.every((g) => Math.abs(g - medianGap) <= 5);
+    if (!gapsConsistent || medianGap < 1) continue;
+
+    const lastSeen = occurrences[occurrences.length - 1].date;
+    const nextExpected = new Date(new Date(lastSeen).getTime() + medianGap * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+
+    await supabaseAdmin.from("recurring_series").upsert(
+      {
+        user_id: userId,
+        merchant_id: merchantId,
+        typical_amount: medianAmount,
+        interval_days: Math.round(medianGap),
+        last_seen_date: lastSeen,
+        next_expected_date: nextExpected,
+        occurrence_count: occurrences.length,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,merchant_id" }
+    );
+  }
+}
+
+/**
+ * Net worth and debt metrics — real account balances only, no fabricated
+ * figures. Returns null for anything that can't be computed (e.g. no
+ * accounts of a given type yet) rather than defaulting to zero, so the
+ * frontend can distinguish "genuinely zero" from "not yet known."
+ */
+export async function computeBalanceMetrics(userId: string) {
+  const { data: accounts, error } = await supabaseAdmin
+    .from("plaid_accounts")
+    .select("type, current_balance, credit_limit, balance_updated_at")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  if (!accounts || accounts.length === 0) {
+    return { liquidAssets: null, revolvingDebt: null, creditUtilization: null, asOf: null };
+  }
+
+  const depository = accounts.filter((a) => a.type === "depository" && a.current_balance !== null);
+  const credit = accounts.filter((a) => a.type === "credit" && a.current_balance !== null);
+
+  const liquidAssets = depository.length
+    ? depository.reduce((sum, a) => sum + Number(a.current_balance), 0)
+    : null;
+
+  const revolvingDebt = credit.length
+    ? credit.reduce((sum, a) => sum + Number(a.current_balance), 0)
+    : null;
+
+  const creditWithLimits = credit.filter((a) => a.credit_limit && Number(a.credit_limit) > 0);
+  const creditUtilization = creditWithLimits.length
+    ? creditWithLimits.reduce((sum, a) => sum + Number(a.current_balance) / Number(a.credit_limit), 0) /
+      creditWithLimits.length
+    : null;
+
+  const asOf = accounts
+    .map((a) => a.balance_updated_at)
+    .filter(Boolean)
+    .sort()
+    .pop() ?? null;
+
+  return { liquidAssets, revolvingDebt, creditUtilization, asOf };
+}
+
+/**
+ * Safe-to-Spend: checking-account available balance minus recurring bills
+ * expected before the given horizon. Bill Due-Date Collision: any window
+ * where 2+ distinct recurring bills are expected within `collisionWindowDays`
+ * of each other. Both are plain arithmetic over detected series — not a
+ * statistical forecast, and labeled as such to the frontend.
+ */
+export async function computeCashFlowSafety(userId: string, horizonDays = 14, collisionWindowDays = 3) {
+  const { data: checkingAccounts } = await supabaseAdmin
+    .from("plaid_accounts")
+    .select("available_balance")
+    .eq("user_id", userId)
+    .eq("type", "depository")
+    .eq("subtype", "checking");
+
+  const currentAvailable = (checkingAccounts ?? []).reduce(
+    (sum, a) => sum + Number(a.available_balance ?? 0),
+    0
+  );
+
+  const { data: series } = await supabaseAdmin
+    .from("recurring_series")
+    .select("typical_amount, next_expected_date, merchant_id, merchants(canonical_name)")
+    .eq("user_id", userId);
+
+  const today = new Date();
+  const horizon = new Date(today.getTime() + horizonDays * 86_400_000);
+
+  const upcoming = (series ?? [])
+    .filter((s) => new Date(s.next_expected_date) <= horizon)
+    .sort((a, b) => a.next_expected_date.localeCompare(b.next_expected_date));
+
+  const totalUpcomingBills = upcoming.reduce((sum, s) => sum + Number(s.typical_amount), 0);
+  const safeToSpend = checkingAccounts && checkingAccounts.length > 0 ? currentAvailable - totalUpcomingBills : null;
+
+  const collisions: { window_start: string; bills: string[] }[] = [];
+  for (let i = 0; i < upcoming.length; i++) {
+    const clustered = upcoming.filter(
+      (s) =>
+        Math.abs(
+          (new Date(s.next_expected_date).getTime() - new Date(upcoming[i].next_expected_date).getTime()) /
+            86_400_000
+        ) <= collisionWindowDays
+    );
+    if (clustered.length >= 2) {
+      const key = upcoming[i].next_expected_date;
+      if (!collisions.some((c) => c.window_start === key)) {
+        collisions.push({
+          window_start: key,
+          bills: clustered.map((c: any) => c.merchants?.canonical_name ?? "Unknown"),
+        });
+      }
+    }
+  }
+
+  return {
+    safeToSpend,
+    currentAvailable: checkingAccounts && checkingAccounts.length > 0 ? currentAvailable : null,
+    upcomingBills: upcoming.map((s: any) => ({
+      merchant: s.merchants?.canonical_name ?? "Unknown",
+      amount: Number(s.typical_amount),
+      expectedDate: s.next_expected_date,
+    })),
+    billCollisions: collisions,
+    horizonDays,
+  };
+}
+
+/**
+ * Projected round-up accumulation: extrapolates the trailing 30-day
+ * sweep rate forward. Explicitly a trend projection based on recent
+ * activity, not a guarantee — framed that way in the returned label.
+ */
+export async function computeRoundupProjection(userId: string, projectDays = 30) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+
+  const { data: recentSweeps } = await supabaseAdmin
+    .from("roundup_sweep_events")
+    .select("amount, created_at")
+    .eq("user_id", userId)
+    .eq("event_type", "simulated_sweep")
+    .gte("created_at", thirtyDaysAgo);
+
+  if (!recentSweeps || recentSweeps.length === 0) {
+    return { dailyRate: null, projected: null, basisDays: 0 };
+  }
+
+  const dates = recentSweeps.map((s) => new Date(s.created_at).getTime());
+  const basisDays = Math.max(1, Math.round((Date.now() - Math.min(...dates)) / 86_400_000));
+  const totalSwept = recentSweeps.reduce((sum, s) => sum + Number(s.amount), 0);
+  const dailyRate = totalSwept / basisDays;
+
+  return {
+    dailyRate,
+    projected: dailyRate * projectDays,
+    basisDays,
+    projectDays,
+  };
+}

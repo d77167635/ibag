@@ -2,6 +2,7 @@ import { Router } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
+import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection } from "../services/intelligence.js";
 
 export const dashboardRouter = Router();
 
@@ -107,4 +108,38 @@ dashboardRouter.post("/dashboard/roundups/preview-transfer", requireAuth, async 
   );
 
   res.json(result);
+});
+
+// Computed intelligence: balance-derived net worth/debt metrics, cash flow
+// safety (Safe-to-Spend + bill collision detection), and a round-up trend
+// projection. Fields are null (not zero) when there isn't enough real data
+// to compute them yet — see intelligence.ts for exactly what each requires.
+dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRequest, res) => {
+  const userId = req.userId!;
+
+  try {
+    const [balances, cashFlowSafety, roundupProjection] = await Promise.all([
+      computeBalanceMetrics(userId),
+      computeCashFlowSafety(userId),
+      computeRoundupProjection(userId),
+    ]);
+
+    res.json({
+      net_worth: {
+        liquid_assets: balances.liquidAssets,
+        as_of: balances.asOf,
+      },
+      debt_health: {
+        revolving_debt: balances.revolvingDebt,
+        credit_utilization: balances.creditUtilization,
+        interest_cost_attribution: null, // requires Plaid Liabilities — not linked on this item
+        as_of: balances.asOf,
+      },
+      cash_flow_safety: cashFlowSafety,
+      roundup_projection: roundupProjection,
+    });
+  } catch (err) {
+    console.error("dashboard/intelligence error:", err);
+    res.status(500).json({ error: "Failed to compute intelligence metrics" });
+  }
 });

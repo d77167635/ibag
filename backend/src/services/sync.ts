@@ -2,6 +2,7 @@ import { plaidClient } from "../plaid/client.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { recomputeRoundupsForAccount } from "./roundup.js";
 import { resolveMerchant, resolveSubdomain } from "./classify.js";
+import { detectRecurringSeries } from "./intelligence.js";
 
 /**
  * Pulls real Plaid data for an Item and writes it through two layers:
@@ -32,6 +33,10 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
           mask: acct.mask,
           type: acct.type,
           subtype: acct.subtype,
+          current_balance: acct.balances.current,
+          available_balance: acct.balances.available,
+          credit_limit: acct.balances.limit,
+          balance_updated_at: new Date().toISOString(),
         },
         { onConflict: "plaid_account_id" }
       )
@@ -113,6 +118,9 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
   for (const localAccountId of accountIdMap.values()) {
     await recomputeRoundupsForAccount(userId, localAccountId, accessToken);
   }
+
+  // --- Detect recurring bills/subscriptions from the transaction history ---
+  await detectRecurringSeries(userId);
 
   await supabaseAdmin
     .from("plaid_items")

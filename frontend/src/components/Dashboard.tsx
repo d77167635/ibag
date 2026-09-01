@@ -34,8 +34,27 @@ function formatType(subtype: string | null, type: string | null) {
   return raw.replace(/_/g, " ");
 }
 
+interface Intelligence {
+  net_worth: { liquid_assets: number | null; as_of: string | null };
+  debt_health: {
+    revolving_debt: number | null;
+    credit_utilization: number | null;
+    interest_cost_attribution: null;
+    as_of: string | null;
+  };
+  cash_flow_safety: {
+    safeToSpend: number | null;
+    currentAvailable: number | null;
+    upcomingBills: { merchant: string; amount: number; expectedDate: string }[];
+    billCollisions: { window_start: string; bills: string[] }[];
+    horizonDays: number;
+  };
+  roundup_projection: { dailyRate: number | null; projected: number | null; basisDays: number; projectDays?: number };
+}
+
 export function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [intelligence, setIntelligence] = useState<Intelligence | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resyncing, setResyncing] = useState(false);
@@ -46,6 +65,15 @@ export function Dashboard() {
     try {
       const data = await api.getOverview();
       setOverview(data);
+      if (data.accounts.length > 0) {
+        try {
+          const intel = await api.getIntelligence();
+          setIntelligence(intel);
+        } catch {
+          // Intelligence is supplementary — don't fail the whole dashboard over it.
+          setIntelligence(null);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -128,6 +156,89 @@ export function Dashboard() {
             This is a projection, not spendable funds — round-ups are simulated in Phase 1.
           </p>
         </section>
+
+        {intelligence && (
+          <section className="section">
+            <div className="section-head">
+              <h2>Financial picture</h2>
+            </div>
+            <div className="metric-grid">
+              <div className="metric-card">
+                <p className="metric-label">Safe-to-spend</p>
+                <p className="metric-value">
+                  {intelligence.cash_flow_safety.safeToSpend !== null
+                    ? `$${intelligence.cash_flow_safety.safeToSpend.toFixed(2)}`
+                    : "—"}
+                </p>
+                <p className="metric-note">
+                  Checking balance minus bills expected in the next {intelligence.cash_flow_safety.horizonDays} days.
+                </p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Liquid assets</p>
+                <p className="metric-value">
+                  {intelligence.net_worth.liquid_assets !== null
+                    ? `$${intelligence.net_worth.liquid_assets.toFixed(2)}`
+                    : "—"}
+                </p>
+                <p className="metric-note">Across connected checking &amp; savings accounts.</p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Revolving debt</p>
+                <p className="metric-value">
+                  {intelligence.debt_health.revolving_debt !== null
+                    ? `$${intelligence.debt_health.revolving_debt.toFixed(2)}`
+                    : "—"}
+                </p>
+                <p className="metric-note">
+                  {intelligence.debt_health.credit_utilization !== null
+                    ? `${(intelligence.debt_health.credit_utilization * 100).toFixed(0)}% average utilization`
+                    : "Across connected credit accounts."}
+                </p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Round-up pace</p>
+                <p className="metric-value">
+                  {intelligence.roundup_projection.projected !== null
+                    ? `$${intelligence.roundup_projection.projected.toFixed(2)}`
+                    : "—"}
+                </p>
+                <p className="metric-note">
+                  {intelligence.roundup_projection.dailyRate !== null
+                    ? `Projected over next ${intelligence.roundup_projection.projectDays} days, based on the last ${intelligence.roundup_projection.basisDays} days.`
+                    : "Not enough sweep history yet to project."}
+                </p>
+              </div>
+            </div>
+
+            {intelligence.cash_flow_safety.billCollisions.length > 0 && (
+              <div className="banner banner-error" style={{ marginTop: 16 }}>
+                {intelligence.cash_flow_safety.billCollisions.map((c) => (
+                  <div key={c.window_start}>
+                    Heads up — {c.bills.join(" and ")} are expected close together around{" "}
+                    {c.window_start}.
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {intelligence.cash_flow_safety.upcomingBills.length > 0 && (
+              <div className="upcoming-bills">
+                <p className="metric-label" style={{ marginBottom: 8 }}>
+                  Upcoming bills (detected from recurring activity)
+                </p>
+                {intelligence.cash_flow_safety.upcomingBills.map((b, i) => (
+                  <div className="account-row" key={i}>
+                    <span className="account-name">{b.merchant}</span>
+                    <span className="account-type">
+                      ${b.amount.toFixed(2)} · {b.expectedDate}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="section">
           <div className="section-head">
