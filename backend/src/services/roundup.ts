@@ -53,21 +53,35 @@ export async function recomputeRoundupsForAccount(
   while (unswept >= env.roundupSweepThreshold) {
     const { data: accountRow, error: accountErr } = await supabaseAdmin
       .from("plaid_accounts")
-      .select("plaid_account_id")
+      .select("plaid_account_id, type")
       .eq("id", accountId)
       .single();
     if (accountErr) throw accountErr;
 
-    const balanceResp = await plaidClient.accountsBalanceGet({
-      access_token: accessToken,
-      options: { account_ids: [accountRow.plaid_account_id] },
-    });
+    let canSweep: boolean;
+    let availableBalance: number | null = null;
+    let safetyThreshold: number | null = null;
 
-    const liveAccount = balanceResp.data.accounts[0];
-    const availableBalance = liveAccount?.balances?.available ?? null;
-    const safetyThreshold = env.roundupSweepThreshold + env.roundupSafetyBuffer;
-
-    const canSweep = availableBalance !== null && availableBalance >= safetyThreshold;
+    if (accountRow.type === "depository") {
+      // Only depository accounts have a real "available cash" concept, so
+      // only these get the overdraft-safety check — sweeping $2 from a
+      // checking account with $1 available would be a real overdraft risk
+      // once this becomes live money movement in Phase 2.
+      const balanceResp = await plaidClient.accountsBalanceGet({
+        access_token: accessToken,
+        options: { account_ids: [accountRow.plaid_account_id] },
+      });
+      const liveAccount = balanceResp.data.accounts[0];
+      availableBalance = liveAccount?.balances?.available ?? null;
+      safetyThreshold = env.roundupSweepThreshold + env.roundupSafetyBuffer;
+      canSweep = availableBalance !== null && availableBalance >= safetyThreshold;
+    } else {
+      // Credit, loan, and investment accounts have no "available cash" to
+      // overdraw — a credit-card round-up isn't a withdrawal from the
+      // card, it's spend-based accrual that would eventually be funded
+      // through however that card's bill gets paid. No safety check applies.
+      canSweep = true;
+    }
 
     await supabaseAdmin.from("roundup_sweep_events").insert({
       user_id: userId,

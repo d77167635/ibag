@@ -16,7 +16,7 @@ dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedReques
     { data: recentTx, error: txErr },
     { data: ibag, error: ibagErr },
   ] = await Promise.all([
-    supabaseAdmin.from("plaid_accounts").select("*").eq("user_id", userId),
+    supabaseAdmin.from("plaid_accounts").select("*, card_roundup_ledger(accrued_unswept, lifetime_roundup_total)").eq("user_id", userId),
     supabaseAdmin
       .from("transactions")
       .select("*, merchants(canonical_name), subdomains(label, domains(key, label))")

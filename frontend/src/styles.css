@@ -520,6 +520,19 @@ a {
   white-space: nowrap;
 }
 
+.account-row-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-roundup {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
 .tx-table-wrap {
   background: var(--surface);
   border: 1px solid var(--surface-border);

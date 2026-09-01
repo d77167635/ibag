@@ -10,6 +10,7 @@ interface Account {
   mask: string | null;
   type: string | null;
   subtype: string | null;
+  card_roundup_ledger: { accrued_unswept: number; lifetime_roundup_total: number }[] | null;
 }
 
 interface Transaction {
@@ -326,15 +327,25 @@ export function Dashboard() {
           )}
           {hasAccounts && (
             <div className="account-list">
-              {overview.accounts.map((acct) => (
-                <div className="account-row" key={acct.id}>
-                  <span className="account-name">
-                    {acct.name}
-                    {acct.mask && <span className="account-mask">••{acct.mask}</span>}
-                  </span>
-                  <span className="account-type">{formatType(acct.subtype, acct.type)}</span>
-                </div>
-              ))}
+              {overview.accounts.map((acct) => {
+                const ledger = acct.card_roundup_ledger?.[0];
+                return (
+                  <div className="account-row" key={acct.id}>
+                    <span className="account-name">
+                      {acct.name}
+                      {acct.mask && <span className="account-mask">••{acct.mask}</span>}
+                    </span>
+                    <span className="account-row-right">
+                      {ledger && Number(ledger.lifetime_roundup_total) > 0 && (
+                        <span className="account-roundup">
+                          ${Number(ledger.lifetime_roundup_total).toFixed(2)} round-ups
+                        </span>
+                      )}
+                      <span className="account-type">{formatType(acct.subtype, acct.type)}</span>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
