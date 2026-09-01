@@ -580,6 +580,19 @@ a {
   font-size: 12px;
 }
 
+.tx-domain {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  margin-bottom: 1px;
+}
+
+.tx-subdomain {
+  color: var(--ink-muted);
+}
+
 .tx-amount {
   font-family: var(--font-mono);
   font-weight: 500;

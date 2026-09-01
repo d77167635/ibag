@@ -19,6 +19,8 @@ interface Transaction {
   posted_date: string;
   plaid_category_primary: string | null;
   pending: boolean;
+  merchants: { canonical_name: string } | null;
+  subdomains: { label: string; domains: { key: string; label: string } | null } | null;
 }
 
 interface Overview {
@@ -158,11 +160,22 @@ export function Dashboard() {
                     <tr key={tx.id}>
                       <td className="tx-date">{tx.posted_date}</td>
                       <td>
-                        <span className="tx-merchant">{tx.merchant_name ?? "—"}</span>
+                        <span className="tx-merchant">
+                          {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
+                        </span>
                         {tx.pending && <span className="tx-pending">PENDING</span>}
                       </td>
                       <td className="tx-category">
-                        {(tx.plaid_category_primary ?? "—").replace(/_/g, " ").toLowerCase()}
+                        {tx.subdomains ? (
+                          <>
+                            {tx.subdomains.domains && (
+                              <span className="tx-domain">{tx.subdomains.domains.label}</span>
+                            )}
+                            <span className="tx-subdomain">{tx.subdomains.label}</span>
+                          </>
+                        ) : (
+                          (tx.plaid_category_primary ?? "Uncategorized").replace(/_/g, " ").toLowerCase()
+                        )}
                       </td>
                       <td className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
                         {tx.amount < 0 ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}

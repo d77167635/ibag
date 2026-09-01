@@ -1,6 +1,7 @@
 import { plaidClient } from "../plaid/client.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { recomputeRoundupsForAccount } from "./roundup.js";
+import { resolveMerchant, resolveSubdomain } from "./classify.js";
 
 /**
  * Pulls real Plaid data for an Item and writes it through two layers:
@@ -78,6 +79,12 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
 
       if (rawErr) throw rawErr;
 
+      const rawMerchantString = tx.merchant_name ?? tx.name ?? "";
+      const [merchantId, subdomainId] = await Promise.all([
+        rawMerchantString ? resolveMerchant(rawMerchantString) : Promise.resolve(null),
+        resolveSubdomain(tx.personal_finance_category?.detailed ?? null),
+      ]);
+
       await supabaseAdmin.from("transactions").upsert(
         {
           user_id: userId,
@@ -87,8 +94,10 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
           amount: tx.amount,
           iso_currency_code: tx.iso_currency_code ?? "USD",
           merchant_name: tx.merchant_name ?? tx.name ?? null,
+          merchant_id: merchantId,
           plaid_category_primary: tx.personal_finance_category?.primary ?? null,
           plaid_category_detailed: tx.personal_finance_category?.detailed ?? null,
+          subdomain_id: subdomainId,
           posted_date: tx.date,
           pending: tx.pending,
         },

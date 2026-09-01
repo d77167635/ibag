@@ -14,7 +14,7 @@ dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedReques
     supabaseAdmin.from("plaid_accounts").select("*").eq("user_id", userId),
     supabaseAdmin
       .from("transactions")
-      .select("*")
+      .select("*, merchants(canonical_name), subdomains(label, domains(key, label))")
       .eq("user_id", userId)
       .order("posted_date", { ascending: false })
       .limit(50),
