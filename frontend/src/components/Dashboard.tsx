@@ -38,6 +38,7 @@ export function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -52,6 +53,18 @@ export function Dashboard() {
     }
   }
 
+  async function resync() {
+    setResyncing(true);
+    try {
+      await api.resync();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Resync failed");
+    } finally {
+      setResyncing(false);
+    }
+  }
+
   useEffect(() => {
     refresh();
   }, []);
@@ -63,6 +76,11 @@ export function Dashboard() {
         Iris
       </div>
       <div className="app-header-actions">
+        {overview && overview.accounts.length > 0 && (
+          <button className="btn-ghost" onClick={resync} disabled={resyncing}>
+            {resyncing ? "Refreshing…" : "Refresh"}
+          </button>
+        )}
         {overview && <PlaidLinkButton onSuccess={refresh} />}
         <button className="btn-ghost" onClick={() => supabase.auth.signOut()}>
           Sign out

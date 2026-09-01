@@ -31,6 +31,7 @@ export const api = {
       body: JSON.stringify({ public_token: publicToken }),
     }),
   getOverview: () => authedFetch("/dashboard/overview"),
+  resync: () => authedFetch("/link/resync", { method: "POST" }),
   getHierarchy: () => authedFetch("/dashboard/hierarchy"),
   getRoundups: () => authedFetch("/dashboard/roundups"),
   previewTransfer: (accountId: string, amount: number) =>

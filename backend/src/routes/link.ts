@@ -77,3 +77,28 @@ linkRouter.post("/link/exchange", requireAuth, async (req: AuthedRequest, res) =
     res.status(502).json({ error: "Failed to exchange public token" });
   }
 });
+
+// Manual refresh — re-runs a full sync for every active item the user has.
+// Existing rows are upserted (onConflict: plaid_transaction_id), so this
+// doubles as a backfill path whenever sync/classification logic changes:
+// re-running it applies the current logic to already-synced transactions,
+// not just new ones.
+linkRouter.post("/link/resync", requireAuth, async (req: AuthedRequest, res) => {
+  const { data: items, error } = await supabaseAdmin
+    .from("plaid_items")
+    .select("id, plaid_access_token")
+    .eq("user_id", req.userId)
+    .eq("status", "active");
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  try {
+    for (const item of items ?? []) {
+      await fullSyncForItem(item.id, req.userId!, item.plaid_access_token);
+    }
+    res.json({ synced_items: items?.length ?? 0 });
+  } catch (err) {
+    console.error("link/resync error", err);
+    res.status(502).json({ error: "Resync failed" });
+  }
+});
