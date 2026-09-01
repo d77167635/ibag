@@ -11,7 +11,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 export async function detectRecurringSeries(userId: string) {
   const { data: txs, error } = await supabaseAdmin
     .from("transactions")
-    .select("merchant_id, amount, posted_date")
+    .select("merchant_id, amount, posted_date, plaid_category_detailed")
     .eq("user_id", userId)
     .eq("pending", false)
     .not("merchant_id", "is", null)
@@ -20,10 +20,16 @@ export async function detectRecurringSeries(userId: string) {
 
   if (error) throw error;
 
-  const byMerchant = new Map<string, { amount: number; date: string }[]>();
+  const { data: essentialCategories } = await supabaseAdmin
+    .from("category_mapping")
+    .select("plaid_category_detailed")
+    .eq("is_essential", true);
+  const essentialSet = new Set((essentialCategories ?? []).map((c) => c.plaid_category_detailed));
+
+  const byMerchant = new Map<string, { amount: number; date: string; category: string | null }[]>();
   for (const tx of txs ?? []) {
     const list = byMerchant.get(tx.merchant_id) ?? [];
-    list.push({ amount: Number(tx.amount), date: tx.posted_date });
+    list.push({ amount: Number(tx.amount), date: tx.posted_date, category: tx.plaid_category_detailed });
     byMerchant.set(tx.merchant_id, list);
   }
 
@@ -59,6 +65,9 @@ export async function detectRecurringSeries(userId: string) {
       .toISOString()
       .slice(0, 10);
 
+    const mostRecentCategory = occurrences[occurrences.length - 1].category;
+    const isEssential = mostRecentCategory ? essentialSet.has(mostRecentCategory) : false;
+
     await supabaseAdmin.from("recurring_series").upsert(
       {
         user_id: userId,
@@ -68,6 +77,7 @@ export async function detectRecurringSeries(userId: string) {
         last_seen_date: lastSeen,
         next_expected_date: nextExpected,
         occurrence_count: occurrences.length,
+        is_essential: isEssential,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,merchant_id" }
@@ -140,8 +150,11 @@ export async function computeCashFlowSafety(userId: string, horizonDays = 14, co
 
   const { data: series } = await supabaseAdmin
     .from("recurring_series")
-    .select("typical_amount, next_expected_date, merchant_id, merchants(canonical_name)")
-    .eq("user_id", userId);
+    .select("typical_amount, next_expected_date, merchant_id, is_essential, merchants(canonical_name)")
+    .eq("user_id", userId)
+    .eq("is_essential", true); // only genuine bills (rent, loan payments, insurance...) —
+  // recurring discretionary habits (coffee, rideshare) are tracked separately
+  // and never treated as an obligation against Safe-to-Spend.
 
   const today = new Date();
   const horizon = new Date(today.getTime() + horizonDays * 86_400_000);
@@ -153,23 +166,28 @@ export async function computeCashFlowSafety(userId: string, horizonDays = 14, co
   const totalUpcomingBills = upcoming.reduce((sum, s) => sum + Number(s.typical_amount), 0);
   const safeToSpend = currentAvailable !== null ? currentAvailable - totalUpcomingBills : null;
 
+  // Cluster into non-overlapping windows rather than emitting one warning
+  // per bill — a bill already claimed by an earlier cluster isn't reused.
   const collisions: { window_start: string; bills: string[] }[] = [];
+  const claimed = new Set<number>();
   for (let i = 0; i < upcoming.length; i++) {
-    const clustered = upcoming.filter(
-      (s) =>
-        Math.abs(
-          (new Date(s.next_expected_date).getTime() - new Date(upcoming[i].next_expected_date).getTime()) /
-            86_400_000
-        ) <= collisionWindowDays
-    );
-    if (clustered.length >= 2) {
-      const key = upcoming[i].next_expected_date;
-      if (!collisions.some((c) => c.window_start === key)) {
-        collisions.push({
-          window_start: key,
-          bills: clustered.map((c: any) => c.merchants?.canonical_name ?? "Unknown"),
-        });
-      }
+    if (claimed.has(i)) continue;
+    const clusterIndices = upcoming
+      .map((s, j) => ({ s, j }))
+      .filter(
+        ({ s, j }) =>
+          !claimed.has(j) &&
+          Math.abs(
+            (new Date(s.next_expected_date).getTime() - new Date(upcoming[i].next_expected_date).getTime()) /
+              86_400_000
+          ) <= collisionWindowDays
+      );
+    if (clusterIndices.length >= 2) {
+      clusterIndices.forEach(({ j }) => claimed.add(j));
+      collisions.push({
+        window_start: upcoming[i].next_expected_date,
+        bills: clusterIndices.map(({ s }: any) => s.merchants?.canonical_name ?? "Unknown"),
+      });
     }
   }
 
