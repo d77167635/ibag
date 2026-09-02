@@ -736,6 +736,25 @@ a {
   font-size: 11px;
 }
 
+.narrative {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--accent-tint);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.anomalies {
+  margin-top: 16px;
+}
+
+.anomaly-tag {
+  color: var(--negative);
+  background: #fbeded;
+}
+
 .trend-chart-wrap {
   margin-bottom: 16px;
   background: var(--surface);

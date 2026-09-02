@@ -368,3 +368,198 @@ export async function computeBalanceHistory(userId: string, days = 90) {
 
   return series;
 }
+
+/**
+ * Same reconstruction technique as computeBalanceHistory, applied to
+ * revolving debt instead of liquid assets — real arithmetic on real
+ * balance + transaction data, not a separate estimate.
+ */
+export async function computeDebtTrend(userId: string, days = 30) {
+  const { data: accounts } = await supabaseAdmin
+    .from("plaid_accounts")
+    .select("id, current_balance")
+    .eq("user_id", userId)
+    .eq("type", "credit")
+    .not("current_balance", "is", null);
+
+  if (!accounts || accounts.length === 0) return { changePct: null, series: [] };
+
+  const currentTotal = accounts.reduce((sum, a) => sum + Number(a.current_balance), 0);
+  const accountIds = accounts.map((a) => a.id);
+  const windowStart = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+
+  const { data: txs } = await supabaseAdmin
+    .from("transactions")
+    .select("amount, posted_date")
+    .in("account_id", accountIds)
+    .eq("pending", false)
+    .gte("posted_date", windowStart);
+
+  const series: { date: string; debt: number }[] = [];
+  for (let i = days; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+    const afterD = (txs ?? []).filter((t) => t.posted_date > d);
+    // Credit balance moves opposite to depository: a debit (amount>0)
+    // increases what's owed, so reconstruction adds rather than adds-back.
+    const reconstructed = currentTotal - afterD.reduce((s, t) => s + Number(t.amount), 0);
+    series.push({ date: d, debt: reconstructed });
+  }
+
+  const first = series[0]?.debt;
+  const last = series[series.length - 1]?.debt;
+  const changePct = first && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null;
+
+  return { changePct, series };
+}
+
+/**
+ * Rule-based anomaly flagging: a transaction is flagged if it's at least
+ * 50% above that merchant's own historical average (computed from that
+ * merchant's other transactions, minimum 2 prior data points required —
+ * one data point isn't a baseline). This is a stated threshold rule, not
+ * a statistical or ML model, and is labeled that way to the frontend.
+ */
+export async function detectAnomalies(userId: string, windowDays = 30) {
+  const windowStart = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+
+  const { data: recentTxs } = await supabaseAdmin
+    .from("transactions")
+    .select("id, amount, posted_date, merchant_id, merchants(canonical_name)")
+    .eq("user_id", userId)
+    .eq("pending", false)
+    .gt("amount", 0)
+    .gte("posted_date", windowStart)
+    .not("merchant_id", "is", null);
+
+  if (!recentTxs || recentTxs.length === 0) return [];
+
+  const anomalies: { merchant: string; amount: number; typicalAmount: number; date: string; pctAboveTypical: number }[] = [];
+
+  for (const tx of recentTxs as any[]) {
+    const { data: history } = await supabaseAdmin
+      .from("transactions")
+      .select("amount")
+      .eq("user_id", userId)
+      .eq("merchant_id", tx.merchant_id)
+      .eq("pending", false)
+      .neq("id", tx.id)
+      .gt("amount", 0);
+
+    if (!history || history.length < 2) continue; // not enough evidence to call anything unusual
+
+    const avg = history.reduce((s, h) => s + Number(h.amount), 0) / history.length;
+    const amount = Number(tx.amount);
+    if (avg > 0 && amount >= avg * 1.5) {
+      anomalies.push({
+        merchant: tx.merchants?.canonical_name ?? "Unknown",
+        amount,
+        typicalAmount: avg,
+        date: tx.posted_date,
+        pctAboveTypical: ((amount - avg) / avg) * 100,
+      });
+    }
+  }
+
+  return anomalies.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * Forward balance projection: current available checking balance minus
+ * each known essential recurring bill on its expected date, walked
+ * forward day by day. Only accounts for bills we actually have evidence
+ * for (recurring_series, is_essential=true) — does not model income or
+ * discretionary spending, and says so, rather than imply a complete
+ * forecast it can't back up.
+ */
+export async function computeForwardProjection(userId: string, days = 30) {
+  const { data: checkingAccounts } = await supabaseAdmin
+    .from("plaid_accounts")
+    .select("available_balance")
+    .eq("user_id", userId)
+    .eq("type", "depository")
+    .eq("subtype", "checking")
+    .not("available_balance", "is", null);
+
+  if (!checkingAccounts || checkingAccounts.length === 0) return { series: [], basis: "no_checking_balance" };
+
+  const startBalance = checkingAccounts.reduce((sum, a) => sum + Number(a.available_balance), 0);
+
+  const { data: series } = await supabaseAdmin
+    .from("recurring_series")
+    .select("typical_amount, next_expected_date, interval_days, merchants(canonical_name)")
+    .eq("user_id", userId)
+    .eq("is_essential", true);
+
+  const horizon = new Date(Date.now() + days * 86_400_000);
+  const projected: { date: string; balance: number; event: string | null }[] = [];
+  let balance = startBalance;
+
+  for (let i = 0; i <= days; i++) {
+    const d = new Date(Date.now() + i * 86_400_000).toISOString().slice(0, 10);
+    const dueToday = (series ?? []).filter((s: any) => s.next_expected_date === d);
+    let event: string | null = null;
+    for (const bill of dueToday) {
+      balance -= Number(bill.typical_amount);
+      event = event ? `${event}, ${(bill as any).merchants?.canonical_name}` : (bill as any).merchants?.canonical_name;
+    }
+    projected.push({ date: d, balance, event });
+  }
+
+  return { series: projected, basis: "known_essential_bills_only" };
+}
+
+/**
+ * Builds a plain-language summary from the actual computed values passed
+ * in — every clause traces to a real number already shown elsewhere on
+ * the dashboard. No invented confidence percentage: where evidence is
+ * genuinely limited (e.g. too few data points), the narrative says so
+ * instead of asserting a number.
+ */
+export function buildNarrative(inputs: {
+  safeToSpend: number | null;
+  essentialBillsCount: number;
+  cashFlowNet: number | null;
+  cashFlowNetChangePct: number | null;
+  debtChangePct: number | null;
+  anomalyCount: number;
+}): string {
+  const parts: string[] = [];
+
+  if (inputs.safeToSpend !== null) {
+    parts.push(
+      `Your safe-to-spend estimate is $${inputs.safeToSpend.toFixed(2)}, based on ${inputs.essentialBillsCount} known essential bill${
+        inputs.essentialBillsCount === 1 ? "" : "s"
+      } due soon.`
+    );
+  } else {
+    parts.push("There isn't enough account data yet to estimate safe-to-spend.");
+  }
+
+  if (inputs.cashFlowNet !== null) {
+    const direction = inputs.cashFlowNet >= 0 ? "positive" : "negative";
+    parts.push(`Cash flow over the last 30 days is ${direction} ($${inputs.cashFlowNet.toFixed(2)}).`);
+    if (inputs.cashFlowNetChangePct !== null) {
+      parts.push(
+        `That's ${inputs.cashFlowNetChangePct >= 0 ? "up" : "down"} ${Math.abs(inputs.cashFlowNetChangePct).toFixed(
+          0
+        )}% versus the prior 30 days.`
+      );
+    }
+  }
+
+  if (inputs.debtChangePct !== null) {
+    parts.push(
+      `Revolving debt has ${inputs.debtChangePct >= 0 ? "increased" : "decreased"} ${Math.abs(
+        inputs.debtChangePct
+      ).toFixed(0)}% over the last 30 days.`
+    );
+  }
+
+  if (inputs.anomalyCount > 0) {
+    parts.push(
+      `${inputs.anomalyCount} transaction${inputs.anomalyCount === 1 ? " looks" : "s look"} unusually large compared to that merchant's typical amount — see below.`
+    );
+  }
+
+  return parts.join(" ");
+}

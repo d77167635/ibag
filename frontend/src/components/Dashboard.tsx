@@ -38,10 +38,12 @@ function formatType(subtype: string | null, type: string | null) {
 import { BalanceTrendChart } from "./BalanceTrendChart";
 
 interface Intelligence {
+  narrative: string;
   net_worth: { liquid_assets: number | null; as_of: string | null };
   debt_health: {
     revolving_debt: number | null;
     credit_utilization: number | null;
+    change_pct_30d: number | null;
     interest_cost_attribution: null;
     as_of: string | null;
   };
@@ -57,6 +59,8 @@ interface Intelligence {
   cash_flow: { inflow: number | null; outflow: number | null; net: number | null; netChangePct: number | null; windowDays: number };
   spending_by_domain: { key: string; label: string; amount: number; changePct: number | null }[];
   balance_history: { date: string; liquidAssets: number }[];
+  forward_projection: { series: { date: string; balance: number; event: string | null }[]; basis: string };
+  anomalies: { merchant: string; amount: number; typicalAmount: number; date: string; pctAboveTypical: number }[];
 }
 
 export function Dashboard() {
@@ -169,6 +173,7 @@ export function Dashboard() {
             <div className="section-head">
               <h2>Financial picture</h2>
             </div>
+            {intelligence.narrative && <p className="narrative">{intelligence.narrative}</p>}
             {intelligence.balance_history.length > 1 && (
               <BalanceTrendChart data={intelligence.balance_history} />
             )}
@@ -209,6 +214,13 @@ export function Dashboard() {
                   {intelligence.debt_health.credit_utilization !== null
                     ? `${(intelligence.debt_health.credit_utilization * 100).toFixed(0)}% average utilization`
                     : "Across connected credit accounts."}
+                  {intelligence.debt_health.change_pct_30d !== null && (
+                    <>
+                      {" "}
+                      · {intelligence.debt_health.change_pct_30d >= 0 ? "↑" : "↓"}
+                      {Math.abs(intelligence.debt_health.change_pct_30d).toFixed(0)}% (30d)
+                    </>
+                  )}
                 </p>
               </div>
               <div className="metric-card">
@@ -282,6 +294,24 @@ export function Dashboard() {
                           ({d.changePct >= 0 ? "↑" : "↓"}{Math.abs(d.changePct).toFixed(0)}%)
                         </span>
                       )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {intelligence.anomalies.length > 0 && (
+              <div className="anomalies">
+                <p className="metric-label" style={{ marginBottom: 8 }}>
+                  Unusually large purchases
+                </p>
+                {intelligence.anomalies.map((a, i) => (
+                  <div className="account-row" key={i}>
+                    <span className="account-name">
+                      {a.merchant} <span className="account-mask">{a.date}</span>
+                    </span>
+                    <span className="account-type anomaly-tag">
+                      ${a.amount.toFixed(2)} (typically ${a.typicalAmount.toFixed(2)})
                     </span>
                   </div>
                 ))}

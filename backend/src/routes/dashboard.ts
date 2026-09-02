@@ -2,7 +2,18 @@ import { Router } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
-import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain, computeBalanceHistory } from "../services/intelligence.js";
+import {
+  computeBalanceMetrics,
+  computeCashFlowSafety,
+  computeRoundupProjection,
+  computeCashFlow,
+  computeSpendingByDomain,
+  computeBalanceHistory,
+  computeDebtTrend,
+  detectAnomalies,
+  computeForwardProjection,
+  buildNarrative,
+} from "../services/intelligence.js";
 
 export const dashboardRouter = Router();
 
@@ -118,16 +129,29 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
   const userId = req.userId!;
 
   try {
-    const [balances, cashFlowSafety, roundupProjection, cashFlow, spendingByDomain, balanceHistory] = await Promise.all([
+    const [balances, cashFlowSafety, roundupProjection, cashFlow, spendingByDomain, balanceHistory, debtTrend, anomalies, forwardProjection] = await Promise.all([
       computeBalanceMetrics(userId),
       computeCashFlowSafety(userId),
       computeRoundupProjection(userId),
       computeCashFlow(userId),
       computeSpendingByDomain(userId),
       computeBalanceHistory(userId),
+      computeDebtTrend(userId),
+      detectAnomalies(userId),
+      computeForwardProjection(userId),
     ]);
 
+    const narrative = buildNarrative({
+      safeToSpend: cashFlowSafety.safeToSpend,
+      essentialBillsCount: cashFlowSafety.upcomingBills.length,
+      cashFlowNet: cashFlow.net,
+      cashFlowNetChangePct: cashFlow.netChangePct,
+      debtChangePct: debtTrend.changePct,
+      anomalyCount: anomalies.length,
+    });
+
     res.json({
+      narrative,
       net_worth: {
         liquid_assets: balances.liquidAssets,
         as_of: balances.asOf,
@@ -135,6 +159,7 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       debt_health: {
         revolving_debt: balances.revolvingDebt,
         credit_utilization: balances.creditUtilization,
+        change_pct_30d: debtTrend.changePct,
         interest_cost_attribution: null, // requires Plaid Liabilities — not linked on this item
         as_of: balances.asOf,
       },
@@ -143,6 +168,8 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       cash_flow: cashFlow,
       spending_by_domain: spendingByDomain,
       balance_history: balanceHistory,
+      forward_projection: forwardProjection,
+      anomalies,
     });
   } catch (err) {
     console.error("dashboard/intelligence error:", err);
