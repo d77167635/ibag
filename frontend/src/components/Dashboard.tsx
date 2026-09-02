@@ -3,6 +3,7 @@ import { api } from "../api/backend";
 import { supabase } from "../api/supabase";
 import { PlaidLinkButton } from "./PlaidLink";
 import { IrisMark } from "./IrisMark";
+import { BalanceTrendChart } from "./BalanceTrendChart";
 
 interface Account {
   id: string;
@@ -30,13 +31,6 @@ interface Overview {
   ibag: { projected_balance: number };
 }
 
-function formatType(subtype: string | null, type: string | null) {
-  const raw = subtype ?? type ?? "account";
-  return raw.replace(/_/g, " ");
-}
-
-import { BalanceTrendChart } from "./BalanceTrendChart";
-
 interface Intelligence {
   narrative: string;
   net_worth: { liquid_assets: number | null; as_of: string | null };
@@ -63,12 +57,28 @@ interface Intelligence {
   anomalies: { merchant: string; amount: number; typicalAmount: number; date: string; pctAboveTypical: number }[];
 }
 
+function formatType(subtype: string | null, type: string | null) {
+  const raw = subtype ?? type ?? "account";
+  return raw.replace(/_/g, " ");
+}
+
+type Tab = "overview" | "spending" | "bills" | "accounts" | "activity";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "spending", label: "Spending" },
+  { id: "bills", label: "Bills & Safety" },
+  { id: "accounts", label: "Accounts" },
+  { id: "activity", label: "Activity" },
+];
+
 export function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [intelligence, setIntelligence] = useState<Intelligence | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resyncing, setResyncing] = useState(false);
+  const [tab, setTab] = useState<Tab>("overview");
 
   async function refresh() {
     setLoading(true);
@@ -81,7 +91,6 @@ export function Dashboard() {
           const intel = await api.getIntelligence();
           setIntelligence(intel);
         } catch {
-          // Intelligence is supplementary — don't fail the whole dashboard over it.
           setIntelligence(null);
         }
       }
@@ -154,6 +163,9 @@ export function Dashboard() {
 
   const hasAccounts = overview.accounts.length > 0;
   const hasTransactions = overview.recent_transactions.length > 0;
+  const maxSpend = intelligence?.spending_by_domain.length
+    ? Math.max(...intelligence.spending_by_domain.map((x) => x.amount))
+    : 1;
 
   return (
     <div className="app-shell">
@@ -168,16 +180,32 @@ export function Dashboard() {
           </p>
         </section>
 
-        {intelligence && (
+        {hasAccounts && (
+          <nav className="tab-bar">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                className={`tab-button${tab === t.id ? " active" : ""}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {!hasAccounts && (
           <section className="section">
-            <div className="section-head">
-              <h2>Financial picture</h2>
-            </div>
+            <div className="empty-state">No cards connected yet — connect a card to see your data.</div>
+          </section>
+        )}
+
+        {hasAccounts && tab === "overview" && intelligence && (
+          <section className="section">
             {intelligence.narrative && <p className="narrative">{intelligence.narrative}</p>}
             {intelligence.balance_history.length > 1 && (
               <BalanceTrendChart data={intelligence.balance_history} />
             )}
-
             <div className="metric-grid">
               <div className="metric-card">
                 <p className="metric-label">Safe-to-spend</p>
@@ -241,15 +269,11 @@ export function Dashboard() {
             {intelligence.cash_flow.net !== null && (
               <div className="cashflow-row">
                 <div className="cashflow-item">
-                  <p className="metric-label">
-                    {intelligence.cash_flow.windowDays}-day inflow
-                  </p>
+                  <p className="metric-label">{intelligence.cash_flow.windowDays}-day inflow</p>
                   <p className="cashflow-value positive">+${intelligence.cash_flow.inflow!.toFixed(2)}</p>
                 </div>
                 <div className="cashflow-item">
-                  <p className="metric-label">
-                    {intelligence.cash_flow.windowDays}-day outflow
-                  </p>
+                  <p className="metric-label">{intelligence.cash_flow.windowDays}-day outflow</p>
                   <p className="cashflow-value negative">-${intelligence.cash_flow.outflow!.toFixed(2)}</p>
                 </div>
                 <div className="cashflow-item">
@@ -260,14 +284,19 @@ export function Dashboard() {
                   {intelligence.cash_flow.netChangePct !== null && (
                     <p className="metric-note">
                       {intelligence.cash_flow.netChangePct >= 0 ? "↑" : "↓"}{" "}
-                      {Math.abs(intelligence.cash_flow.netChangePct).toFixed(0)}% vs previous {intelligence.cash_flow.windowDays} days
+                      {Math.abs(intelligence.cash_flow.netChangePct).toFixed(0)}% vs previous{" "}
+                      {intelligence.cash_flow.windowDays} days
                     </p>
                   )}
                 </div>
               </div>
             )}
+          </section>
+        )}
 
-            {intelligence.spending_by_domain.length > 0 && (
+        {hasAccounts && tab === "spending" && intelligence && (
+          <section className="section">
+            {intelligence.spending_by_domain.length > 0 ? (
               <div className="spend-breakdown">
                 <p className="metric-label" style={{ marginBottom: 8 }}>
                   Where money went (last 30 days)
@@ -278,12 +307,7 @@ export function Dashboard() {
                     <span className="spend-bar-track">
                       <span
                         className="spend-bar-fill"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            (d.amount / Math.max(...intelligence.spending_by_domain.map((x) => x.amount))) * 100
-                          )}%`,
-                        }}
+                        style={{ width: `${Math.min(100, (d.amount / maxSpend) * 100)}%` }}
                       />
                     </span>
                     <span className="spend-amount">
@@ -291,13 +315,16 @@ export function Dashboard() {
                       {d.changePct !== null && (
                         <span className="spend-change">
                           {" "}
-                          ({d.changePct >= 0 ? "↑" : "↓"}{Math.abs(d.changePct).toFixed(0)}%)
+                          ({d.changePct >= 0 ? "↑" : "↓"}
+                          {Math.abs(d.changePct).toFixed(0)}%)
                         </span>
                       )}
                     </span>
                   </div>
                 ))}
               </div>
+            ) : (
+              <div className="empty-state">Not enough spending activity yet to break down by category.</div>
             )}
 
             {intelligence.anomalies.length > 0 && (
@@ -317,19 +344,22 @@ export function Dashboard() {
                 ))}
               </div>
             )}
+          </section>
+        )}
 
+        {hasAccounts && tab === "bills" && intelligence && (
+          <section className="section">
             {intelligence.cash_flow_safety.billCollisions.length > 0 && (
-              <div className="banner banner-error" style={{ marginTop: 16 }}>
+              <div className="banner banner-error">
                 {intelligence.cash_flow_safety.billCollisions.map((c) => (
                   <div key={c.window_start}>
-                    Heads up — {c.bills.join(" and ")} are expected close together around{" "}
-                    {c.window_start}.
+                    Heads up — {c.bills.join(" and ")} are expected close together around {c.window_start}.
                   </div>
                 ))}
               </div>
             )}
 
-            {intelligence.cash_flow_safety.upcomingBills.length > 0 && (
+            {intelligence.cash_flow_safety.upcomingBills.length > 0 ? (
               <div className="upcoming-bills">
                 <p className="metric-label" style={{ marginBottom: 8 }}>
                   Upcoming bills (detected from recurring activity)
@@ -343,19 +373,41 @@ export function Dashboard() {
                   </div>
                 ))}
               </div>
+            ) : (
+              <div className="empty-state">No essential recurring bills detected yet.</div>
+            )}
+
+            {intelligence.forward_projection.series.length > 0 && (
+              <div className="upcoming-bills">
+                <p className="metric-label" style={{ marginBottom: 8 }}>
+                  Projected checking balance (known essential bills only — not a full forecast)
+                </p>
+                <div className="account-list">
+                  {intelligence.forward_projection.series
+                    .filter((p) => p.event)
+                    .map((p) => (
+                      <div className="account-row" key={p.date}>
+                        <span className="account-name">
+                          {p.event} <span className="account-mask">{p.date}</span>
+                        </span>
+                        <span className="account-type">${p.balance.toFixed(2)} balance after</span>
+                      </div>
+                    ))}
+                  {intelligence.forward_projection.series.filter((p) => p.event).length === 0 && (
+                    <div className="empty-state">No known essential bills fall in the projection window.</div>
+                  )}
+                </div>
+              </div>
             )}
           </section>
         )}
 
-        <section className="section">
-          <div className="section-head">
-            <h2>Connected cards</h2>
-            {hasAccounts && <span className="section-count">{overview.accounts.length}</span>}
-          </div>
-          {!hasAccounts && (
-            <div className="empty-state">No cards connected yet — connect a card to see your data.</div>
-          )}
-          {hasAccounts && (
+        {hasAccounts && tab === "accounts" && (
+          <section className="section">
+            <div className="section-head">
+              <h2>Connected cards</h2>
+              <span className="section-count">{overview.accounts.length}</span>
+            </div>
             <div className="account-list">
               {overview.accounts.map((acct) => {
                 const ledger = acct.card_roundup_ledger?.[0];
@@ -377,62 +429,64 @@ export function Dashboard() {
                 );
               })}
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
-        <section className="section">
-          <div className="section-head">
-            <h2>Recent transactions</h2>
-            {hasTransactions && <span className="section-count">{overview.recent_transactions.length}</span>}
-          </div>
-          {!hasTransactions && (
-            <div className="empty-state">
-              No transactions yet — this fills in once a card is connected and synced.
+        {hasAccounts && tab === "activity" && (
+          <section className="section">
+            <div className="section-head">
+              <h2>Recent transactions</h2>
+              {hasTransactions && <span className="section-count">{overview.recent_transactions.length}</span>}
             </div>
-          )}
-          {hasTransactions && (
-            <div className="tx-table-wrap">
-              <table className="tx-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Merchant</th>
-                    <th>Category</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {overview.recent_transactions.map((tx) => (
-                    <tr key={tx.id}>
-                      <td className="tx-date">{tx.posted_date}</td>
-                      <td>
-                        <span className="tx-merchant">
-                          {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
-                        </span>
-                        {tx.pending && <span className="tx-pending">PENDING</span>}
-                      </td>
-                      <td className="tx-category">
-                        {tx.subdomains ? (
-                          <>
-                            {tx.subdomains.domains && (
-                              <span className="tx-domain">{tx.subdomains.domains.label}</span>
-                            )}
-                            <span className="tx-subdomain">{tx.subdomains.label}</span>
-                          </>
-                        ) : (
-                          (tx.plaid_category_primary ?? "Uncategorized").replace(/_/g, " ").toLowerCase()
-                        )}
-                      </td>
-                      <td className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
-                        {tx.amount < 0 ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}
-                      </td>
+            {!hasTransactions && (
+              <div className="empty-state">
+                No transactions yet — this fills in once a card is connected and synced.
+              </div>
+            )}
+            {hasTransactions && (
+              <div className="tx-table-wrap">
+                <table className="tx-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Merchant</th>
+                      <th>Category</th>
+                      <th>Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                  </thead>
+                  <tbody>
+                    {overview.recent_transactions.map((tx) => (
+                      <tr key={tx.id}>
+                        <td className="tx-date">{tx.posted_date}</td>
+                        <td>
+                          <span className="tx-merchant">
+                            {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
+                          </span>
+                          {tx.pending && <span className="tx-pending">PENDING</span>}
+                        </td>
+                        <td className="tx-category">
+                          {tx.subdomains ? (
+                            <>
+                              {tx.subdomains.domains && (
+                                <span className="tx-domain">{tx.subdomains.domains.label}</span>
+                              )}
+                              <span className="tx-subdomain">{tx.subdomains.label}</span>
+                            </>
+                          ) : (
+                            (tx.plaid_category_primary ?? "Uncategorized").replace(/_/g, " ").toLowerCase()
+                          )}
+                        </td>
+                        <td className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
+                          {tx.amount < 0 ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );
