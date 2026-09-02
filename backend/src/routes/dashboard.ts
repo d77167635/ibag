@@ -2,18 +2,8 @@ import { Router } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
-import {
-  computeBalanceMetrics,
-  computeCashFlowSafety,
-  computeRoundupProjection,
-  computeCashFlow,
-  computeSpendingByDomain,
-  computeBalanceHistory,
-  computeDebtTrend,
-  detectAnomalies,
-  computeForwardProjection,
-  buildNarrative,
-} from "../services/intelligence.js";
+import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain, computeBalanceHistory, computeDebtTrend, detectAnomalies, computeForwardProjection, buildNarrative, computeSpendingHierarchy } from "../services/intelligence.js";
+import { decryptToken } from "../config/crypto.js";
 
 export const dashboardRouter = Router();
 
@@ -114,7 +104,7 @@ dashboardRouter.post("/dashboard/roundups/preview-transfer", requireAuth, async 
     userId,
     account_id,
     amount,
-    item.plaid_access_token,
+    decryptToken(item.plaid_access_token),
     account.plaid_account_id
   );
 
@@ -129,7 +119,7 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
   const userId = req.userId!;
 
   try {
-    const [balances, cashFlowSafety, roundupProjection, cashFlow, spendingByDomain, balanceHistory, debtTrend, anomalies, forwardProjection] = await Promise.all([
+    const [balances, cashFlowSafety, roundupProjection, cashFlow, spendingByDomain, balanceHistory, debtTrend, anomalies, forwardProjection, spendingHierarchy] = await Promise.all([
       computeBalanceMetrics(userId),
       computeCashFlowSafety(userId),
       computeRoundupProjection(userId),
@@ -139,6 +129,7 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       computeDebtTrend(userId),
       detectAnomalies(userId),
       computeForwardProjection(userId),
+      computeSpendingHierarchy(userId),
     ]);
 
     const narrative = buildNarrative({
@@ -170,6 +161,7 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       balance_history: balanceHistory,
       forward_projection: forwardProjection,
       anomalies,
+      spending_hierarchy: spendingHierarchy,
     });
   } catch (err) {
     console.error("dashboard/intelligence error:", err);

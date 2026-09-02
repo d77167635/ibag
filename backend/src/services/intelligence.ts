@@ -563,3 +563,52 @@ export function buildNarrative(inputs: {
 
   return parts.join(" ");
 }
+
+/**
+ * Same data as computeSpendingByDomain but one level deeper — each domain
+ * carries its own subdomains with their real amounts, so the hierarchy
+ * (domain -> subdomain -> real $) can actually be displayed as a
+ * hierarchy instead of a flat list. Same 30-day window, same source data.
+ */
+export async function computeSpendingHierarchy(userId: string, windowDays = 30) {
+  const windowStart = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+
+  const { data: txs } = await supabaseAdmin
+    .from("transactions")
+    .select("amount, subdomains(label, domains(key, label))")
+    .eq("user_id", userId)
+    .eq("pending", false)
+    .gt("amount", 0)
+    .gte("posted_date", windowStart);
+
+  if (!txs || txs.length === 0) return [];
+
+  type DomainAcc = { key: string; label: string; total: number; subdomains: Map<string, number> };
+  const byDomain = new Map<string, DomainAcc>();
+
+  for (const tx of txs as any[]) {
+    const domain = tx.subdomains?.domains;
+    const domainKey = domain?.key ?? "uncategorized";
+    const domainLabel = domain?.label ?? "Uncategorized";
+    const subdomainLabel = tx.subdomains?.label ?? "Uncategorized";
+
+    const entry = byDomain.get(domainKey) ?? { key: domainKey, label: domainLabel, total: 0, subdomains: new Map() };
+    entry.total += Number(tx.amount);
+    entry.subdomains.set(subdomainLabel, (entry.subdomains.get(subdomainLabel) ?? 0) + Number(tx.amount));
+    byDomain.set(domainKey, entry);
+  }
+
+  const grandTotal = Array.from(byDomain.values()).reduce((s, d) => s + d.total, 0);
+
+  return Array.from(byDomain.values())
+    .map((d) => ({
+      key: d.key,
+      label: d.label,
+      amount: d.total,
+      pctOfTotal: grandTotal > 0 ? (d.total / grandTotal) * 100 : 0,
+      subdomains: Array.from(d.subdomains.entries())
+        .map(([label, amount]) => ({ label, amount }))
+        .sort((a, b) => b.amount - a.amount),
+    }))
+    .sort((a, b) => b.amount - a.amount);
+}

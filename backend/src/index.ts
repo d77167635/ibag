@@ -7,8 +7,26 @@ import { dashboardRouter } from "./routes/dashboard.js";
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+if (env.corsAllowedOrigins.length === 0) {
+  console.warn("CORS_ALLOWED_ORIGINS is not set — all cross-origin requests will be blocked.");
+}
+app.use(
+  cors({
+    origin: env.corsAllowedOrigins,
+  })
+);
+
+// The `verify` callback captures the exact raw bytes of every request body
+// before JSON parsing — needed by the webhook route to check Plaid's
+// request_body_sha256 claim against what was actually received. Cheap for
+// the handful of small JSON bodies this API handles.
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  })
+);
 
 // Every request logged with method/path/status/duration — without this,
 // a 401 or CORS-blocked request leaves zero trace, indistinguishable from

@@ -4,6 +4,7 @@ import { supabase } from "../api/supabase";
 import { PlaidLinkButton } from "./PlaidLink";
 import { IrisMark } from "./IrisMark";
 import { BalanceTrendChart } from "./BalanceTrendChart";
+import { DomainHierarchy } from "./DomainHierarchy";
 
 interface Account {
   id: string;
@@ -52,6 +53,7 @@ interface Intelligence {
   roundup_projection: { dailyRate: number | null; projected: number | null; basisDays: number; projectDays?: number };
   cash_flow: { inflow: number | null; outflow: number | null; net: number | null; netChangePct: number | null; windowDays: number };
   spending_by_domain: { key: string; label: string; amount: number; changePct: number | null }[];
+  spending_hierarchy: { key: string; label: string; amount: number; pctOfTotal: number; subdomains: { label: string; amount: number }[] }[];
   balance_history: { date: string; liquidAssets: number }[];
   forward_projection: { series: { date: string; balance: number; event: string | null }[]; basis: string };
   anomalies: { merchant: string; amount: number; typicalAmount: number; date: string; pctAboveTypical: number }[];
@@ -64,13 +66,17 @@ function formatType(subtype: string | null, type: string | null) {
 
 type Tab = "overview" | "spending" | "bills" | "accounts" | "activity";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "spending", label: "Spending" },
-  { id: "bills", label: "Bills & Safety" },
-  { id: "accounts", label: "Accounts" },
-  { id: "activity", label: "Activity" },
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: "overview", label: "Overview", icon: "◈" },
+  { id: "spending", label: "Spending", icon: "◐" },
+  { id: "bills", label: "Bills", icon: "◷" },
+  { id: "accounts", label: "Cards", icon: "▭" },
+  { id: "activity", label: "Activity", icon: "≡" },
 ];
+
+function SkeletonBlock({ height = 80 }: { height?: number }) {
+  return <div className="skeleton" style={{ height }} />;
+}
 
 export function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -142,7 +148,9 @@ export function Dashboard() {
       <div className="app-shell">
         <div className="app-container">
           {header}
-          <p className="state-line">Loading your data…</p>
+          <SkeletonBlock height={110} />
+          <div style={{ height: 16 }} />
+          <SkeletonBlock height={200} />
         </div>
       </div>
     );
@@ -163,9 +171,6 @@ export function Dashboard() {
 
   const hasAccounts = overview.accounts.length > 0;
   const hasTransactions = overview.recent_transactions.length > 0;
-  const maxSpend = intelligence?.spending_by_domain.length
-    ? Math.max(...intelligence.spending_by_domain.map((x) => x.amount))
-    : 1;
 
   return (
     <div className="app-shell">
@@ -180,20 +185,6 @@ export function Dashboard() {
           </p>
         </section>
 
-        {hasAccounts && (
-          <nav className="tab-bar">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                className={`tab-button${tab === t.id ? " active" : ""}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-        )}
-
         {!hasAccounts && (
           <section className="section">
             <div className="empty-state">No cards connected yet — connect a card to see your data.</div>
@@ -203,6 +194,37 @@ export function Dashboard() {
         {hasAccounts && tab === "overview" && intelligence && (
           <section className="section">
             {intelligence.narrative && <p className="narrative">{intelligence.narrative}</p>}
+
+            {intelligence.spending_hierarchy.length > 0 && (
+              <div className="hierarchy-teaser">
+                <div className="hierarchy-ring-row">
+                  {intelligence.spending_hierarchy.map((d) => (
+                    <div
+                      key={d.key}
+                      className="hierarchy-segment"
+                      style={{
+                        width: `${Math.max(d.pctOfTotal, 3)}%`,
+                        background:
+                          {
+                            transfers: "#6b7a8f",
+                            debt_and_fees: "#a8455c",
+                            housing: "#b98544",
+                            daily_living: "#5c8a6b",
+                            transportation_travel: "#3f8a8c",
+                            entertainment: "#7d5ba6",
+                            services_civic: "#8a7c5c",
+                          }[d.key] ?? "#8890a0",
+                      }}
+                      title={`${d.label}: $${d.amount.toFixed(2)}`}
+                    />
+                  ))}
+                </div>
+                <button className="hierarchy-teaser-link" onClick={() => setTab("spending")}>
+                  Full spending breakdown by domain →
+                </button>
+              </div>
+            )}
+
             {intelligence.balance_history.length > 1 && (
               <BalanceTrendChart data={intelligence.balance_history} />
             )}
@@ -296,33 +318,12 @@ export function Dashboard() {
 
         {hasAccounts && tab === "spending" && intelligence && (
           <section className="section">
-            {intelligence.spending_by_domain.length > 0 ? (
-              <div className="spend-breakdown">
-                <p className="metric-label" style={{ marginBottom: 8 }}>
-                  Where money went (last 30 days)
-                </p>
-                {intelligence.spending_by_domain.map((d) => (
-                  <div className="spend-row" key={d.key}>
-                    <span className="spend-label">{d.label}</span>
-                    <span className="spend-bar-track">
-                      <span
-                        className="spend-bar-fill"
-                        style={{ width: `${Math.min(100, (d.amount / maxSpend) * 100)}%` }}
-                      />
-                    </span>
-                    <span className="spend-amount">
-                      ${d.amount.toFixed(2)}
-                      {d.changePct !== null && (
-                        <span className="spend-change">
-                          {" "}
-                          ({d.changePct >= 0 ? "↑" : "↓"}
-                          {Math.abs(d.changePct).toFixed(0)}%)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            <div className="section-head">
+              <h2>Where money went</h2>
+              <span className="section-count">last 30 days</span>
+            </div>
+            {intelligence.spending_hierarchy.length > 0 ? (
+              <DomainHierarchy domains={intelligence.spending_hierarchy} />
             ) : (
               <div className="empty-state">Not enough spending activity yet to break down by category.</div>
             )}
@@ -377,7 +378,7 @@ export function Dashboard() {
               <div className="empty-state">No essential recurring bills detected yet.</div>
             )}
 
-            {intelligence.forward_projection.series.length > 0 && (
+            {intelligence.forward_projection.series.filter((p) => p.event).length > 0 && (
               <div className="upcoming-bills">
                 <p className="metric-label" style={{ marginBottom: 8 }}>
                   Projected checking balance (known essential bills only — not a full forecast)
@@ -393,9 +394,6 @@ export function Dashboard() {
                         <span className="account-type">${p.balance.toFixed(2)} balance after</span>
                       </div>
                     ))}
-                  {intelligence.forward_projection.series.filter((p) => p.event).length === 0 && (
-                    <div className="empty-state">No known essential bills fall in the projection window.</div>
-                  )}
                 </div>
               </div>
             )}
@@ -444,50 +442,91 @@ export function Dashboard() {
               </div>
             )}
             {hasTransactions && (
-              <div className="tx-table-wrap">
-                <table className="tx-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Merchant</th>
-                      <th>Category</th>
-                      <th>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {overview.recent_transactions.map((tx) => (
-                      <tr key={tx.id}>
-                        <td className="tx-date">{tx.posted_date}</td>
-                        <td>
-                          <span className="tx-merchant">
-                            {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
-                          </span>
-                          {tx.pending && <span className="tx-pending">PENDING</span>}
-                        </td>
-                        <td className="tx-category">
-                          {tx.subdomains ? (
-                            <>
-                              {tx.subdomains.domains && (
-                                <span className="tx-domain">{tx.subdomains.domains.label}</span>
-                              )}
-                              <span className="tx-subdomain">{tx.subdomains.label}</span>
-                            </>
-                          ) : (
-                            (tx.plaid_category_primary ?? "Uncategorized").replace(/_/g, " ").toLowerCase()
-                          )}
-                        </td>
-                        <td className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
-                          {tx.amount < 0 ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}
-                        </td>
+              <>
+                <div className="tx-table-wrap tx-desktop-only">
+                  <table className="tx-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Merchant</th>
+                        <th>Category</th>
+                        <th>Amount</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {overview.recent_transactions.map((tx) => (
+                        <tr key={tx.id}>
+                          <td className="tx-date">{tx.posted_date}</td>
+                          <td>
+                            <span className="tx-merchant">
+                              {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
+                            </span>
+                            {tx.pending && <span className="tx-pending">PENDING</span>}
+                          </td>
+                          <td className="tx-category">
+                            {tx.subdomains ? (
+                              <>
+                                {tx.subdomains.domains && (
+                                  <span className="tx-domain">{tx.subdomains.domains.label}</span>
+                                )}
+                                <span className="tx-subdomain">{tx.subdomains.label}</span>
+                              </>
+                            ) : (
+                              (tx.plaid_category_primary ?? "Uncategorized").replace(/_/g, " ").toLowerCase()
+                            )}
+                          </td>
+                          <td className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
+                            {tx.amount < 0 ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="tx-card-list tx-mobile-only">
+                  {overview.recent_transactions.map((tx) => (
+                    <div className="tx-card" key={tx.id}>
+                      <div className="tx-card-top">
+                        <span className="tx-card-merchant">
+                          {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
+                        </span>
+                        <span className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
+                          {tx.amount < 0 ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="tx-card-bottom">
+                        <span className="tx-date">{tx.posted_date}</span>
+                        <span className="tx-category">
+                          {tx.subdomains
+                            ? tx.subdomains.label
+                            : (tx.plaid_category_primary ?? "Uncategorized").replace(/_/g, " ").toLowerCase()}
+                        </span>
+                        {tx.pending && <span className="tx-pending">PENDING</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </section>
         )}
       </div>
+
+      {hasAccounts && (
+        <nav className="tab-bar-mobile">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={`tab-mobile-button${tab === t.id ? " active" : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              <span className="tab-mobile-icon">{t.icon}</span>
+              <span className="tab-mobile-label">{t.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

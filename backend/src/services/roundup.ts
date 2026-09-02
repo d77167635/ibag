@@ -47,34 +47,41 @@ export async function recomputeRoundupsForAccount(
   const alreadySwept = (sweptEvents ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
   let unswept = lifetimeRoundupTotal - alreadySwept;
 
-  // 3. While there's enough accrued to cross the threshold, attempt a
-  //    simulated sweep — checking real Balance data each time, since
-  //    balance can change between sweeps within the same sync.
-  while (unswept >= env.roundupSweepThreshold) {
-    const { data: accountRow, error: accountErr } = await supabaseAdmin
-      .from("plaid_accounts")
-      .select("plaid_account_id, type")
-      .eq("id", accountId)
-      .single();
-    if (accountErr) throw accountErr;
+  const { data: accountRow, error: accountErr } = await supabaseAdmin
+    .from("plaid_accounts")
+    .select("plaid_account_id, type")
+    .eq("id", accountId)
+    .single();
+  if (accountErr) throw accountErr;
 
+  // Fetched once per sync, not once per $2 threshold crossed. In Phase 1
+  // nothing actually moves money, so the live balance cannot change
+  // between iterations of this loop within a single sync call — repeating
+  // the API/DB call per iteration was pure waste, and would become a real
+  // rate-limit risk once a real backlog exists.
+  let availableBalance: number | null = null;
+  let safetyThreshold: number | null = null;
+  if (accountRow.type === "depository") {
+    const balanceResp = await plaidClient.accountsBalanceGet({
+      access_token: accessToken,
+      options: { account_ids: [accountRow.plaid_account_id] },
+    });
+    const liveAccount = balanceResp.data.accounts[0];
+    availableBalance = liveAccount?.balances?.available ?? null;
+    safetyThreshold = env.roundupSweepThreshold + env.roundupSafetyBuffer;
+  }
+
+  // While there's enough accrued to cross the threshold, attempt a
+  // simulated sweep using the balance snapshot taken above.
+  while (unswept >= env.roundupSweepThreshold) {
     let canSweep: boolean;
-    let availableBalance: number | null = null;
-    let safetyThreshold: number | null = null;
 
     if (accountRow.type === "depository") {
       // Only depository accounts have a real "available cash" concept, so
       // only these get the overdraft-safety check — sweeping $2 from a
       // checking account with $1 available would be a real overdraft risk
       // once this becomes live money movement in Phase 2.
-      const balanceResp = await plaidClient.accountsBalanceGet({
-        access_token: accessToken,
-        options: { account_ids: [accountRow.plaid_account_id] },
-      });
-      const liveAccount = balanceResp.data.accounts[0];
-      availableBalance = liveAccount?.balances?.available ?? null;
-      safetyThreshold = env.roundupSweepThreshold + env.roundupSafetyBuffer;
-      canSweep = availableBalance !== null && availableBalance >= safetyThreshold;
+      canSweep = availableBalance !== null && availableBalance >= safetyThreshold!;
     } else {
       // Credit, loan, and investment accounts have no "available cash" to
       // overdraw — a credit-card round-up isn't a withdrawal from the

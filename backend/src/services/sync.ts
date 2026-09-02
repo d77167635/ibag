@@ -64,7 +64,13 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       cursor,
     });
 
-    for (const tx of txResp.data.added) {
+    // Plaid's sync response also returns modified (corrected/updated
+    // transactions, same shape as added — an upsert handles both) and
+    // removed (transactions that no longer exist and must be deleted, e.g.
+    // a pending charge that got cancelled). Previously only `added` was
+    // processed, silently letting the local table drift from Plaid's
+    // actual state whenever a correction or retraction happened.
+    for (const tx of [...txResp.data.added, ...txResp.data.modified]) {
       const localAccountId = accountIdMap.get(tx.account_id);
       if (!localAccountId) continue; // account not yet mapped this pass; will catch on next sync
 
@@ -108,6 +114,12 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
         },
         { onConflict: "plaid_transaction_id" }
       );
+    }
+
+    for (const removedTx of txResp.data.removed) {
+      if (!removedTx.transaction_id) continue;
+      await supabaseAdmin.from("transactions").delete().eq("plaid_transaction_id", removedTx.transaction_id);
+      await supabaseAdmin.from("plaid_raw_transactions").delete().eq("plaid_transaction_id", removedTx.transaction_id);
     }
 
     cursor = txResp.data.next_cursor;

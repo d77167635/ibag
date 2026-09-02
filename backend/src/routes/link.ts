@@ -5,6 +5,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { env } from "../config/env.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { fullSyncForItem } from "../services/sync.js";
+import { encryptToken, decryptToken } from "../config/crypto.js";
 
 export const linkRouter = Router();
 
@@ -58,7 +59,7 @@ linkRouter.post("/link/exchange", requireAuth, async (req: AuthedRequest, res) =
       .insert({
         user_id: req.userId,
         plaid_item_id: itemId,
-        plaid_access_token: accessToken, // TODO: encrypt at rest before production
+        plaid_access_token: encryptToken(accessToken),
         institution_id: institutionId,
         institution_name: institutionName,
         status: "active",
@@ -94,7 +95,7 @@ linkRouter.post("/link/resync", requireAuth, async (req: AuthedRequest, res) => 
 
   try {
     for (const item of items ?? []) {
-      await fullSyncForItem(item.id, req.userId!, item.plaid_access_token);
+      await fullSyncForItem(item.id, req.userId!, decryptToken(item.plaid_access_token));
     }
     res.json({ synced_items: items?.length ?? 0 });
   } catch (err) {

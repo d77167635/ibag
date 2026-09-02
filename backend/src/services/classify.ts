@@ -89,14 +89,21 @@ export async function resolveMerchant(rawName: string): Promise<string | null> {
 }
 
 let categoryMapCache: Map<string, string> | null = null;
+let categoryMapCachedAt = 0;
+const CATEGORY_MAP_TTL_MS = 5 * 60 * 1000; // 5 minutes — long enough to avoid
+// hammering the DB on every transaction, short enough that a new
+// category_mapping row shows up without requiring a server restart.
 
 async function getCategoryMap(): Promise<Map<string, string>> {
-  if (categoryMapCache) return categoryMapCache;
+  if (categoryMapCache && Date.now() - categoryMapCachedAt < CATEGORY_MAP_TTL_MS) {
+    return categoryMapCache;
+  }
   const { data, error } = await supabaseAdmin
     .from("category_mapping")
     .select("plaid_category_detailed, subdomain_id");
   if (error) throw error;
   categoryMapCache = new Map(data.map((row) => [row.plaid_category_detailed, row.subdomain_id]));
+  categoryMapCachedAt = Date.now();
   return categoryMapCache;
 }
 
