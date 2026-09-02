@@ -62,6 +62,14 @@ function formatType(subtype: string | null, type: string | null) {
   return raw.replace(/_/g, " ");
 }
 
+// Every dollar figure in this component routes through here so
+// amounts always carry thousands separators — $62,589.00, never
+// $62589.00. Callers that need a sign prepend it themselves; this
+// always returns the unsigned, comma-formatted magnitude.
+function fmt(n: number): string {
+  return Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 type Tab = "overview" | "spending" | "bills" | "accounts" | "activity";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -174,7 +182,7 @@ export function Dashboard() {
 
         <section className="balance-card">
           <p className="balance-label">Available in your ibag</p>
-          <p className="balance-figure">${overview.ibag.projected_balance.toFixed(2)}</p>
+          <p className="balance-figure">${fmt(overview.ibag.projected_balance)}</p>
           <p className="balance-note">
             This is a projection, not spendable funds — round-ups are simulated in Phase 1.
           </p>
@@ -202,7 +210,12 @@ export function Dashboard() {
 
         {hasAccounts && tab === "overview" && intelligence && (
           <section className="section">
-            {intelligence.narrative && <p className="narrative">{intelligence.narrative}</p>}
+            {intelligence.narrative && (
+              <div className="narrative">
+                <span className="narrative-label">Insight</span>
+                {intelligence.narrative}
+              </div>
+            )}
             {intelligence.balance_history.length > 1 && (
               <BalanceTrendChart data={intelligence.balance_history} />
             )}
@@ -211,13 +224,16 @@ export function Dashboard() {
                 <p className="metric-label">Safe-to-spend</p>
                 <p className="metric-value">
                   {intelligence.cash_flow_safety.safeToSpend !== null
-                    ? `$${intelligence.cash_flow_safety.safeToSpend.toFixed(2)}`
+                    ? `$${fmt(intelligence.cash_flow_safety.safeToSpend)}`
                     : "—"}
                 </p>
                 {intelligence.cash_flow_safety.safeToSpend !== null && (
                   <p className="metric-note">
-                    ${intelligence.cash_flow_safety.currentAvailable?.toFixed(2)} available minus $
-                    {intelligence.cash_flow_safety.essentialBillsTotal.toFixed(2)} in essential bills due within{" "}
+                    ${intelligence.cash_flow_safety.currentAvailable !== null
+                      ? fmt(intelligence.cash_flow_safety.currentAvailable)
+                      : "—"}{" "}
+                    available minus $
+                    {fmt(intelligence.cash_flow_safety.essentialBillsTotal)} in essential bills due within{" "}
                     {intelligence.cash_flow_safety.horizonDays} days.
                   </p>
                 )}
@@ -226,7 +242,7 @@ export function Dashboard() {
                 <p className="metric-label">Liquid assets</p>
                 <p className="metric-value">
                   {intelligence.net_worth.liquid_assets !== null
-                    ? `$${intelligence.net_worth.liquid_assets.toFixed(2)}`
+                    ? `$${fmt(intelligence.net_worth.liquid_assets)}`
                     : "—"}
                 </p>
                 <p className="metric-note">Across connected checking &amp; savings accounts.</p>
@@ -235,7 +251,7 @@ export function Dashboard() {
                 <p className="metric-label">Revolving debt</p>
                 <p className="metric-value">
                   {intelligence.debt_health.revolving_debt !== null
-                    ? `$${intelligence.debt_health.revolving_debt.toFixed(2)}`
+                    ? `$${fmt(intelligence.debt_health.revolving_debt)}`
                     : "—"}
                 </p>
                 <p className="metric-note">
@@ -245,8 +261,15 @@ export function Dashboard() {
                   {intelligence.debt_health.change_pct_30d !== null && (
                     <>
                       {" "}
-                      · {intelligence.debt_health.change_pct_30d >= 0 ? "↑" : "↓"}
-                      {Math.abs(intelligence.debt_health.change_pct_30d).toFixed(0)}% (30d)
+                      ·{" "}
+                      <span
+                        className={`delta ${
+                          intelligence.debt_health.change_pct_30d > 0 ? "delta-negative" : "delta-positive"
+                        }`}
+                      >
+                        {intelligence.debt_health.change_pct_30d >= 0 ? "↑" : "↓"}
+                        {Math.abs(intelligence.debt_health.change_pct_30d).toFixed(0)}% (30d)
+                      </span>
                     </>
                   )}
                 </p>
@@ -255,7 +278,7 @@ export function Dashboard() {
                 <p className="metric-label">Round-up pace</p>
                 <p className="metric-value">
                   {intelligence.roundup_projection.projected !== null
-                    ? `$${intelligence.roundup_projection.projected.toFixed(2)}`
+                    ? `$${fmt(intelligence.roundup_projection.projected)}`
                     : "—"}
                 </p>
                 <p className="metric-note">
@@ -270,16 +293,16 @@ export function Dashboard() {
               <div className="cashflow-row">
                 <div className="cashflow-item">
                   <p className="metric-label">{intelligence.cash_flow.windowDays}-day inflow</p>
-                  <p className="cashflow-value positive">+${intelligence.cash_flow.inflow!.toFixed(2)}</p>
+                  <p className="cashflow-value positive">+${fmt(intelligence.cash_flow.inflow!)}</p>
                 </div>
                 <div className="cashflow-item">
                   <p className="metric-label">{intelligence.cash_flow.windowDays}-day outflow</p>
-                  <p className="cashflow-value negative">-${intelligence.cash_flow.outflow!.toFixed(2)}</p>
+                  <p className="cashflow-value negative">-${fmt(intelligence.cash_flow.outflow!)}</p>
                 </div>
                 <div className="cashflow-item">
                   <p className="metric-label">Net cash movement</p>
                   <p className={`cashflow-value ${intelligence.cash_flow.net >= 0 ? "positive" : "negative"}`}>
-                    {intelligence.cash_flow.net >= 0 ? "+" : "-"}${Math.abs(intelligence.cash_flow.net).toFixed(2)}
+                    {intelligence.cash_flow.net >= 0 ? "+" : "-"}${fmt(intelligence.cash_flow.net)}
                   </p>
                   {intelligence.cash_flow.netChangePct !== null && (
                     <p className="metric-note">
@@ -311,7 +334,7 @@ export function Dashboard() {
                       />
                     </span>
                     <span className="spend-amount">
-                      ${d.amount.toFixed(2)}
+                      ${fmt(d.amount)}
                       {d.changePct !== null && (
                         <span className="spend-change">
                           {" "}
@@ -338,7 +361,7 @@ export function Dashboard() {
                       {a.merchant} <span className="account-mask">{a.date}</span>
                     </span>
                     <span className="account-type anomaly-tag">
-                      ${a.amount.toFixed(2)} (typically ${a.typicalAmount.toFixed(2)})
+                      ${fmt(a.amount)} (typically ${fmt(a.typicalAmount)})
                     </span>
                   </div>
                 ))}
@@ -368,7 +391,7 @@ export function Dashboard() {
                   <div className="account-row" key={i}>
                     <span className="account-name">{b.merchant}</span>
                     <span className="account-type">
-                      ${b.amount.toFixed(2)} · {b.expectedDate}
+                      ${fmt(b.amount)} · {b.expectedDate}
                     </span>
                   </div>
                 ))}
@@ -390,7 +413,7 @@ export function Dashboard() {
                         <span className="account-name">
                           {p.event} <span className="account-mask">{p.date}</span>
                         </span>
-                        <span className="account-type">${p.balance.toFixed(2)} balance after</span>
+                        <span className="account-type">${fmt(p.balance)} balance after</span>
                       </div>
                     ))}
                   {intelligence.forward_projection.series.filter((p) => p.event).length === 0 && (
@@ -420,7 +443,7 @@ export function Dashboard() {
                     <span className="account-row-right">
                       {ledger && Number(ledger.lifetime_roundup_total) > 0 && (
                         <span className="account-roundup">
-                          ${Number(ledger.lifetime_roundup_total).toFixed(2)} round-ups
+                          ${fmt(Number(ledger.lifetime_roundup_total))} round-ups
                         </span>
                       )}
                       <span className="account-type">{formatType(acct.subtype, acct.type)}</span>
@@ -462,7 +485,7 @@ export function Dashboard() {
                           <span className="tx-merchant">
                             {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
                           </span>
-                          {tx.pending && <span className="tx-pending">PENDING</span>}
+                          {tx.pending && <span className="tx-pending">Pending</span>}
                         </td>
                         <td className="tx-category">
                           {tx.subdomains ? (
@@ -477,7 +500,7 @@ export function Dashboard() {
                           )}
                         </td>
                         <td className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
-                          {tx.amount < 0 ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}
+                          {tx.amount < 0 ? "+" : ""}${fmt(tx.amount)}
                         </td>
                       </tr>
                     ))}
