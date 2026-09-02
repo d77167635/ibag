@@ -8,6 +8,11 @@
    paper-like so the numbers (not the chrome) carry the page;
    the one accent is a deep violet-ink rather than a fintech-blue
    default, with a muted gold reserved for the money figure itself.
+
+   Sophistication comes from restraint plus precision: the hero
+   figure gets real typographic weight, and color is spent only
+   where it means something — a debt increase reads as risk, not
+   as neutral trivia sitting next to everything else.
 ------------------------------------------------------------------ */
 
 :root {
@@ -426,7 +431,7 @@ a {
   background: var(--accent);
   color: #f4f2f8;
   border-radius: var(--radius);
-  padding: 28px 24px;
+  padding: 30px 26px;
   margin-bottom: 24px;
   box-shadow: var(--shadow-card);
 }
@@ -438,11 +443,12 @@ a {
 }
 
 .balance-figure {
-  font-family: var(--font-mono);
-  font-size: 42px;
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 600;
   color: #ffffff;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .balance-note {
@@ -497,6 +503,11 @@ a {
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   padding: 13px 16px;
+  transition: border-color 0.15s ease;
+}
+
+.account-row:hover {
+  border-color: var(--ink-faint);
 }
 
 .account-name {
@@ -568,6 +579,14 @@ a {
 
 .tx-table tr:last-child td {
   border-bottom: none;
+}
+
+.tx-table tbody tr:nth-child(even) td {
+  background: var(--bg);
+}
+
+.tx-table tbody tr:hover td {
+  background: var(--accent-tint);
 }
 
 .tx-date {
@@ -660,6 +679,21 @@ a {
   line-height: 1.4;
 }
 
+/* Semantic delta text — the one place color is spent to mean
+   something rather than to decorate. Used wherever a figure moved
+   in a direction that matters (debt up, cash flow down). */
+.delta {
+  font-weight: 500;
+}
+
+.delta-positive {
+  color: var(--positive);
+}
+
+.delta-negative {
+  color: var(--negative);
+}
+
 .upcoming-bills {
   margin-top: 16px;
 }
@@ -732,18 +766,31 @@ a {
 }
 
 .spend-change {
-  color: var(--ink-faint);
+  color: var(--ink-muted);
   font-size: 11px;
 }
 
+/* Insight callout — visually distinct from raw data so it reads as
+   "Iris telling you something" rather than another stat. The left
+   rule and small label are the only decoration in the whole system
+   that exists purely to mark authorship, and it's used once. */
 .narrative {
   font-size: 14px;
   line-height: 1.6;
   color: var(--ink);
   background: var(--accent-tint);
-  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   padding: 14px 16px;
   margin-bottom: 16px;
+}
+
+.narrative-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  margin-bottom: 4px;
 }
 
 .tab-bar {

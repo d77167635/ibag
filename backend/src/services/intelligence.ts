@@ -509,6 +509,17 @@ export async function computeForwardProjection(userId: string, days = 30) {
 }
 
 /**
+ * Formats a signed dollar amount correctly: sign before the $, comma
+ * thousands separators, always 2 decimals. Fixes the earlier bug where
+ * `$${n.toFixed(2)}` on a negative number produced "$-10645.24" instead
+ * of "-$10,645.24".
+ */
+function money(n: number): string {
+  const sign = n < 0 ? "-" : "";
+  return `${sign}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
  * Builds a plain-language summary from the actual computed values passed
  * in — every clause traces to a real number already shown elsewhere on
  * the dashboard. No invented confidence percentage: where evidence is
@@ -527,7 +538,7 @@ export function buildNarrative(inputs: {
 
   if (inputs.safeToSpend !== null) {
     parts.push(
-      `Your safe-to-spend estimate is $${inputs.safeToSpend.toFixed(2)}, based on ${inputs.essentialBillsCount} known essential bill${
+      `Your safe-to-spend estimate is ${money(inputs.safeToSpend)}, based on ${inputs.essentialBillsCount} known essential bill${
         inputs.essentialBillsCount === 1 ? "" : "s"
       } due soon.`
     );
@@ -537,12 +548,13 @@ export function buildNarrative(inputs: {
 
   if (inputs.cashFlowNet !== null) {
     const direction = inputs.cashFlowNet >= 0 ? "positive" : "negative";
-    parts.push(`Cash flow over the last 30 days is ${direction} ($${inputs.cashFlowNet.toFixed(2)}).`);
+    parts.push(`Cash flow over the last 30 days is ${direction} (${money(inputs.cashFlowNet)}).`);
     if (inputs.cashFlowNetChangePct !== null) {
+      const pct = Math.abs(inputs.cashFlowNetChangePct).toFixed(0);
       parts.push(
-        `That's ${inputs.cashFlowNetChangePct >= 0 ? "up" : "down"} ${Math.abs(inputs.cashFlowNetChangePct).toFixed(
-          0
-        )}% versus the prior 30 days.`
+        pct === "0"
+          ? "That's about the same as the prior 30 days."
+          : `That's ${inputs.cashFlowNetChangePct >= 0 ? "up" : "down"} ${pct}% versus the prior 30 days.`
       );
     }
   }
