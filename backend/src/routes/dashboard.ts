@@ -5,6 +5,7 @@ import { previewTransferBackToCard } from "../services/roundup.js";
 import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain, computeBalanceHistory, computeDebtTrend, detectAnomalies, computeForwardProjection, buildNarrative, computeSpendingHierarchy } from "../services/intelligence.js";
 import { decryptToken } from "../config/crypto.js";
 import { getFeatureFlags } from "../services/features.js";
+import { plaidClient } from "../plaid/client.js";
 import { computeDebtCostIntelligence } from "../intelligence/liabilities.js";
 import { computeCategoryDrift } from "../intelligence/behavioral.js";
 import { computeFinancialReasoning } from "../intelligence/relational.js";
@@ -221,4 +222,80 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
     console.error("dashboard/intelligence error:", err);
     res.status(500).json({ error: "Failed to compute intelligence metrics" });
   }
+});
+
+// PLAID PRODUCTS DASHBOARD — separate from Iris intelligence. Shows what
+// raw Plaid products are actually connected/billed per linked item, across
+// Plaid's 8 standard products. This is deliberately RAW status (what data
+// Iris is allowed to see), not reasoning about that data (which lives in
+// /dashboard/intelligence) — the two dashboards answer different questions
+// and the user toggles between them in the frontend.
+const PLAID_STANDARD_PRODUCTS = [
+  "transactions",
+  "auth",
+  "balance",
+  "identity",
+  "investments",
+  "liabilities",
+  "transfer",
+  "signal",
+] as const;
+
+dashboardRouter.get("/dashboard/plaid", requireAuth, async (req: AuthedRequest, res) => {
+  const userId = req.userId!;
+
+  const { data: items, error } = await supabaseAdmin
+    .from("plaid_items")
+    .select("id, plaid_item_id, plaid_access_token, institution_name, status, last_synced_at")
+    .eq("user_id", userId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!items || items.length === 0) {
+    return res.json({
+      items: [],
+      products: PLAID_STANDARD_PRODUCTS.map((p) => ({ product: p, status: "not_connected" as const })),
+    });
+  }
+
+  const productStatus = new Map<string, "active" | "available" | "not_requested">(
+    PLAID_STANDARD_PRODUCTS.map((p) => [p, "not_requested"])
+  );
+
+  const itemSummaries = [];
+  for (const item of items) {
+    try {
+      const itemResp = await plaidClient.itemGet({ access_token: decryptToken(item.plaid_access_token) });
+      const billed = new Set(itemResp.data.item.billed_products ?? []);
+      const available = new Set(itemResp.data.item.available_products ?? []);
+
+      for (const product of PLAID_STANDARD_PRODUCTS) {
+        if (billed.has(product as any)) productStatus.set(product, "active");
+        else if (available.has(product as any) && productStatus.get(product) !== "active") {
+          productStatus.set(product, "available");
+        }
+      }
+
+      itemSummaries.push({
+        institution_name: item.institution_name,
+        status: item.status,
+        last_synced_at: item.last_synced_at,
+        billed_products: [...billed],
+        available_products: [...available],
+      });
+    } catch (err) {
+      console.error(`itemGet failed for item ${item.id}:`, err);
+      itemSummaries.push({
+        institution_name: item.institution_name,
+        status: "error_fetching_product_status",
+        last_synced_at: item.last_synced_at,
+        billed_products: [],
+        available_products: [],
+      });
+    }
+  }
+
+  res.json({
+    items: itemSummaries,
+    products: PLAID_STANDARD_PRODUCTS.map((p) => ({ product: p, status: productStatus.get(p) })),
+  });
 });
