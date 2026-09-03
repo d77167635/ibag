@@ -40,4 +40,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ account_id: accountId, amount }),
     }),
+  getFeatures: () => authedFetch("/features"),
+  toggleFeature: (key: string, enabled: boolean) =>
+    authedFetch(`/features/${key}/toggle`, {
+      method: "POST",
+      body: JSON.stringify({ enabled }),
+    }),
+  toggleAccountRoundup: (accountId: string, enabled: boolean) =>
+    authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, {
+      method: "POST",
+      body: JSON.stringify({ enabled }),
+    }),
 };

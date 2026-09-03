@@ -12,6 +12,7 @@ interface Account {
   mask: string | null;
   type: string | null;
   subtype: string | null;
+  roundup_enabled: boolean;
   card_roundup_ledger: { accrued_unswept: number; lifetime_roundup_total: number }[] | null;
 }
 
@@ -32,6 +33,60 @@ interface Overview {
   ibag: { projected_balance: number };
 }
 
+interface DebtCostIntelligence {
+  totalRevolvingBalance: number | null;
+  weightedAvgApr: number | null;
+  estimatedMonthlyInterestCost: number | null;
+  minimumPaymentTotal: number | null;
+  accountsWithKnownApr: number;
+  accountsWithoutAprData: number;
+  evidence: "calculated" | "insufficient_evidence";
+  basis: string;
+}
+
+interface CategoryDrift {
+  subdomainKey: string;
+  subdomainLabel: string;
+  recentDailyAvg: number;
+  baselineDailyAvg: number;
+  deviationPct: number;
+  significant: boolean;
+  evidence: "calculated" | "insufficient_evidence";
+  baselineTransactionCount: number;
+}
+
+interface RiskItem {
+  key: string;
+  severity: "low" | "medium" | "high";
+  evidence: string;
+  statement: string;
+  supportingMetrics: Record<string, number | string | null>;
+}
+
+interface OpportunityItem {
+  key: string;
+  evidence: string;
+  statement: string;
+  supportingMetrics: Record<string, number | string | null>;
+}
+
+interface FinancialReasoning {
+  risks: RiskItem[];
+  opportunities: OpportunityItem[];
+  relationalChain: string[];
+  unresolvedQuestions: string[];
+  priorityFocus: { key: string; reason: string } | null;
+  generatedAt: string;
+}
+
+interface FeatureFlags {
+  roundup: { enabled: boolean; label: string };
+  anomaly_detection: { enabled: boolean; label: string };
+  category_drift: { enabled: boolean; label: string };
+  debt_cost_intelligence: { enabled: boolean; label: string };
+  relational_reasoning: { enabled: boolean; label: string };
+}
+
 interface Intelligence {
   narrative: string;
   net_worth: { liquid_assets: number | null; as_of: string | null };
@@ -39,7 +94,7 @@ interface Intelligence {
     revolving_debt: number | null;
     credit_utilization: number | null;
     change_pct_30d: number | null;
-    interest_cost_attribution: null;
+    interest_cost_attribution: DebtCostIntelligence | null;
     as_of: string | null;
   };
   cash_flow_safety: {
@@ -57,6 +112,9 @@ interface Intelligence {
   balance_history: { date: string; liquidAssets: number }[];
   forward_projection: { series: { date: string; balance: number; event: string | null }[]; basis: string };
   anomalies: { merchant: string; amount: number; typicalAmount: number; date: string; pctAboveTypical: number }[];
+  category_drift: CategoryDrift[];
+  reasoning: FinancialReasoning | null;
+  feature_flags: Record<string, boolean>;
 }
 
 function formatType(subtype: string | null, type: string | null) {
@@ -72,11 +130,12 @@ function fmt(n: number): string {
   return Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-type Tab = "overview" | "spending" | "bills" | "accounts" | "activity";
+type Tab = "overview" | "spending" | "insights" | "bills" | "accounts" | "activity" | "settings";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "overview", label: "Overview", icon: "◈" },
   { id: "spending", label: "Spending", icon: "◐" },
+  { id: "insights", label: "Insights", icon: "✦" },
   { id: "bills", label: "Bills", icon: "◷" },
   { id: "accounts", label: "Cards", icon: "▭" },
   { id: "activity", label: "Activity", icon: "≡" },
@@ -89,10 +148,31 @@ function SkeletonBlock({ height = 80 }: { height?: number }) {
 export function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [intelligence, setIntelligence] = useState<Intelligence | null>(null);
+  const [features, setFeatures] = useState<FeatureFlags | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resyncing, setResyncing] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
+
+  async function loadFeatures() {
+    try {
+      const f = await api.getFeatures();
+      setFeatures(f);
+    } catch {
+      setFeatures(null);
+    }
+  }
+
+  async function toggleFeature(key: string, enabled: boolean) {
+    await api.toggleFeature(key, enabled);
+    await loadFeatures();
+    await refresh();
+  }
+
+  async function toggleAccountRoundup(accountId: string, enabled: boolean) {
+    await api.toggleAccountRoundup(accountId, enabled);
+    await refresh();
+  }
 
   async function refresh() {
     setLoading(true);
@@ -129,6 +209,7 @@ export function Dashboard() {
 
   useEffect(() => {
     refresh();
+    loadFeatures();
   }, []);
 
   const header = (
@@ -144,6 +225,11 @@ export function Dashboard() {
           </button>
         )}
         {overview && <PlaidLinkButton onSuccess={refresh} />}
+        {overview && overview.accounts.length > 0 && (
+          <button className="btn-ghost" onClick={() => setTab("settings")} title="Settings">
+            ⚙
+          </button>
+        )}
         <button className="btn-ghost" onClick={() => supabase.auth.signOut()}>
           Sign out
         </button>
@@ -295,6 +381,13 @@ export function Dashboard() {
                     </>
                   )}
                 </p>
+                {intelligence.debt_health.interest_cost_attribution?.evidence === "calculated" && (
+                  <p className="metric-note">
+                    ~${fmt(intelligence.debt_health.interest_cost_attribution.estimatedMonthlyInterestCost!)}/mo
+                    interest at {intelligence.debt_health.interest_cost_attribution.weightedAvgApr!.toFixed(1)}%
+                    APR
+                  </p>
+                )}
               </div>
               <div className="metric-card">
                 <p className="metric-label">Round-up pace</p>
@@ -445,11 +538,145 @@ export function Dashboard() {
                         </span>
                       )}
                       <span className="account-type">{formatType(acct.subtype, acct.type)}</span>
+                      <label className="toggle-switch" title="Round-up on this card">
+                        <input
+                          type="checkbox"
+                          checked={acct.roundup_enabled}
+                          onChange={(e) => toggleAccountRoundup(acct.id, e.target.checked)}
+                        />
+                        <span className="toggle-slider" />
+                      </label>
                     </span>
                   </div>
                 );
               })}
             </div>
+          </section>
+        )}
+
+        {hasAccounts && tab === "insights" && intelligence && (
+          <section className="section">
+            {!intelligence.reasoning ? (
+              <div className="empty-state">
+                Risk &amp; opportunity analysis is turned off.{" "}
+                <button className="btn-link" onClick={() => setTab("settings")}>
+                  Turn it on in Settings
+                </button>
+                .
+              </div>
+            ) : (
+              <>
+                {intelligence.reasoning.risks.length > 0 && (
+                  <div className="insight-block">
+                    <p className="metric-label" style={{ marginBottom: 8 }}>
+                      Risks
+                    </p>
+                    {intelligence.reasoning.risks.map((r) => (
+                      <div className={`insight-card severity-${r.severity}`} key={r.key}>
+                        <span className="insight-severity">{r.severity}</span>
+                        <p className="insight-statement">{r.statement}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {intelligence.reasoning.opportunities.length > 0 && (
+                  <div className="insight-block">
+                    <p className="metric-label" style={{ marginBottom: 8 }}>
+                      Opportunities
+                    </p>
+                    {intelligence.reasoning.opportunities.map((o) => (
+                      <div className="insight-card opportunity" key={o.key}>
+                        <p className="insight-statement">{o.statement}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {intelligence.category_drift.filter((d) => d.significant).length > 0 && (
+                  <div className="insight-block">
+                    <p className="metric-label" style={{ marginBottom: 8 }}>
+                      Spending pattern drift
+                    </p>
+                    {intelligence.category_drift
+                      .filter((d) => d.significant)
+                      .map((d) => (
+                        <div className="account-row" key={d.subdomainKey}>
+                          <span className="account-name">{d.subdomainLabel}</span>
+                          <span className={`account-type ${d.deviationPct >= 0 ? "anomaly-tag" : ""}`}>
+                            {d.deviationPct >= 0 ? "↑" : "↓"}
+                            {Math.abs(d.deviationPct).toFixed(0)}% vs baseline
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {intelligence.reasoning.relationalChain.length > 0 && (
+                  <div className="insight-block">
+                    <p className="metric-label" style={{ marginBottom: 8 }}>
+                      How these connect
+                    </p>
+                    {intelligence.reasoning.relationalChain.map((c, i) => (
+                      <p className="insight-chain-line" key={i}>
+                        {c}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {intelligence.reasoning.unresolvedQuestions.length > 0 && (
+                  <div className="insight-block">
+                    <p className="metric-label" style={{ marginBottom: 8 }}>
+                      What we can't determine yet
+                    </p>
+                    {intelligence.reasoning.unresolvedQuestions.map((q, i) => (
+                      <p className="insight-chain-line unresolved" key={i}>
+                        {q}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {intelligence.reasoning.risks.length === 0 &&
+                  intelligence.reasoning.opportunities.length === 0 &&
+                  intelligence.category_drift.filter((d) => d.significant).length === 0 && (
+                    <div className="empty-state">
+                      No risks, opportunities, or notable pattern drift detected yet.
+                    </div>
+                  )}
+              </>
+            )}
+          </section>
+        )}
+
+        {hasAccounts && tab === "settings" && (
+          <section className="section">
+            <div className="section-head">
+              <h2>Intelligence features</h2>
+            </div>
+            {!features ? (
+              <div className="empty-state">Loading settings…</div>
+            ) : (
+              <div className="account-list">
+                {Object.entries(features).map(([key, f]) => (
+                  <div className="account-row" key={key}>
+                    <span className="account-name">{f.label}</span>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={f.enabled}
+                        onChange={(e) => toggleFeature(key, e.target.checked)}
+                      />
+                      <span className="toggle-slider" />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="metric-note" style={{ marginTop: 16 }}>
+              Round-up can also be turned on or off per card in the Cards tab.
+            </p>
           </section>
         )}
 

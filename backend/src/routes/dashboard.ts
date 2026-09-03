@@ -12,6 +12,29 @@ import { buildNarrative as layeredNarrative, recordExplainabilityTrace } from ".
 
 export const dashboardRouter = Router();
 
+// Per-card round-up toggle — a user may want round-up running on a debit
+// card but not a credit card. Ownership checked via user_id match before
+// the update so one user can't toggle another's account.
+dashboardRouter.post("/dashboard/accounts/:accountId/roundup-toggle", requireAuth, async (req: AuthedRequest, res) => {
+  const { accountId } = req.params;
+  const { enabled } = req.body as { enabled?: boolean };
+
+  if (typeof enabled !== "boolean") {
+    return res.status(400).json({ error: "Body must include boolean `enabled`" });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("plaid_accounts")
+    .update({ roundup_enabled: enabled })
+    .eq("id", accountId)
+    .eq("user_id", req.userId!)
+    .select("id, roundup_enabled")
+    .single();
+
+  if (error || !data) return res.status(404).json({ error: "Account not found" });
+  res.json({ account_id: data.id, roundup_enabled: data.roundup_enabled });
+});
+
 // Unified dashboard: accounts + recent transactions, straight from the
 // normalized tables. Every field here traces to a plaid_raw_* row.
 dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedRequest, res) => {
