@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { recomputeRoundupsForAccount } from "./roundup.js";
 import { resolveMerchant, resolveSubdomain } from "./classify.js";
 import { detectRecurringSeries } from "./intelligence.js";
+import { syncLiabilitiesForItem } from "../intelligence/liabilities.js";
 
 /**
  * Pulls real Plaid data for an Item and writes it through two layers:
@@ -125,6 +126,11 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
     cursor = txResp.data.next_cursor;
     hasMore = txResp.data.has_more;
   }
+
+  // --- Observe liabilities (APR, minimum payment, due dates) for any
+  //     credit/student/mortgage accounts on this item. Non-fatal if the
+  //     item has no liability accounts — see syncLiabilitiesForItem. ---
+  await syncLiabilitiesForItem(userId, accessToken);
 
   // --- Recompute round-up simulation for every account touched this sync ---
   for (const localAccountId of accountIdMap.values()) {

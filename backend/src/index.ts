@@ -4,6 +4,7 @@ import { env } from "./config/env.js";
 import { linkRouter } from "./routes/link.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { dashboardRouter } from "./routes/dashboard.js";
+import { featuresRouter } from "./routes/features.js";
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 app.use(linkRouter);
 app.use(webhooksRouter);
 app.use(dashboardRouter);
+app.use(featuresRouter);
 
 app.listen(env.port, () => {
   console.log(`Iris backend listening on :${env.port} (${env.nodeEnv}, Plaid env: ${env.plaidEnv})`);

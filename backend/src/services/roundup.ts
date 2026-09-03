@@ -1,6 +1,7 @@
 import { plaidClient } from "../plaid/client.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { env } from "../config/env.js";
+import { getFeatureFlags } from "./features.js";
 
 /**
  * Round-Up Intelligence Engine — SIMULATION ONLY (Phase 1).
@@ -16,6 +17,25 @@ export async function recomputeRoundupsForAccount(
   accountId: string,
   accessToken: string
 ) {
+  // Respect both the per-card toggle (a user may want round-up on a debit
+  // card but not a credit card) and the global "roundup" feature flag.
+  // Checked here rather than at the caller so every entry point (sync,
+  // resync, webhook-triggered sync) gets the same behavior for free.
+  const { data: accountFlags } = await supabaseAdmin
+    .from("plaid_accounts")
+    .select("roundup_enabled")
+    .eq("id", accountId)
+    .single();
+
+  if (accountFlags && accountFlags.roundup_enabled === false) {
+    return; // explicitly disabled for this card — skip silently, not an error
+  }
+
+  const flags = await getFeatureFlags(userId);
+  if (!flags.roundup) {
+    return; // round-up disabled account-wide
+  }
+
   // 1. Sum round-ups over every POSTED (non-pending) transaction on this
   //    account. Round-up is only computed on money actually spent —
   //    ceil(amount) - amount, and only for positive (outflow) amounts.

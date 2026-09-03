@@ -4,6 +4,11 @@ import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
 import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain, computeBalanceHistory, computeDebtTrend, detectAnomalies, computeForwardProjection, buildNarrative, computeSpendingHierarchy } from "../services/intelligence.js";
 import { decryptToken } from "../config/crypto.js";
+import { getFeatureFlags } from "../services/features.js";
+import { computeDebtCostIntelligence } from "../intelligence/liabilities.js";
+import { computeCategoryDrift } from "../intelligence/behavioral.js";
+import { computeFinancialReasoning } from "../intelligence/relational.js";
+import { buildNarrative as layeredNarrative, recordExplainabilityTrace } from "../intelligence/decision.js";
 
 export const dashboardRouter = Router();
 
@@ -132,14 +137,37 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       computeSpendingHierarchy(userId),
     ]);
 
-    const narrative = buildNarrative({
-      safeToSpend: cashFlowSafety.safeToSpend,
-      essentialBillsCount: cashFlowSafety.upcomingBills.length,
-      cashFlowNet: cashFlow.net,
-      cashFlowNetChangePct: cashFlow.netChangePct,
-      debtChangePct: debtTrend.changePct,
-      anomalyCount: anomalies.length,
-    });
+    const [flags, debtCost, categoryDrift, reasoning] = await Promise.all([
+      getFeatureFlags(userId),
+      computeDebtCostIntelligence(userId),
+      computeCategoryDrift(userId),
+      computeFinancialReasoning(userId),
+    ]);
+
+    // The new priority-ranked narrative leads with whatever relational.ts
+    // determined matters most, instead of a fixed recitation order — falls
+    // back to the older flat narrative if relational_reasoning is toggled off.
+    const narrative = flags.relational_reasoning
+      ? layeredNarrative(reasoning, {
+          safeToSpend: cashFlowSafety.safeToSpend,
+          essentialBillsCount: cashFlowSafety.upcomingBills.length,
+          cashFlowNet: cashFlow.net,
+          cashFlowNetChangePct: cashFlow.netChangePct,
+          debtChangePct: debtTrend.changePct,
+          anomalyCount: anomalies.length,
+        })
+      : buildNarrative({
+          safeToSpend: cashFlowSafety.safeToSpend,
+          essentialBillsCount: cashFlowSafety.upcomingBills.length,
+          cashFlowNet: cashFlow.net,
+          cashFlowNetChangePct: cashFlow.netChangePct,
+          debtChangePct: debtTrend.changePct,
+          anomalyCount: anomalies.length,
+        });
+
+    recordExplainabilityTrace(userId, reasoning).catch((err) =>
+      console.error("explainability trace failed:", err)
+    );
 
     res.json({
       narrative,
@@ -151,7 +179,7 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
         revolving_debt: balances.revolvingDebt,
         credit_utilization: balances.creditUtilization,
         change_pct_30d: debtTrend.changePct,
-        interest_cost_attribution: null, // requires Plaid Liabilities — not linked on this item
+        interest_cost_attribution: flags.debt_cost_intelligence ? debtCost : null,
         as_of: balances.asOf,
       },
       cash_flow_safety: cashFlowSafety,
@@ -160,8 +188,11 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       spending_by_domain: spendingByDomain,
       balance_history: balanceHistory,
       forward_projection: forwardProjection,
-      anomalies,
+      anomalies: flags.anomaly_detection ? anomalies : [],
       spending_hierarchy: spendingHierarchy,
+      category_drift: flags.category_drift ? categoryDrift : [],
+      reasoning: flags.relational_reasoning ? reasoning : null,
+      feature_flags: flags,
     });
   } catch (err) {
     console.error("dashboard/intelligence error:", err);
