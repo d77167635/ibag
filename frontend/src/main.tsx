@@ -6,6 +6,7 @@ import "./interaction-fix.css";
 import "./iris-experience.css";
 import "./iris-premium.css";
 import "./plaid-command.css";
+import "./iris-spatial-upgrade.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
