@@ -20,7 +20,7 @@ async function observeProducts(userId: string, itemDbId: string, accessToken: st
   for (const product of products) {
     const isBilled = billed.has(product);
     const isAvailable = available.has(product);
-    await supabaseAdmin.from("plaid_product_observations").insert({
+    const { error } = await supabaseAdmin.from("plaid_product_observations").insert({
       user_id: userId,
       item_id: itemDbId,
       provider: "plaid",
@@ -32,6 +32,7 @@ async function observeProducts(userId: string, itemDbId: string, accessToken: st
       observed_at: new Date().toISOString(),
       provenance: { source: "plaid.itemGet", observation: "live" },
     });
+    if (error) throw error;
   }
 }
 
@@ -154,6 +155,9 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
             classification_evidence: classification.evidence,
             classification_version: "TRANSACTION_CLASS_V1",
             classified_at: new Date().toISOString(),
+            is_active: true,
+            retired_at: null,
+            retirement_reason: null,
           },
           { onConflict: "plaid_transaction_id" },
         );
@@ -200,6 +204,9 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
             classification_evidence: classification.evidence,
             classification_version: "TRANSACTION_CLASS_V1",
             classified_at: new Date().toISOString(),
+            is_active: true,
+            retired_at: null,
+            retirement_reason: null,
           },
           { onConflict: "plaid_transaction_id" },
         );
@@ -214,12 +221,12 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
           p_plaid_transaction_id: removedTx.transaction_id,
         });
         if (retireError) throw retireError;
-        const { error: normalizedDeleteError } = await supabaseAdmin
-          .from("transactions")
-          .delete()
-          .eq("plaid_transaction_id", removedTx.transaction_id)
-          .eq("user_id", userId);
-        if (normalizedDeleteError) throw normalizedDeleteError;
+        const { error: normalizedRetireError } = await supabaseAdmin.rpc("retire_normalized_transaction", {
+          p_user_id: userId,
+          p_plaid_transaction_id: removedTx.transaction_id,
+          p_reason: "provider_removed",
+        });
+        if (normalizedRetireError) throw normalizedRetireError;
         removedCount += 1;
       }
 
