@@ -11,6 +11,7 @@ import {
   computeSpendingHierarchy,
 } from "../services/intelligence.js";
 import { getFeatureFlags } from "../services/features.js";
+import { supabaseAdmin } from "../config/supabase.js";
 import { computeDebtCostIntelligence } from "./liabilities.js";
 import { computeCategoryDrift } from "./behavioral.js";
 import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
@@ -25,7 +26,7 @@ import { buildDecisionGraph } from "./decisionGraph.js";
 import { buildDecisionIntelligence } from "./decisionIntelligence.js";
 import { buildConsequenceModel } from "./consequence.js";
 import { buildOptimizationIntelligence } from "./optimization.js";
-import { buildGoalIntelligence } from "./goals.js";
+import { buildGoalIntelligence, type DeclaredIrisGoal } from "./goals.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -45,6 +46,7 @@ export async function computeFullIntelligence(userId: string) {
     multiWindowFlow,
     reasoning,
     featureFlags,
+    declaredGoalsResult,
   ] = await Promise.all([
     computeBalanceMetrics(userId),
     computeCashFlowSafety(userId),
@@ -61,7 +63,11 @@ export async function computeFullIntelligence(userId: string) {
     computeMultiWindowFlow(userId),
     computeFinancialReasoning(userId),
     getFeatureFlags(userId),
+    supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
   ]);
+
+  const declaredGoals = (declaredGoalsResult.data ?? []) as DeclaredIrisGoal[];
+  const goalDataLimitations = declaredGoalsResult.error ? ["Persistent user goals could not be loaded; Iris is falling back to evidence-derived objectives."] : [];
 
   const trajectory = assessTrajectory(multiWindowFlow);
   const narrative = buildNarrative(reasoning, {
@@ -128,7 +134,8 @@ export async function computeFullIntelligence(userId: string) {
     cashFlow.windowDays,
   );
   const optimization = buildOptimizationIntelligence(decisionIntelligence, consequenceModel, financialState);
-  const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimization);
+  const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimization, declaredGoals);
+  goals.limitations = [...new Set([...goals.limitations, ...goalDataLimitations])];
 
   recordExplainabilityTrace(userId, reasoning).catch((err) =>
     console.error("explainability trace failed:", err)
