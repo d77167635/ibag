@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { getPlaidAccessToken } from "../services/tokenStore.js";
 import { plaidClient } from "../plaid/client.js";
+import { PLAID_PRODUCT_CATALOG, PLAID_PRODUCT_STATE_TO_CATALOG_KEY } from "../config/plaidProductCatalog.js";
 
 export const plaidSurfaceRouter = Router();
 
@@ -13,8 +14,12 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
     .eq("user_id", req.userId!);
   if (error) return res.status(500).json({ error: error.message });
 
-  const products = new Map<string, { product: string; status: string; itemCount: number }>();
+  const stateByProduct = new Map<string, { active: number; consented: number; available: number; unavailable: number; itemCount: number }>();
+  for (const definition of PLAID_PRODUCT_CATALOG) {
+    stateByProduct.set(definition.key, { active: 0, consented: 0, available: 0, unavailable: 0, itemCount: 0 });
+  }
   const summaries: any[] = [];
+
   for (const item of items ?? []) {
     try {
       const token = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
@@ -24,17 +29,68 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
       const billed = new Set<string>(raw.billed_products ?? []);
       const consented = new Set<string>(raw.consented_products ?? []);
       const available = new Set<string>(raw.available_products ?? []);
-      const all = new Set<string>([...active, ...billed, ...consented, ...available]);
-      for (const product of all) {
-        const status = billed.has(product) || active.has(product) ? "active" : consented.has(product) ? "consented" : "available";
-        const old = products.get(product);
-        products.set(product, { product, status, itemCount: (old?.itemCount ?? 0) + 1 });
+      const observedStates = new Set<string>([...active, ...billed, ...consented, ...available]);
+
+      for (const definition of PLAID_PRODUCT_CATALOG) {
+        const state = stateByProduct.get(definition.key)!;
+        state.itemCount += 1;
+        const activeOrBilled = definition.plaidProductStates.some((p) => active.has(p) || billed.has(p));
+        const isConsented = definition.plaidProductStates.some((p) => consented.has(p));
+        const isAvailable = definition.plaidProductStates.some((p) => available.has(p));
+        if (activeOrBilled) state.active += 1;
+        else if (isConsented) state.consented += 1;
+        else if (isAvailable) state.available += 1;
+        else state.unavailable += 1;
       }
-      summaries.push({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, billed_products: [...billed], available_products: [...available], consented_products: [...consented] });
+
+      summaries.push({
+        institution_name: item.institution_name,
+        status: item.status,
+        last_synced_at: item.last_synced_at,
+        billed_products: [...billed],
+        available_products: [...available],
+        consented_products: [...consented],
+        observed_product_states: [...observedStates],
+      });
     } catch (err) {
       console.error(`Plaid surface itemGet failed for ${item.id}:`, err);
-      summaries.push({ institution_name: item.institution_name, status: "provider_state_unavailable", last_synced_at: item.last_synced_at, billed_products: [], available_products: [], consented_products: [] });
+      summaries.push({
+        institution_name: item.institution_name,
+        status: "provider_state_unavailable",
+        last_synced_at: item.last_synced_at,
+        billed_products: [],
+        available_products: [],
+        consented_products: [],
+        observed_product_states: [],
+      });
     }
   }
-  res.json({ items: summaries, products: [...products.values()].sort((a, b) => a.product.localeCompare(b.product)) });
+
+  const products = PLAID_PRODUCT_CATALOG.map((definition) => {
+    const state = stateByProduct.get(definition.key)!;
+    return {
+      ...definition,
+      status: items?.length ? (state.active ? "active" : state.consented ? "consented" : state.available ? "available" : "not_available") : "not_connected",
+      item_count: state.itemCount,
+      active_item_count: state.active,
+      consented_item_count: state.consented,
+      available_item_count: state.available,
+      unavailable_item_count: state.unavailable,
+    };
+  });
+
+  res.json({
+    catalog_version: "2026-09-04",
+    source: "plaid_runtime_item_state",
+    items: summaries,
+    products,
+    product_state_legend: {
+      active: "Product is active on at least one connected Item.",
+      consented: "Product is consented but not observed as active on an Item.",
+      available: "Plaid reports the product as available but it has not been accessed.",
+      not_available: "No connected Item currently reports this catalog product as active, consented, or available.",
+      not_connected: "No Plaid Item is connected yet.",
+    },
+    note: "The Plaid dashboard describes Plaid capabilities and provider data only. Iris interpretations and Iris Features are intentionally separate.",
+  });
 });
