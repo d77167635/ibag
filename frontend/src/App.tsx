@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
+import { IrisAssistant } from "./components/IrisAssistant";
 import { IrisShell } from "./components/IrisShell";
 
 export default function App() {
@@ -21,5 +22,5 @@ export default function App() {
 
   if (!checkedAuth) return null;
   if (!session) return <Auth />;
-  return <IrisShell />;
+  return <><IrisShell /><IrisAssistant /></>;
 }
