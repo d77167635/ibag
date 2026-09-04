@@ -2,14 +2,10 @@ import { Router } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
-import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain, computeBalanceHistory, computeDebtTrend, detectAnomalies, computeForwardProjection, buildNarrative, computeSpendingHierarchy, computeScenario } from "../services/intelligence.js";
+import { computeScenario } from "../services/intelligence.js";
 import { getPlaidAccessToken } from "../services/tokenStore.js";
-import { getFeatureFlags } from "../services/features.js";
 import { plaidClient } from "../plaid/client.js";
-import { computeDebtCostIntelligence } from "../intelligence/liabilities.js";
-import { computeCategoryDrift } from "../intelligence/behavioral.js";
-import { computeFinancialReasoning } from "../intelligence/relational.js";
-import { buildNarrative as layeredNarrative, recordExplainabilityTrace } from "../intelligence/decision.js";
+import { computeFullIntelligence } from "../intelligence/orchestrator.js";
 
 export const dashboardRouter = Router();
 
@@ -67,15 +63,28 @@ dashboardRouter.post("/dashboard/roundups/preview-transfer", requireAuth, async 
 });
 
 dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRequest, res) => {
-  const userId = req.userId!;
   try {
-    const [balances, cashFlowSafety, roundupProjection, cashFlow, spendingByDomain, balanceHistory, debtTrend, anomalies, forwardProjection, spendingHierarchy] = await Promise.all([
-      computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeRoundupProjection(userId), computeCashFlow(userId), computeSpendingByDomain(userId), computeBalanceHistory(userId), computeDebtTrend(userId), detectAnomalies(userId), computeForwardProjection(userId), computeSpendingHierarchy(userId),
-    ]);
-    const [flags, debtCost, categoryDrift, reasoning] = await Promise.all([getFeatureFlags(userId), computeDebtCostIntelligence(userId), computeCategoryDrift(userId), computeFinancialReasoning(userId)]);
-    const narrative = flags.relational_reasoning ? layeredNarrative(reasoning, { safeToSpend: cashFlowSafety.safeToSpend, essentialBillsCount: cashFlowSafety.upcomingBills.length, cashFlowNet: cashFlow.net, cashFlowNetChangePct: cashFlow.netChangePct, debtChangePct: debtTrend.changePct, anomalyCount: anomalies.length }) : buildNarrative({ safeToSpend: cashFlowSafety.safeToSpend, essentialBillsCount: cashFlowSafety.upcomingBills.length, cashFlowNet: cashFlow.net, cashFlowNetChangePct: cashFlow.netChangePct, debtChangePct: debtTrend.changePct, anomalyCount: anomalies.length });
-    recordExplainabilityTrace(userId, reasoning).catch((err) => console.error("explainability trace failed:", err));
-    res.json({ narrative, net_worth: { liquid_assets: balances.liquidAssets, as_of: balances.asOf }, debt_health: { revolving_debt: balances.revolvingDebt, credit_utilization: balances.creditUtilization, change_pct_30d: debtTrend.changePct, interest_cost_attribution: flags.debt_cost_intelligence ? debtCost : null, as_of: balances.asOf }, cash_flow_safety: cashFlowSafety, roundup_projection: roundupProjection, cash_flow: cashFlow, spending_by_domain: spendingByDomain, balance_history: balanceHistory, forward_projection: forwardProjection, anomalies: flags.anomaly_detection ? anomalies : [], spending_hierarchy: spendingHierarchy, category_drift: flags.category_drift ? categoryDrift : [], reasoning: flags.relational_reasoning ? reasoning : null, feature_flags: flags });
+    const full = await computeFullIntelligence(req.userId!);
+    const metrics = full.layer_metrics;
+    res.json({
+      narrative: full.narrative,
+      generated_at: full.generated_at,
+      net_worth: metrics.net_worth,
+      debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost },
+      cash_flow_safety: metrics.cash_flow_safety,
+      roundup_projection: metrics.roundup_projection,
+      cash_flow: metrics.cash_flow,
+      spending_by_domain: metrics.spending_by_domain,
+      balance_history: metrics.balance_history,
+      forward_projection: metrics.forward_projection,
+      anomalies: metrics.anomalies,
+      spending_hierarchy: full.layer_metrics.spending_hierarchy,
+      category_drift: full.layer_behavioral.categoryDrift,
+      reasoning: full.layer_reasoning,
+      temporal: full.layer_temporal,
+      maximum_intelligence: full.layer_max_intelligence,
+      feature_flags: full.feature_flags,
+    });
   } catch (err) {
     console.error("dashboard/intelligence error:", err);
     res.status(500).json({ error: "Failed to compute intelligence metrics" });
