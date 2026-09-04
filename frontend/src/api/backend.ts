@@ -40,6 +40,11 @@ export const api = {
     }),
   getOverview: () => authedFetch("/dashboard/overview"),
   getIntelligence: getCanonicalIntelligence,
+  askIris: (question: string, context?: Record<string, unknown>) =>
+    authedFetch("/iris/ask", {
+      method: "POST",
+      body: JSON.stringify({ question, context }),
+    }),
   resync: () => authedFetch("/link/resync", { method: "POST" }),
   getHierarchy: () => authedFetch("/dashboard/hierarchy"),
   getRoundups: () => authedFetch("/dashboard/roundups"),
@@ -53,7 +58,7 @@ export const api = {
     authedFetch(`/features/${key}/toggle`, {
       method: "POST",
       body: JSON.stringify({ enabled }),
-  }),
+    }),
   getPlaidProducts: () => authedFetch("/dashboard/plaid"),
   getPlaidSurface: () => authedFetch("/dashboard/plaid/surface"),
   getPlaidSelection: () => authedFetch("/dashboard/plaid/selection"),
