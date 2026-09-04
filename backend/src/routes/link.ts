@@ -41,14 +41,41 @@ linkRouter.post("/link/exchange", requireAuth, async (req: AuthedRequest, res) =
       const inst = await plaidClient.institutionsGetById({ institution_id: institutionId, country_codes: env.plaidCountryCodes as CountryCode[] });
       institutionName = inst.data.institution.name;
     }
-    const { data: itemRow, error } = await supabaseAdmin
+
+    const { data: existingItem, error: lookupError } = await supabaseAdmin
       .from("plaid_items")
-      .insert({ user_id: req.userId, plaid_item_id: itemId, plaid_access_token: encryptToken(accessToken), institution_id: institutionId, institution_name: institutionName, status: "active" })
-      .select()
-      .single();
-    if (error) throw error;
-    await fullSyncForItem(itemRow.id, req.userId!, accessToken, `plaid-link-exchange:${itemRow.id}`);
-    res.json({ item_id: itemRow.id, institution_name: institutionName });
+      .select("id, user_id, plaid_access_token, institution_name, status")
+      .eq("plaid_item_id", itemId)
+      .eq("user_id", req.userId!)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+
+    let itemDbId: string;
+    if (existingItem) {
+      itemDbId = existingItem.id;
+      const { error: updateError } = await supabaseAdmin
+        .from("plaid_items")
+        .update({
+          plaid_access_token: encryptToken(accessToken),
+          institution_id: institutionId,
+          institution_name: institutionName ?? existingItem.institution_name,
+          status: "active",
+        })
+        .eq("id", existingItem.id)
+        .eq("user_id", req.userId!);
+      if (updateError) throw updateError;
+    } else {
+      const { data: itemRow, error } = await supabaseAdmin
+        .from("plaid_items")
+        .insert({ user_id: req.userId, plaid_item_id: itemId, plaid_access_token: encryptToken(accessToken), institution_id: institutionId, institution_name: institutionName, status: "active" })
+        .select()
+        .single();
+      if (error) throw error;
+      itemDbId = itemRow.id;
+    }
+
+    await fullSyncForItem(itemDbId, req.userId!, accessToken, `plaid-link-exchange:${itemDbId}`);
+    res.json({ item_id: itemDbId, institution_name: institutionName });
   } catch (err) {
     console.error("link/exchange error", err);
     res.status(502).json({ error: "Failed to exchange public token" });
