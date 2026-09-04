@@ -8,24 +8,23 @@ export function PlaidLinkButton({ onSuccess }: { onSuccess: () => void }) {
   const [connecting, setConnecting] = useState(false);
   const [loadingToken, setLoadingToken] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadToken = useCallback(async () => {
     setLoadingToken(true);
-    api
-      .createLinkToken()
-      .then((res) => {
-        if (!cancelled) setLinkToken(res.link_token);
-      })
-      .catch(() => {
-        if (!cancelled) setError("Couldn't start card connection. Try again.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingToken(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    setError(null);
+    try {
+      const res = await api.createLinkToken();
+      setLinkToken(res.link_token);
+    } catch {
+      setLinkToken(null);
+      setError("Couldn't start card connection. Try again.");
+    } finally {
+      setLoadingToken(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadToken();
+  }, [loadToken]);
 
   const handleSuccess = useCallback(
     async (publicToken: string) => {
@@ -34,13 +33,16 @@ export function PlaidLinkButton({ onSuccess }: { onSuccess: () => void }) {
       try {
         await api.exchangePublicToken(publicToken);
         onSuccess();
+        // Plaid Link tokens are single-use. Obtain a fresh token so the same
+        // signed-in iBag user can connect another institution immediately.
+        await loadToken();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Card connected, but syncing failed. Try Refresh.");
+        setError(err instanceof Error ? err.message : "Card connection failed. Try again.");
       } finally {
         setConnecting(false);
       }
     },
-    [onSuccess]
+    [loadToken, onSuccess]
   );
 
   const { open, ready } = usePlaidLink({ token: linkToken ?? "", onSuccess: handleSuccess });
@@ -57,14 +59,12 @@ export function PlaidLinkButton({ onSuccess }: { onSuccess: () => void }) {
         disabled={disabled}
         aria-busy={connecting || loadingToken}
       >
-        {connecting ? "Connecting…" : loadingToken ? "Preparing…" : "Connect a card"}
+        {connecting ? "Connecting…" : loadingToken ? "Preparing…" : "Add another institution"}
       </button>
       {error && (
         <div className="plaid-connect-error" role="alert">
           <span>{error}</span>
-          <button type="button" onClick={() => window.location.reload()}>
-            Retry
-          </button>
+          <button type="button" onClick={() => void loadToken()}>Retry</button>
         </div>
       )}
     </div>
