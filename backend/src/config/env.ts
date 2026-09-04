@@ -1,4 +1,5 @@
 import "dotenv/config";
+import type { Products } from "plaid";
 
 function required(key: string): string {
   const value = process.env[key];
@@ -19,7 +20,7 @@ export const env = {
   // automatically with any other product. That stale default caused a
   // real outage earlier; fixed here so it can never resurface if the env
   // var is ever unset.
-  plaidProducts: (process.env.PLAID_PRODUCTS ?? "transactions").split(","),
+  plaidProducts: (process.env.PLAID_PRODUCTS ?? "transactions").split(",").map((s) => s.trim()).filter(Boolean) as Products[],
   plaidCountryCodes: (process.env.PLAID_COUNTRY_CODES ?? "US").split(","),
   plaidWebhookUrl: process.env.PLAID_WEBHOOK_URL ?? "",
 
