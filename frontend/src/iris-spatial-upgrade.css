@@ -1,0 +1,34 @@
+/* iBag spatial intelligence layer — additive, non-destructive visual system. */
+.iris-shell-main{isolation:isolate}
+.iris-shell-page{min-height:calc(100vh - 66px);box-sizing:border-box;display:flex;flex-direction:column;gap:0}
+.iris-shell-page:before{content:"";position:absolute;inset:18px 24px auto auto;width:34vw;height:34vw;max-width:520px;max-height:520px;border-radius:50%;background:radial-gradient(circle,rgba(112,76,255,.10),rgba(42,220,255,.025) 38%,transparent 68%);filter:blur(2px);pointer-events:none;z-index:-1}
+.iris-shell-hero,.iris-shell-page-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:28px;padding:4px 2px 18px;border-bottom:1px solid rgba(255,255,255,.065)}
+.iris-shell-hero>div:first-child,.iris-shell-page-intro>*{position:relative;z-index:1}
+.iris-shell-hero h1,.iris-shell-page-intro h1{text-shadow:0 0 38px rgba(123,92,255,.16)}
+.iris-shell-state-grid,.iris-shell-stat-grid{align-items:stretch}
+.iris-shell-state-primary,.iris-shell-stat,.iris-shell-panel{transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease;will-change:transform}
+.iris-shell-state-primary:hover,.iris-shell-stat:hover,.iris-shell-panel:hover{transform:translateY(-2px);border-color:rgba(151,132,255,.20);box-shadow:0 24px 70px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.055)}
+.iris-shell-state-primary:before,.iris-shell-stat:before,.iris-shell-panel:before{content:"";position:absolute;top:0;left:18px;right:18px;height:1px;background:linear-gradient(90deg,transparent,rgba(151,132,255,.28),transparent);opacity:.7}
+.iris-shell-state-primary strong,.iris-big-number{font-variant-numeric:tabular-nums;text-shadow:0 0 30px rgba(111,232,255,.10)}
+.iris-shell-stat strong{font-variant-numeric:tabular-nums}
+.iris-panel-head span:last-child{font-variant-numeric:tabular-nums}
+.iris-list-row{transition:background .18s ease,padding-left .18s ease;padding-left:8px;padding-right:8px;border-radius:9px}
+.iris-list-row:hover{background:rgba(255,255,255,.025);padding-left:12px}
+.iris-bar-row{position:relative;padding:4px 8px;border-radius:10px;transition:background .18s ease}
+.iris-bar-row:hover{background:rgba(255,255,255,.025)}
+.iris-bar-row i{box-shadow:inset 0 0 10px rgba(0,0,0,.25)}
+.iris-bar-row i b{position:relative;overflow:hidden}
+.iris-bar-row i b:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.32),transparent);transform:translateX(-100%);animation:iris-flow 3.4s ease-in-out infinite}
+.iris-discovery{box-shadow:0 20px 70px rgba(77,50,170,.20),inset 0 1px rgba(255,255,255,.06)}
+.iris-discovery-links button,.iris-action-row button{transition:transform .18s ease,border-color .18s ease,background .18s ease;box-shadow:inset 0 1px rgba(255,255,255,.035)}
+.iris-discovery-links button:hover,.iris-action-row button:hover{transform:translateY(-1px);border-color:rgba(160,143,255,.30);background:rgba(125,101,255,.11)}
+.iris-shell-evidence{box-shadow:inset 0 1px rgba(255,255,255,.04)}
+.iris-shell-top{box-shadow:0 10px 40px rgba(0,0,0,.14)}
+.iris-shell-crumb strong{letter-spacing:-.01em}
+.iris-shell-page-intro{margin-bottom:18px}
+.iris-shell-state-grid{margin-bottom:11px}
+.iris-shell-two-col{margin:11px 0}
+.iris-shell-panel{min-width:0}
+@keyframes iris-flow{0%,45%{transform:translateX(-110%)}75%,100%{transform:translateX(110%)}}
+@media(max-width:900px){.iris-shell-page{min-height:calc(100vh - 128px)}.iris-shell-hero,.iris-shell-page-intro{align-items:flex-start;flex-direction:column;gap:12px}.iris-shell-page:before{width:70vw;height:70vw;right:-20vw}.iris-shell-state-primary:hover,.iris-shell-stat:hover,.iris-shell-panel:hover{transform:none}}
+@media(prefers-reduced-motion:reduce){.iris-shell-state-primary,.iris-shell-stat,.iris-shell-panel,.iris-list-row,.iris-bar-row,.iris-discovery-links button,.iris-action-row button{transition:none}.iris-bar-row i b:after{animation:none}}
