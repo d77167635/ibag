@@ -17,6 +17,7 @@ import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
 import { computeFinancialReasoning } from "./relational.js";
 import { buildNarrative, recordExplainabilityTrace } from "./decision.js";
 import { buildMaximumIntelligence } from "./maxIntelligence.js";
+import { buildEvidenceGraph } from "./evidenceGraph.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -74,35 +75,41 @@ export async function computeFullIntelligence(userId: string) {
     forwardProjectionBasis: forwardProjection.basis ?? null,
   });
 
-  recordExplainabilityTrace(userId, reasoning).catch((err) =>
-    console.error("explainability trace failed:", err)
-  );
+  const layerMetrics = {
+    net_worth: { liquid_assets: balances.liquidAssets, as_of: balances.asOf },
+    debt_health: {
+      revolving_debt: balances.revolvingDebt,
+      credit_utilization: balances.creditUtilization,
+      change_pct_30d: debtTrend.changePct,
+      as_of: balances.asOf,
+    },
+    cash_flow_safety: cashFlowSafety,
+    roundup_projection: roundupProjection,
+    cash_flow: cashFlow,
+    spending_by_domain: spendingByDomain,
+    spending_hierarchy: spendingHierarchy,
+    balance_history: balanceHistory,
+    forward_projection: forwardProjection,
+    anomalies,
+  };
 
-  return {
+  const baseResult = {
     narrative,
     generated_at: new Date().toISOString(),
     feature_flags: featureFlags,
-    layer_metrics: {
-      net_worth: { liquid_assets: balances.liquidAssets, as_of: balances.asOf },
-      debt_health: {
-        revolving_debt: balances.revolvingDebt,
-        credit_utilization: balances.creditUtilization,
-        change_pct_30d: debtTrend.changePct,
-        as_of: balances.asOf,
-      },
-      cash_flow_safety: cashFlowSafety,
-      roundup_projection: roundupProjection,
-      cash_flow: cashFlow,
-      spending_by_domain: spendingByDomain,
-      spending_hierarchy: spendingHierarchy,
-      balance_history: balanceHistory,
-      forward_projection: forwardProjection,
-      anomalies,
-    },
+    layer_metrics: layerMetrics,
     layer_debt_cost: debtCost,
     layer_temporal: { windows: multiWindowFlow, trajectory },
     layer_behavioral: { categoryDrift },
     layer_reasoning: reasoning,
     layer_max_intelligence: maximumIntelligence,
   };
+
+  const evidenceGraph = buildEvidenceGraph(baseResult);
+
+  recordExplainabilityTrace(userId, reasoning).catch((err) =>
+    console.error("explainability trace failed:", err)
+  );
+
+  return { ...baseResult, evidence_graph: evidenceGraph };
 }
