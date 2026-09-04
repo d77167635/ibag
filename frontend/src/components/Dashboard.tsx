@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/backend";
 import { supabase } from "../api/supabase";
 import { PlaidLinkButton } from "./PlaidLink";
@@ -6,105 +6,14 @@ import { IrisMark } from "./IrisMark";
 import { BalanceTrendChart } from "./BalanceTrendChart";
 import { DomainHierarchy } from "./DomainHierarchy";
 
-interface Account {
-  id: string;
-  name: string;
-  mask: string | null;
-  type: string | null;
-  subtype: string | null;
-  roundup_enabled: boolean;
-  card_roundup_ledger: { accrued_unswept: number; lifetime_roundup_total: number }[] | null;
-}
-
-interface Transaction {
-  id: string;
-  merchant_name: string | null;
-  amount: number;
-  posted_date: string;
-  plaid_category_primary: string | null;
-  pending: boolean;
-  merchants: { canonical_name: string } | null;
-  subdomains: { label: string; domains: { key: string; label: string } | null } | null;
-}
-
-interface Overview {
-  accounts: Account[];
-  recent_transactions: Transaction[];
-  ibag: { projected_balance: number };
-}
-
-interface DebtCostIntelligence {
-  totalRevolvingBalance: number | null;
-  weightedAvgApr: number | null;
-  estimatedMonthlyInterestCost: number | null;
-  minimumPaymentTotal: number | null;
-  accountsWithKnownApr: number;
-  accountsWithoutAprData: number;
-  evidence: "calculated" | "insufficient_evidence";
-  basis: string;
-}
-
-interface CategoryDrift {
-  subdomainKey: string;
-  subdomainLabel: string;
-  recentDailyAvg: number;
-  baselineDailyAvg: number;
-  deviationPct: number;
-  significant: boolean;
-  evidence: "calculated" | "insufficient_evidence";
-  baselineTransactionCount: number;
-}
-
-interface RiskItem {
-  key: string;
-  severity: "low" | "medium" | "high";
-  evidence: string;
-  statement: string;
-  supportingMetrics: Record<string, number | string | null>;
-}
-
-interface OpportunityItem {
-  key: string;
-  evidence: string;
-  statement: string;
-  supportingMetrics: Record<string, number | string | null>;
-}
-
-interface FinancialReasoning {
-  risks: RiskItem[];
-  opportunities: OpportunityItem[];
-  relationalChain: string[];
-  unresolvedQuestions: string[];
-  priorityFocus: { key: string; reason: string } | null;
-  generatedAt: string;
-}
-
-interface FeatureFlags {
-  roundup: { enabled: boolean; label: string };
-  anomaly_detection: { enabled: boolean; label: string };
-  category_drift: { enabled: boolean; label: string };
-  debt_cost_intelligence: { enabled: boolean; label: string };
-  relational_reasoning: { enabled: boolean; label: string };
-}
-
+interface Account { id: string; name: string; mask: string | null; type: string | null; subtype: string | null; roundup_enabled: boolean; card_roundup_ledger: { accrued_unswept: number; lifetime_roundup_total: number }[] | null; }
+interface Transaction { id: string; merchant_name: string | null; amount: number; posted_date: string; plaid_category_primary: string | null; pending: boolean; merchants: { canonical_name: string } | null; subdomains: { label: string; domains: { key: string; label: string } | null } | null; }
+interface Overview { accounts: Account[]; recent_transactions: Transaction[]; ibag: { projected_balance: number }; }
 interface Intelligence {
   narrative: string;
   net_worth: { liquid_assets: number | null; as_of: string | null };
-  debt_health: {
-    revolving_debt: number | null;
-    credit_utilization: number | null;
-    change_pct_30d: number | null;
-    interest_cost_attribution: DebtCostIntelligence | null;
-    as_of: string | null;
-  };
-  cash_flow_safety: {
-    safeToSpend: number | null;
-    currentAvailable: number | null;
-    essentialBillsTotal: number;
-    upcomingBills: { merchant: string; amount: number; expectedDate: string }[];
-    billCollisions: { window_start: string; bills: string[] }[];
-    horizonDays: number;
-  };
+  debt_health: { revolving_debt: number | null; credit_utilization: number | null; change_pct_30d: number | null; interest_cost_attribution: { estimatedMonthlyInterestCost: number | null; weightedAvgApr: number | null; evidence: string } | null; as_of: string | null };
+  cash_flow_safety: { safeToSpend: number | null; currentAvailable: number | null; essentialBillsTotal: number; upcomingBills: { merchant: string; amount: number; expectedDate: string }[]; billCollisions: { window_start: string; bills: string[] }[]; horizonDays: number };
   roundup_projection: { dailyRate: number | null; projected: number | null; basisDays: number; projectDays?: number };
   cash_flow: { inflow: number | null; outflow: number | null; net: number | null; netChangePct: number | null; windowDays: number };
   spending_by_domain: { key: string; label: string; amount: number; changePct: number | null }[];
@@ -112,847 +21,158 @@ interface Intelligence {
   balance_history: { date: string; liquidAssets: number }[];
   forward_projection: { series: { date: string; balance: number; event: string | null }[]; basis: string };
   anomalies: { merchant: string; amount: number; typicalAmount: number; date: string; pctAboveTypical: number }[];
-  category_drift: CategoryDrift[];
-  reasoning: FinancialReasoning | null;
+  category_drift: { subdomainKey: string; subdomainLabel: string; recentDailyAvg: number; baselineDailyAvg: number; deviationPct: number; significant: boolean; evidence: string; baselineTransactionCount: number }[];
+  reasoning: { risks: { key: string; severity: "low" | "medium" | "high"; evidence: string; statement: string; supportingMetrics: Record<string, number | string | null> }[]; opportunities: { key: string; evidence: string; statement: string; supportingMetrics: Record<string, number | string | null> }[]; relationalChain: string[]; unresolvedQuestions: string[]; priorityFocus: { key: string; reason: string } | null; generatedAt: string } | null;
   feature_flags: Record<string, boolean>;
 }
+interface Features { [key: string]: { enabled: boolean; label: string } }
+interface PlaidProducts { items: { institution_name: string | null; status: string; last_synced_at: string | null; billed_products: string[]; available_products: string[] }[]; products: { product: string; status?: string }[] }
 
-function formatType(subtype: string | null, type: string | null) {
-  const raw = subtype ?? type ?? "account";
-  return raw.replace(/_/g, " ");
-}
-
-// Every dollar figure in this component routes through here so
-// amounts always carry thousands separators — $62,589.00, never
-// $62589.00. Callers that need a sign prepend it themselves; this
-// always returns the unsigned, comma-formatted magnitude.
-function fmt(n: number): string {
-  return Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function productLabel(p: string): string {
-  const labels: Record<string, string> = {
-    transactions: "Transactions",
-    auth: "Auth",
-    balance: "Balance",
-    identity: "Identity",
-    investments: "Investments",
-    liabilities: "Liabilities",
-    transfer: "Transfer",
-    signal: "Signal",
-  };
-  return labels[p] ?? p;
-}
-
-type DashboardMode = "iris" | "plaid";
-
-interface PlaidProducts {
-  items: {
-    institution_name: string | null;
-    status: string;
-    last_synced_at: string | null;
-    billed_products: string[];
-    available_products: string[];
-  }[];
-  products: { product: string; status?: "active" | "available" | "not_requested" | "not_connected" }[];
-}
-
-type Tab = "overview" | "spending" | "insights" | "bills" | "accounts" | "activity" | "settings";
-
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "overview", label: "Overview", icon: "◈" },
-  { id: "spending", label: "Spending", icon: "◐" },
-  { id: "insights", label: "Insights", icon: "✦" },
-  { id: "bills", label: "Bills", icon: "◷" },
-  { id: "accounts", label: "Cards", icon: "▭" },
-  { id: "activity", label: "Activity", icon: "≡" },
+type View = "home" | "money" | "spending" | "bills" | "accounts" | "roundups" | "insights" | "iris" | "whatif" | "activity" | "connections" | "settings";
+const NAV: { id: View; label: string; icon: string; group: string }[] = [
+  { id: "home", label: "Home", icon: "⌂", group: "Core" },
+  { id: "money", label: "Money", icon: "◒", group: "Core" },
+  { id: "spending", label: "Spending", icon: "◔", group: "Core" },
+  { id: "bills", label: "Bills", icon: "◷", group: "Core" },
+  { id: "accounts", label: "Accounts", icon: "▱", group: "Core" },
+  { id: "roundups", label: "Round-Ups", icon: "✧", group: "Build" },
+  { id: "insights", label: "Insights", icon: "✦", group: "Build" },
+  { id: "iris", label: "Iris", icon: "◉", group: "Build" },
+  { id: "whatif", label: "What-If", icon: "◇", group: "Build" },
+  { id: "activity", label: "Activity", icon: "≡", group: "Data" },
+  { id: "connections", label: "Connections", icon: "⌁", group: "Data" },
+  { id: "settings", label: "Settings", icon: "⚙", group: "System" },
 ];
+const money = (n: number | null | undefined) => n == null ? "—" : `$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const signed = (n: number | null | undefined) => n == null ? "—" : `${n >= 0 ? "+" : "−"}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const pct = (n: number | null | undefined) => n == null ? "—" : `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(0)}%`;
+const label = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
-function SkeletonBlock({ height = 80 }: { height?: number }) {
-  return <div className="skeleton" style={{ height }} />;
+function Evidence({ state = "calculated" }: { state?: string }) {
+  const map: Record<string, string> = { observed: "Observed", calculated: "Calculated from your data", inferred: "Iris inference", limited: "Limited evidence", insufficient_evidence: "Not enough evidence", retired: "Retired observation" };
+  return <span className={`iris-evidence evidence-${state}`}>{map[state] ?? label(state)}</span>;
+}
+function Arrow() { return <span aria-hidden="true">→</span>; }
+function SectionHead({ title, eyebrow, onOpen, action = "Explore" }: { title: string; eyebrow?: string; onOpen?: () => void; action?: string }) {
+  return <div className="iris-section-head"><div><div className="iris-eyebrow">{eyebrow}</div><h2>{title}</h2></div>{onOpen && <button className="iris-text-button" onClick={onOpen}>{action} <Arrow /></button>}</div>;
+}
+function Metric({ label: title, value, note, tone = "neutral" }: { label: string; value: string; note?: string; tone?: string }) {
+  return <div className={`iris-metric iris-tone-${tone}`}><span>{title}</span><strong>{value}</strong>{note && <small>{note}</small>}</div>;
 }
 
 export function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [intelligence, setIntelligence] = useState<Intelligence | null>(null);
-  const [features, setFeatures] = useState<FeatureFlags | null>(null);
+  const [features, setFeatures] = useState<Features | null>(null);
+  const [products, setProducts] = useState<PlaidProducts | null>(null);
+  const [view, setView] = useState<View>("home");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [resyncing, setResyncing] = useState(false);
-  const [tab, setTab] = useState<Tab>("overview");
-  const [mode, setMode] = useState<DashboardMode>("iris");
-  const [plaidProducts, setPlaidProducts] = useState<PlaidProducts | null>(null);
-
-  async function loadPlaidProducts() {
-    try {
-      const p = await api.getPlaidProducts();
-      setPlaidProducts(p);
-    } catch {
-      setPlaidProducts(null);
-    }
-  }
-
-  const [scenarioType, setScenarioType] = useState<"spending_change" | "bill_change" | "income_change">(
-    "spending_change"
-  );
+  const [refreshing, setRefreshing] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
+  const [scenarioType, setScenarioType] = useState("spending_change");
   const [scenarioAmount, setScenarioAmount] = useState("");
   const [scenarioResult, setScenarioResult] = useState<any>(null);
   const [scenarioLoading, setScenarioLoading] = useState(false);
 
+  async function load() {
+    setLoading(true); setError(null);
+    try {
+      const data = await api.getOverview(); setOverview(data);
+      if (data.accounts.length) { try { setIntelligence(await api.getIntelligence()); } catch { setIntelligence(null); } }
+      try { setFeatures(await api.getFeatures()); } catch { setFeatures(null); }
+      try { setProducts(await api.getPlaidProducts()); } catch { setProducts(null); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to load Iris"); }
+    finally { setLoading(false); }
+  }
+  async function refresh() { setRefreshing(true); try { await api.resync(); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Refresh failed"); } finally { setRefreshing(false); } }
+  useEffect(() => { void load(); }, []);
   async function runScenario() {
-    const amount = Number(scenarioAmount);
-    if (Number.isNaN(amount)) return;
-    setScenarioLoading(true);
-    try {
-      const result = await api.runScenario(scenarioType, amount);
-      setScenarioResult(result);
-    } catch {
-      setScenarioResult({ evidence: "insufficient_evidence", reason: "Scenario calculation failed." });
-    } finally {
-      setScenarioLoading(false);
-    }
+    const amount = Number(scenarioAmount); if (!Number.isFinite(amount)) return;
+    setScenarioLoading(true); setScenarioResult(null);
+    try { setScenarioResult(await api.runScenario(scenarioType, amount)); } catch { setScenarioResult({ evidence: "insufficient_evidence", reason: "Scenario calculation could not be completed." }); }
+    finally { setScenarioLoading(false); }
   }
+  const hasAccounts = !!overview?.accounts.length;
+  const safe = intelligence?.cash_flow_safety.safeToSpend ?? null;
+  const pressure = useMemo(() => {
+    if (!intelligence) return { level: "Unknown", tone: "neutral", detail: "Iris needs more evidence to assess financial pressure." };
+    const collisions = intelligence.cash_flow_safety.billCollisions.length;
+    const debt = intelligence.debt_health.credit_utilization;
+    if (collisions > 0 || (debt != null && debt >= .75)) return { level: "Elevated", tone: "warn", detail: collisions ? `${collisions} bill collision${collisions > 1 ? "s" : ""} detected.` : "Credit utilization is elevated." };
+    if (safe != null && safe < 0) return { level: "High", tone: "danger", detail: "Known obligations exceed currently available cash." };
+    return { level: "Stable", tone: "good", detail: "No material pressure signal detected in the current evidence window." };
+  }, [intelligence, safe]);
 
-  async function loadFeatures() {
-    try {
-      const f = await api.getFeatures();
-      setFeatures(f);
-    } catch {
-      setFeatures(null);
-    }
-  }
+  const go = (next: View) => { setView(next); setMobileNav(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const currentNav = NAV.find(n => n.id === view);
 
-  async function toggleFeature(key: string, enabled: boolean) {
-    await api.toggleFeature(key, enabled);
-    await loadFeatures();
-    await refresh();
-  }
+  if (loading) return <div className="iris-app"><div className="iris-loading"><div className="iris-loading-orb"><IrisMark size={38} color="#ffffff" /></div><h1>Iris</h1><p>Building your financial picture from observed data…</p><div className="iris-loading-grid"><i/><i/><i/><i/></div></div></div>;
+  if (!overview) return <div className="iris-app"><div className="iris-error"><h1>Iris couldn't load</h1><p>{error ?? "No dashboard data is available."}</p><button onClick={() => void load()}>Try again</button></div></div>;
 
-  async function toggleAccountRoundup(accountId: string, enabled: boolean) {
-    await api.toggleAccountRoundup(accountId, enabled);
-    await refresh();
-  }
+  return <div className="iris-app">
+    <aside className={`iris-sidebar${mobileNav ? " open" : ""}`}>
+      <div className="iris-brand" onClick={() => go("home")}><span className="iris-brand-mark"><IrisMark size={24} color="#fff" /></span><span>Iris</span></div>
+      <div className="iris-sidebar-scroll">{["Core", "Build", "Data", "System"].map(group => <div className="iris-nav-group" key={group}><span className="iris-nav-group-label">{group}</span>{NAV.filter(n => n.group === group).map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><b>{n.icon}</b>{n.label}{n.id === "iris" && <em>AI</em>}</button>)}</div>)}</div>
+      <div className="iris-sidebar-foot"><span className="iris-status-dot"/>Live intelligence<div>Evidence-gated · Phase 1</div></div>
+    </aside>
 
-  async function refresh() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.getOverview();
-      setOverview(data);
-      if (data.accounts.length > 0) {
-        try {
-          const intel = await api.getIntelligence();
-          setIntelligence(intel);
-        } catch {
-          setIntelligence(null);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard");
-    } finally {
-      setLoading(false);
-    }
-  }
+    <main className="iris-main">
+      <header className="iris-topbar"><button className="iris-mobile-menu" onClick={() => setMobileNav(v => !v)} aria-label="Open navigation">☰</button><div className="iris-breadcrumb"><span>Iris</span><Arrow /><strong>{currentNav?.label}</strong></div><div className="iris-actions">{hasAccounts && <button onClick={() => void refresh()} disabled={refreshing} className="iris-quiet-button">{refreshing ? "Syncing…" : "Refresh"}</button>}<PlaidLinkButton onSuccess={() => void load()} /><button className="iris-avatar" onClick={() => go("settings")} aria-label="Settings">{view === "settings" ? "✓" : "D"}</button></div></header>
 
-  async function resync() {
-    setResyncing(true);
-    try {
-      await api.resync();
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Resync failed");
-    } finally {
-      setResyncing(false);
-    }
-  }
+      {error && <div className="iris-alert"><strong>Attention</strong><span>{error}</span><button onClick={() => setError(null)}>Dismiss</button></div>}
 
-  useEffect(() => {
-    refresh();
-    loadFeatures();
-    loadPlaidProducts();
-  }, []);
-
-  const header = (
-    <header className="app-header">
-      <div className="app-mark">
-        <IrisMark size={22} color="#453868" />
-        Iris
-      </div>
-      <div className="app-header-actions">
-        {overview && overview.accounts.length > 0 && (
-          <button className="btn-ghost" onClick={resync} disabled={resyncing}>
-            {resyncing ? "Refreshing…" : "Refresh"}
-          </button>
-        )}
-        {overview && <PlaidLinkButton onSuccess={refresh} />}
-        {overview && overview.accounts.length > 0 && (
-          <button className="btn-ghost" onClick={() => setTab("settings")} title="Settings">
-            ⚙
-          </button>
-        )}
-        <button className="btn-ghost" onClick={() => supabase.auth.signOut()}>
-          Sign out
-        </button>
-      </div>
-    </header>
-  );
-
-  if (loading) {
-    return (
-      <div className="app-shell">
-        <div className="app-container">
-          {header}
-          <SkeletonBlock height={110} />
-          <div style={{ height: 16 }} />
-          <SkeletonBlock height={200} />
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="app-shell">
-        <div className="app-container">
-          {header}
-          <div className="banner banner-error">{error}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!overview) return null;
-
-  const hasAccounts = overview.accounts.length > 0;
-  const hasTransactions = overview.recent_transactions.length > 0;
-
-  return (
-    <div className="app-shell">
-      <div className="app-container">
-        {header}
-
-        <section className="balance-card">
-          <p className="balance-label">Available in your ibag</p>
-          <p className="balance-figure">${fmt(overview.ibag.projected_balance)}</p>
-          <p className="balance-note">
-            This is a projection, not spendable funds — round-ups are simulated in Phase 1.
-          </p>
-        </section>
-
-        {!hasAccounts && (
-          <section className="section">
-            <div className="empty-state">No cards connected yet — connect a card to see your data.</div>
-          </section>
-        )}
-
-        {hasAccounts && (
-          <div className="dashboard-mode-switch">
-            <button
-              className={`mode-button${mode === "iris" ? " active" : ""}`}
-              onClick={() => setMode("iris")}
-            >
-              Iris Intelligence
-            </button>
-            <button
-              className={`mode-button${mode === "plaid" ? " active" : ""}`}
-              onClick={() => setMode("plaid")}
-            >
-              Plaid Products
-            </button>
-          </div>
-        )}
-
-        {hasAccounts && mode === "plaid" && (
-          <section className="section">
-            <div className="section-head">
-              <h2>Plaid standard products</h2>
-            </div>
-            {!plaidProducts && <div className="empty-state">Unable to load Plaid product status.</div>}
-            {plaidProducts && (
-              <>
-                <div className="product-grid">
-                  {plaidProducts.products.map((p) => (
-                    <div className="product-card" key={p.product}>
-                      <span className="product-name">{productLabel(p.product)}</span>
-                      <span className={`product-status product-status-${p.status}`}>
-                        {(p.status ?? "unknown").replace(/_/g, " ")}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="section-head" style={{ marginTop: 24 }}>
-                  <h2>Connected institutions</h2>
-                  <span className="section-count">{plaidProducts.items.length}</span>
-                </div>
-                <div className="account-list">
-                  {plaidProducts.items.map((item, i) => (
-                    <div className="account-row" key={i}>
-                      <span className="account-name">
-                        {item.institution_name ?? "Unknown institution"}
-                        <span className="account-mask">{item.status}</span>
-                      </span>
-                      <span className="account-type">
-                        {item.billed_products.length > 0
-                          ? item.billed_products.map(productLabel).join(", ")
-                          : "No active products"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </section>
-        )}
-
-        {hasAccounts && mode === "iris" && tab === "overview" && intelligence && (
-          <section className="section">
-            {intelligence.narrative && (
-              <div className="narrative">
-                <span className="narrative-label">Insight</span>
-                {intelligence.narrative}
-              </div>
-            )}
-
-            {intelligence.spending_hierarchy.length > 0 && (
-              <div className="hierarchy-teaser">
-                <div className="hierarchy-ring-row">
-                  {intelligence.spending_hierarchy.map((d) => (
-                    <div
-                      key={d.key}
-                      className="hierarchy-segment"
-                      style={{
-                        width: `${Math.max(d.pctOfTotal, 3)}%`,
-                        background:
-                          {
-                            transfers: "#6b7a8f",
-                            debt_and_fees: "#a8455c",
-                            housing: "#b98544",
-                            daily_living: "#5c8a6b",
-                            transportation_travel: "#3f8a8c",
-                            entertainment: "#7d5ba6",
-                            services_civic: "#8a7c5c",
-                          }[d.key] ?? "#8890a0",
-                      }}
-                      title={`${d.label}: $${fmt(d.amount)}`}
-                    />
-                  ))}
-                </div>
-                <button className="hierarchy-teaser-link" onClick={() => setTab("spending")}>
-                  Full spending breakdown by domain →
-                </button>
-              </div>
-            )}
-
-            {intelligence.balance_history.length > 1 && (
-              <BalanceTrendChart data={intelligence.balance_history} />
-            )}
-            <div className="hero-metric">
-              <p className="metric-label">Safe-to-spend</p>
-              <p className="hero-metric-value">
-                {intelligence.cash_flow_safety.safeToSpend !== null
-                  ? `$${fmt(intelligence.cash_flow_safety.safeToSpend)}`
-                  : "—"}
-              </p>
-              {intelligence.cash_flow_safety.safeToSpend !== null && (
-                <p className="metric-note">
-                  ${intelligence.cash_flow_safety.currentAvailable !== null
-                    ? fmt(intelligence.cash_flow_safety.currentAvailable)
-                    : "—"}{" "}
-                  available minus $
-                  {fmt(intelligence.cash_flow_safety.essentialBillsTotal)} in essential bills due within{" "}
-                  {intelligence.cash_flow_safety.horizonDays} days.
-                </p>
-              )}
-            </div>
-
-            <div className="metric-grid">
-              <div className="metric-card">
-                <p className="metric-label">Liquid assets</p>
-                <p className="metric-value">
-                  {intelligence.net_worth.liquid_assets !== null
-                    ? `$${fmt(intelligence.net_worth.liquid_assets)}`
-                    : "—"}
-                </p>
-                <p className="metric-note">Across connected checking &amp; savings accounts.</p>
-              </div>
-              <div className="metric-card">
-                <p className="metric-label">Revolving debt</p>
-                <p className="metric-value">
-                  {intelligence.debt_health.revolving_debt !== null
-                    ? `$${fmt(intelligence.debt_health.revolving_debt)}`
-                    : "—"}
-                </p>
-                <p className="metric-note">
-                  {intelligence.debt_health.credit_utilization !== null
-                    ? `${(intelligence.debt_health.credit_utilization * 100).toFixed(0)}% average utilization`
-                    : "Across connected credit accounts."}
-                  {intelligence.debt_health.change_pct_30d !== null && (
-                    <>
-                      {" "}
-                      ·{" "}
-                      <span
-                        className={`delta ${
-                          intelligence.debt_health.change_pct_30d > 0 ? "delta-negative" : "delta-positive"
-                        }`}
-                      >
-                        {intelligence.debt_health.change_pct_30d >= 0 ? "↑" : "↓"}
-                        {Math.abs(intelligence.debt_health.change_pct_30d).toFixed(0)}% (30d)
-                      </span>
-                    </>
-                  )}
-                </p>
-                {intelligence.debt_health.interest_cost_attribution?.evidence === "calculated" && (
-                  <p className="metric-note">
-                    ~${fmt(intelligence.debt_health.interest_cost_attribution.estimatedMonthlyInterestCost!)}/mo
-                    interest at {intelligence.debt_health.interest_cost_attribution.weightedAvgApr!.toFixed(1)}%
-                    APR
-                  </p>
-                )}
-              </div>
-              <div className="metric-card">
-                <p className="metric-label">Round-up pace</p>
-                <p className="metric-value">
-                  {intelligence.roundup_projection.projected !== null
-                    ? `$${fmt(intelligence.roundup_projection.projected)}`
-                    : "—"}
-                </p>
-                <p className="metric-note">
-                  {intelligence.roundup_projection.dailyRate !== null
-                    ? `Trend projection over next ${intelligence.roundup_projection.projectDays} days, based on ${intelligence.roundup_projection.basisDays} days of transaction history.`
-                    : "Not enough transaction history yet to project."}
-                </p>
-              </div>
-            </div>
-
-            {intelligence.cash_flow.net !== null && (
-              <div className="cashflow-row">
-                <div className="cashflow-item">
-                  <p className="metric-label">{intelligence.cash_flow.windowDays}-day inflow</p>
-                  <p className="cashflow-value positive">+${fmt(intelligence.cash_flow.inflow!)}</p>
-                </div>
-                <div className="cashflow-item">
-                  <p className="metric-label">{intelligence.cash_flow.windowDays}-day outflow</p>
-                  <p className="cashflow-value negative">-${fmt(intelligence.cash_flow.outflow!)}</p>
-                </div>
-                <div className="cashflow-item">
-                  <p className="metric-label">Net cash movement</p>
-                  <p className={`cashflow-value ${intelligence.cash_flow.net >= 0 ? "positive" : "negative"}`}>
-                    {intelligence.cash_flow.net >= 0 ? "+" : "-"}${fmt(intelligence.cash_flow.net)}
-                  </p>
-                  {intelligence.cash_flow.netChangePct !== null && (
-                    <p className="metric-note">
-                      {intelligence.cash_flow.netChangePct >= 0 ? "↑" : "↓"}{" "}
-                      {Math.abs(intelligence.cash_flow.netChangePct).toFixed(0)}% vs previous{" "}
-                      {intelligence.cash_flow.windowDays} days
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {hasAccounts && mode === "iris" && tab === "spending" && intelligence && (
-          <section className="section">
-            <div className="section-head">
-              <h2>Where money went</h2>
-              <span className="section-count">last 30 days</span>
-            </div>
-            {intelligence.spending_hierarchy.length > 0 ? (
-              <DomainHierarchy domains={intelligence.spending_hierarchy} />
-            ) : (
-              <div className="empty-state">Not enough spending activity yet to break down by category.</div>
-            )}
-
-            {intelligence.anomalies.length > 0 && (
-              <div className="anomalies">
-                <p className="metric-label" style={{ marginBottom: 8 }}>
-                  Unusually large purchases
-                </p>
-                {intelligence.anomalies.map((a, i) => (
-                  <div className="account-row" key={i}>
-                    <span className="account-name">
-                      {a.merchant} <span className="account-mask">{a.date}</span>
-                    </span>
-                    <span className="account-type anomaly-tag">
-                      ${fmt(a.amount)} (typically ${fmt(a.typicalAmount)})
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {hasAccounts && mode === "iris" && tab === "bills" && intelligence && (
-          <section className="section">
-            {intelligence.cash_flow_safety.billCollisions.length > 0 && (
-              <div className="banner banner-error">
-                {intelligence.cash_flow_safety.billCollisions.map((c) => (
-                  <div key={c.window_start}>
-                    Heads up — {c.bills.join(" and ")} are expected close together around {c.window_start}.
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {intelligence.cash_flow_safety.upcomingBills.length > 0 ? (
-              <div className="upcoming-bills">
-                <p className="metric-label" style={{ marginBottom: 8 }}>
-                  Upcoming bills (detected from recurring activity)
-                </p>
-                {intelligence.cash_flow_safety.upcomingBills.map((b, i) => (
-                  <div className="account-row" key={i}>
-                    <span className="account-name">{b.merchant}</span>
-                    <span className="account-type">
-                      ${fmt(b.amount)} · {b.expectedDate}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-state">No essential recurring bills detected yet.</div>
-            )}
-
-            {intelligence.forward_projection.series.filter((p) => p.event).length > 0 && (
-              <div className="upcoming-bills">
-                <p className="metric-label" style={{ marginBottom: 8 }}>
-                  Projected checking balance (known essential bills only — not a full forecast)
-                </p>
-                <div className="account-list">
-                  {intelligence.forward_projection.series
-                    .filter((p) => p.event)
-                    .map((p) => (
-                      <div className="account-row" key={p.date}>
-                        <span className="account-name">
-                          {p.event} <span className="account-mask">{p.date}</span>
-                        </span>
-                        <span className="account-type">${fmt(p.balance)} balance after</span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {hasAccounts && mode === "iris" && tab === "accounts" && (
-          <section className="section">
-            <div className="section-head">
-              <h2>Connected cards</h2>
-              <span className="section-count">{overview.accounts.length}</span>
-            </div>
-            <div className="account-list">
-              {overview.accounts.map((acct) => {
-                const ledger = acct.card_roundup_ledger?.[0];
-                return (
-                  <div className="account-row" key={acct.id}>
-                    <span className="account-name">
-                      {acct.name}
-                      {acct.mask && <span className="account-mask">••{acct.mask}</span>}
-                    </span>
-                    <span className="account-row-right">
-                      {ledger && Number(ledger.lifetime_roundup_total) > 0 && (
-                        <span className="account-roundup">
-                          ${fmt(Number(ledger.lifetime_roundup_total))} round-ups
-                        </span>
-                      )}
-                      <span className="account-type">{formatType(acct.subtype, acct.type)}</span>
-                      <label className="toggle-switch" title="Round-up on this card">
-                        <input
-                          type="checkbox"
-                          checked={acct.roundup_enabled}
-                          onChange={(e) => toggleAccountRoundup(acct.id, e.target.checked)}
-                        />
-                        <span className="toggle-slider" />
-                      </label>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {hasAccounts && mode === "iris" && tab === "insights" && intelligence && (
-          <section className="section">
-            <div className="scenario-block">
-              <p className="metric-label" style={{ marginBottom: 8 }}>
-                What if?
-              </p>
-              <div className="scenario-controls">
-                <select
-                  className="scenario-select"
-                  value={scenarioType}
-                  onChange={(e) => setScenarioType(e.target.value as typeof scenarioType)}
-                >
-                  <option value="spending_change">Spending changes by $</option>
-                  <option value="bill_change">Essential bills change by $</option>
-                  <option value="income_change">30-day inflow changes by %</option>
-                </select>
-                <input
-                  className="scenario-input"
-                  type="number"
-                  placeholder={scenarioType === "income_change" ? "e.g. -10" : "e.g. -300"}
-                  value={scenarioAmount}
-                  onChange={(e) => setScenarioAmount(e.target.value)}
-                />
-                <button className="btn-accent" onClick={runScenario} disabled={scenarioLoading || !scenarioAmount}>
-                  {scenarioLoading ? "…" : "Run"}
-                </button>
-              </div>
-              {scenarioResult && scenarioResult.evidence === "insufficient_evidence" && (
-                <p className="metric-note" style={{ marginTop: 8 }}>
-                  {scenarioResult.reason}
-                </p>
-              )}
-              {scenarioResult && scenarioResult.evidence === "calculated" && (
-                <div className="scenario-result">
-                  <div className="scenario-row">
-                    <span>Safe-to-spend</span>
-                    <span>
-                      ${fmt(scenarioResult.baseline.safeToSpend)} → ${fmt(scenarioResult.scenario.safeToSpend)}{" "}
-                      <span className={scenarioResult.delta.safeToSpend >= 0 ? "delta-positive" : "delta-negative"}>
-                        ({scenarioResult.delta.safeToSpend >= 0 ? "+" : "-"}${fmt(scenarioResult.delta.safeToSpend)})
-                      </span>
-                    </span>
-                  </div>
-                  <div className="scenario-row">
-                    <span>30-day cash flow net</span>
-                    <span>
-                      ${fmt(scenarioResult.baseline.cashFlowNet)} → ${fmt(scenarioResult.scenario.cashFlowNet)}{" "}
-                      <span className={scenarioResult.delta.cashFlowNet >= 0 ? "delta-positive" : "delta-negative"}>
-                        ({scenarioResult.delta.cashFlowNet >= 0 ? "+" : "-"}${fmt(scenarioResult.delta.cashFlowNet)})
-                      </span>
-                    </span>
-                  </div>
-                  <p className="scenario-assumption">{scenarioResult.assumption}</p>
-                </div>
-              )}
-            </div>
-
-            {!intelligence.reasoning ? (
-              <div className="empty-state">
-                Risk &amp; opportunity analysis is turned off.{" "}
-                <button className="btn-link" onClick={() => setTab("settings")}>
-                  Turn it on in Settings
-                </button>
-                .
-              </div>
-            ) : (
-              <>
-                {intelligence.reasoning.risks.length > 0 && (
-                  <div className="insight-block">
-                    <p className="metric-label" style={{ marginBottom: 8 }}>
-                      Risks
-                    </p>
-                    {intelligence.reasoning.risks.map((r) => (
-                      <div className={`insight-card severity-${r.severity}`} key={r.key}>
-                        <span className="insight-severity">{r.severity}</span>
-                        <p className="insight-statement">{r.statement}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {intelligence.reasoning.opportunities.length > 0 && (
-                  <div className="insight-block">
-                    <p className="metric-label" style={{ marginBottom: 8 }}>
-                      Opportunities
-                    </p>
-                    {intelligence.reasoning.opportunities.map((o) => (
-                      <div className="insight-card opportunity" key={o.key}>
-                        <p className="insight-statement">{o.statement}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {intelligence.category_drift.filter((d) => d.significant).length > 0 && (
-                  <div className="insight-block">
-                    <p className="metric-label" style={{ marginBottom: 8 }}>
-                      Spending pattern drift
-                    </p>
-                    {intelligence.category_drift
-                      .filter((d) => d.significant)
-                      .map((d) => (
-                        <div className="account-row" key={d.subdomainKey}>
-                          <span className="account-name">{d.subdomainLabel}</span>
-                          <span className={`account-type ${d.deviationPct >= 0 ? "anomaly-tag" : ""}`}>
-                            {d.deviationPct >= 0 ? "↑" : "↓"}
-                            {Math.abs(d.deviationPct).toFixed(0)}% vs baseline
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                )}
-
-                {intelligence.reasoning.relationalChain.length > 0 && (
-                  <div className="insight-block">
-                    <p className="metric-label" style={{ marginBottom: 8 }}>
-                      How these connect
-                    </p>
-                    {intelligence.reasoning.relationalChain.map((c, i) => (
-                      <p className="insight-chain-line" key={i}>
-                        {c}
-                      </p>
-                    ))}
-                  </div>
-                )}
-
-                {intelligence.reasoning.unresolvedQuestions.length > 0 && (
-                  <div className="insight-block">
-                    <p className="metric-label" style={{ marginBottom: 8 }}>
-                      What we can't determine yet
-                    </p>
-                    {intelligence.reasoning.unresolvedQuestions.map((q, i) => (
-                      <p className="insight-chain-line unresolved" key={i}>
-                        {q}
-                      </p>
-                    ))}
-                  </div>
-                )}
-
-                {intelligence.reasoning.risks.length === 0 &&
-                  intelligence.reasoning.opportunities.length === 0 &&
-                  intelligence.category_drift.filter((d) => d.significant).length === 0 && (
-                    <div className="empty-state">
-                      No risks, opportunities, or notable pattern drift detected yet.
-                    </div>
-                  )}
-              </>
-            )}
-          </section>
-        )}
-
-        {hasAccounts && mode === "iris" && tab === "settings" && (
-          <section className="section">
-            <div className="section-head">
-              <h2>Intelligence features</h2>
-            </div>
-            {!features ? (
-              <div className="empty-state">Loading settings…</div>
-            ) : (
-              <div className="account-list">
-                {Object.entries(features).map(([key, f]) => (
-                  <div className="account-row" key={key}>
-                    <span className="account-name">{f.label}</span>
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={f.enabled}
-                        onChange={(e) => toggleFeature(key, e.target.checked)}
-                      />
-                      <span className="toggle-slider" />
-                    </label>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="metric-note" style={{ marginTop: 16 }}>
-              Round-up can also be turned on or off per card in the Cards tab.
-            </p>
-          </section>
-        )}
-
-        {hasAccounts && mode === "iris" && tab === "activity" && (
-          <section className="section">
-            <div className="section-head">
-              <h2>Recent transactions</h2>
-              {hasTransactions && <span className="section-count">{overview.recent_transactions.length}</span>}
-            </div>
-            {!hasTransactions && (
-              <div className="empty-state">
-                No transactions yet — this fills in once a card is connected and synced.
-              </div>
-            )}
-            {hasTransactions && (
-              <>
-                <div className="tx-table-wrap tx-desktop-only">
-                  <table className="tx-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Merchant</th>
-                        <th>Category</th>
-                        <th>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overview.recent_transactions.map((tx) => (
-                        <tr key={tx.id}>
-                          <td className="tx-date">{tx.posted_date}</td>
-                          <td>
-                            <span className="tx-merchant">
-                              {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
-                            </span>
-                            {tx.pending && <span className="tx-pending">Pending</span>}
-                          </td>
-                          <td className="tx-category">
-                            {tx.subdomains ? (
-                              <>
-                                {tx.subdomains.domains && (
-                                  <span className="tx-domain">{tx.subdomains.domains.label}</span>
-                                )}
-                                <span className="tx-subdomain">{tx.subdomains.label}</span>
-                              </>
-                            ) : (
-                              (tx.plaid_category_primary ?? "Uncategorized").replace(/_/g, " ").toLowerCase()
-                            )}
-                          </td>
-                          <td className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
-                            {tx.amount < 0 ? "+" : ""}${fmt(tx.amount)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="tx-card-list tx-mobile-only">
-                  {overview.recent_transactions.map((tx) => (
-                    <div className="tx-card" key={tx.id}>
-                      <div className="tx-card-top">
-                        <span className="tx-card-merchant">
-                          {tx.merchants?.canonical_name ?? tx.merchant_name ?? "—"}
-                        </span>
-                        <span className={`tx-amount${tx.amount < 0 ? " negative" : ""}`}>
-                          {tx.amount < 0 ? "+" : ""}${fmt(tx.amount)}
-                        </span>
-                      </div>
-                      <div className="tx-card-bottom">
-                        <span className="tx-date">{tx.posted_date}</span>
-                        <span className="tx-category">
-                          {tx.subdomains
-                            ? tx.subdomains.label
-                            : (tx.plaid_category_primary ?? "Uncategorized").replace(/_/g, " ").toLowerCase()}
-                        </span>
-                        {tx.pending && <span className="tx-pending">Pending</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </section>
-        )}
-      </div>
-
-      {hasAccounts && mode === "iris" && (
-        <nav className="tab-bar-mobile">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              className={`tab-mobile-button${tab === t.id ? " active" : ""}`}
-              onClick={() => setTab(t.id)}
-            >
-              <span className="tab-mobile-icon">{t.icon}</span>
-              <span className="tab-mobile-label">{t.label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
-    </div>
-  );
+      {!hasAccounts ? <EmptyOnboarding onConnect={() => undefined} /> : <>
+        {view === "home" && <Home overview={overview} intelligence={intelligence} pressure={pressure} go={go} />}
+        {view === "money" && <Money intelligence={intelligence} overview={overview} go={go} />}
+        {view === "spending" && <Spending intelligence={intelligence} />}
+        {view === "bills" && <Bills intelligence={intelligence} />}
+        {view === "accounts" && <Accounts overview={overview} onRefresh={() => void load()} />}
+        {view === "roundups" && <RoundUps overview={overview} intelligence={intelligence} />}
+        {view === "insights" && <Insights intelligence={intelligence} go={go} />}
+        {view === "iris" && <IrisCenter intelligence={intelligence} go={go} />}
+        {view === "whatif" && <WhatIf scenarioType={scenarioType} setScenarioType={setScenarioType} scenarioAmount={scenarioAmount} setScenarioAmount={setScenarioAmount} result={scenarioResult} loading={scenarioLoading} run={runScenario} />}
+        {view === "activity" && <Activity overview={overview} />}
+        {view === "connections" && <Connections products={products} overview={overview} />}
+        {view === "settings" && <Settings features={features} onToggle={async (k, e) => { await api.toggleFeature(k, e); setFeatures(await api.getFeatures()); }} />}
+      </>}
+      <nav className="iris-mobile-nav">{NAV.filter(n => ["home", "money", "spending", "bills", "iris"].includes(n.id)).map(n => <button key={n.id} className={view === n.id ? "active" : ""} onClick={() => go(n.id)}><b>{n.icon}</b><span>{n.label}</span></button>)}</nav>
+    </main>
+  </div>;
 }
+
+function Home({ overview, intelligence, pressure, go }: { overview: Overview; intelligence: Intelligence | null; pressure: { level: string; tone: string; detail: string }; go: (v: View) => void }) {
+  const s = intelligence?.cash_flow_safety; const net = intelligence?.cash_flow.net;
+  const priority = intelligence?.reasoning?.priorityFocus;
+  return <div className="iris-page">
+    <section className="iris-welcome"><div><span className="iris-eyebrow">YOUR FINANCIAL PICTURE</span><h1>Good to see you.</h1><p>Iris has turned your connected financial activity into a living picture—not a pile of numbers.</p></div><div className="iris-live-pill"><span/>Updated from your connected data</div></section>
+    <section className="iris-hero-grid">
+      <article className="iris-hero-card"><div className="iris-card-top"><span className="iris-eyebrow">SAFE TO SPEND</span><Evidence state={s?.safeToSpend == null ? "insufficient_evidence" : "calculated"}/></div><div className="iris-hero-number">{money(s?.safeToSpend)}</div><p>{s?.safeToSpend == null ? "Iris does not have enough evidence to calculate a safe-to-spend amount." : `Based on ${money(s.currentAvailable)} currently available and ${money(s.essentialBillsTotal)} in known essential bills over ${s.horizonDays} days.`}</p><button className="iris-primary-link" onClick={() => go("money")}>Understand my cash <Arrow /></button></article>
+      <article className={`iris-pressure-card tone-${pressure.tone}`}><div className="iris-card-top"><span className="iris-eyebrow">FINANCIAL PRESSURE</span><span className="iris-pressure-dot"/></div><h2>{pressure.level}</h2><p>{pressure.detail}</p><button onClick={() => go("bills")} className="iris-text-button">See pressure <Arrow /></button></article>
+    </section>
+    <section className="iris-three-grid"><Metric label="Available cash" value={money(s?.currentAvailable)} note="Across connected accounts" tone="blue"/><Metric label="30-day cash movement" value={signed(net)} note={intelligence?.cash_flow.netChangePct != null ? `${pct(intelligence.cash_flow.netChangePct)} vs prior period` : "Calculated cash flow"} tone={net != null && net >= 0 ? "good" : "warn"}/><Metric label="Round-Ups projected" value={money(intelligence?.roundup_projection.projected)} note="Secondary feature · simulated in Phase 1" tone="violet"/></section>
+    <section className="iris-section"><SectionHead title="Iris noticed" eyebrow="THE SHORT VERSION" onOpen={() => go("iris")} action="Open Iris"/><div className="iris-priority-layout"><article className="iris-insight-hero"><div className="iris-spark">✦</div><div><h3>{priority ? priority.reason : intelligence?.narrative || "Iris is still learning your financial patterns."}</h3><p>{priority ? "This is the current priority identified by the reasoning layer." : "As more real observations accumulate, Iris can move from reporting into deeper pattern and decision analysis."}</p><button onClick={() => go("iris")}>Why Iris thinks this <Arrow /></button></div></article><div className="iris-mini-stack"><MiniFinding title="Upcoming obligations" value={`${s?.upcomingBills.length ?? 0}`} detail="detected recurring items" onClick={() => go("bills")}/><MiniFinding title="Unusual purchases" value={`${intelligence?.anomalies.length ?? 0}`} detail="compared with observed history" onClick={() => go("spending")}/><MiniFinding title="Spending shifts" value={`${intelligence?.category_drift.filter(d => d.significant).length ?? 0}`} detail="significant category changes" onClick={() => go("insights")}/></div></div></section>
+    <section className="iris-section"><SectionHead title="Your money at a glance" eyebrow="FINANCIAL STATE"/><div className="iris-glance-grid"><div className="iris-glance-card"><span>Liquid assets</span><strong>{money(intelligence?.net_worth.liquid_assets)}</strong><Evidence/></div><div className="iris-glance-card"><span>Revolving debt</span><strong>{money(intelligence?.debt_health.revolving_debt)}</strong><small>{intelligence?.debt_health.credit_utilization != null ? `${(intelligence.debt_health.credit_utilization * 100).toFixed(0)}% utilization` : "No utilization evidence"}</small></div><div className="iris-glance-card"><span>Connected accounts</span><strong>{overview.accounts.length}</strong><small>Real provider accounts</small></div><div className="iris-glance-card"><span>Observed activity</span><strong>{overview.recent_transactions.length}</strong><small>Recent transactions in view</small></div></div></section>
+    <section className="iris-section"><SectionHead title="Cash flow" eyebrow="MOVEMENT" onOpen={() => go("money")}/><div className="iris-cashflow-band"><div><span>Inflow</span><strong className="positive">+{money(intelligence?.cash_flow.inflow)}</strong></div><div><span>Outflow</span><strong className="negative">−{money(intelligence?.cash_flow.outflow)}</strong></div><div><span>Net</span><strong>{signed(intelligence?.cash_flow.net)}</strong></div><div className="iris-cashflow-note">{intelligence?.cash_flow.windowDays ?? "—"}-day observed window</div></div></section>
+    <section className="iris-section"><SectionHead title="Recent activity" eyebrow="REAL TRANSACTIONS" onOpen={() => go("activity")} action="View all"/><TransactionStrip transactions={overview.recent_transactions.slice(0, 5)}/></section>
+  </div>;
+}
+function MiniFinding({ title, value, detail, onClick }: { title: string; value: string; detail: string; onClick: () => void }) { return <button className="iris-mini-finding" onClick={onClick}><span>{title}</span><strong>{value}</strong><small>{detail} <Arrow/></small></button>; }
+function TransactionStrip({ transactions }: { transactions: Transaction[] }) { return <div className="iris-transaction-strip">{transactions.map(t => <div className="iris-tx" key={t.id}><span className="iris-tx-icon">{t.amount < 0 ? "↓" : "↑"}</span><div><strong>{t.merchants?.canonical_name ?? t.merchant_name ?? "Unknown"}</strong><small>{t.subdomains?.label ?? label(t.plaid_category_primary ?? "uncategorized")} · {t.posted_date}</small></div><b className={t.amount < 0 ? "out" : "in"}>{t.amount < 0 ? "−" : "+"}{money(t.amount)}</b></div>)}</div>; }
+
+function Money({ intelligence, overview, go }: { intelligence: Intelligence | null; overview: Overview; go: (v: View) => void }) { return <div className="iris-page"><PageIntro eyebrow="MONEY" title="See the shape of your money." text="Move from current state to cash flow, balances, debt and net worth without losing the evidence underneath."/><section className="iris-four-grid"><Metric label="Liquid assets" value={money(intelligence?.net_worth.liquid_assets)} note="Connected cash accounts" tone="blue"/><Metric label="Safe to spend" value={money(intelligence?.cash_flow_safety.safeToSpend)} note="Known obligations included" tone="good"/><Metric label="Revolving debt" value={money(intelligence?.debt_health.revolving_debt)} note="Connected credit data" tone="warn"/><Metric label="Net movement" value={signed(intelligence?.cash_flow.net)} note={`${intelligence?.cash_flow.windowDays ?? "—"}-day window`} tone="violet"/></section><section className="iris-section"><SectionHead title="Balance history" eyebrow="LIQUID ASSETS"/><div className="iris-chart-card">{intelligence?.balance_history?.length ? <BalanceTrendChart data={intelligence.balance_history}/> : <Limited/>}</div></section><section className="iris-section"><SectionHead title="Accounts" eyebrow="OWNED FINANCIAL STATE" onOpen={() => go("accounts")}/><div className="iris-account-grid">{overview.accounts.map(a => <div className="iris-account-card" key={a.id}><div className="iris-account-logo">{(a.name || "A").slice(0,1).toUpperCase()}</div><div><strong>{a.name}</strong><span>{a.subtype ?? a.type ?? "Account"}{a.mask ? ` · ••${a.mask}` : ""}</span></div><b>{a.roundup_enabled ? "Round-Ups on" : "Round-Ups off"}</b></div>)}</div></section></div>; }
+function Spending({ intelligence }: { intelligence: Intelligence | null }) { return <div className="iris-page"><PageIntro eyebrow="SPENDING" title="Understand where money goes." text="Iris separates economic meaning from raw transaction direction, then lets you move from domains to anomalies to evidence."/><section className="iris-section"><SectionHead title="Spending hierarchy" eyebrow="LAST OBSERVED WINDOW"/><div className="iris-spending-layout">{intelligence?.spending_hierarchy?.length ? <DomainHierarchy domains={intelligence.spending_hierarchy}/> : <Limited/>}<div className="iris-domain-list">{intelligence?.spending_by_domain.map(d => <div className="iris-domain-row" key={d.key}><span><i/>{d.label}</span><b>{money(d.amount)}</b><small>{pct(d.changePct)}</small></div>)}</div></div></section><section className="iris-section"><SectionHead title="What looks unusual" eyebrow="ANOMALIES"/>{intelligence?.anomalies.length ? <div className="iris-list">{intelligence.anomalies.map((a, i) => <div className="iris-list-row" key={i}><div><strong>{a.merchant}</strong><span>{a.date} · typically {money(a.typicalAmount)}</span></div><b>{money(a.amount)}</b><em>+{a.pctAboveTypical.toFixed(0)}% above typical</em></div>)}</div> : <Limited text="No statistically meaningful purchase anomaly is currently available."/>}</section></div>; }
+function Bills({ intelligence }: { intelligence: Intelligence | null }) { const s = intelligence?.cash_flow_safety; return <div className="iris-page"><PageIntro eyebrow="BILLS & PRESSURE" title="Know what is coming before it hits." text="Recurring activity becomes a forward-looking pressure map—without pretending a forecast is certainty."/><section className="iris-hero-banner"><div><span className="iris-eyebrow">KNOWN OBLIGATIONS</span><strong>{money(s?.essentialBillsTotal)}</strong><p>Essential bills inside the current {s?.horizonDays ?? "—"}-day horizon.</p></div><div className="iris-banner-stat"><span>Upcoming</span><b>{s?.upcomingBills.length ?? 0}</b></div><div className="iris-banner-stat"><span>Collisions</span><b>{s?.billCollisions.length ?? 0}</b></div></section><section className="iris-section"><SectionHead title="Upcoming obligations" eyebrow="RECURRING EVIDENCE"/>{s?.upcomingBills.length ? <div className="iris-list">{s.upcomingBills.map((b, i) => <div className="iris-list-row" key={i}><div><strong>{b.merchant}</strong><span>Expected {b.expectedDate}</span></div><b>{money(b.amount)}</b><Evidence/></div>)}</div> : <Limited text="No essential recurring bills detected yet."/>}</section><section className="iris-section"><SectionHead title="Forward view" eyebrow="CALCULATED, NOT GUARANTEED"/>{intelligence?.forward_projection.series.filter(x => x.event).length ? <div className="iris-list">{intelligence.forward_projection.series.filter(x => x.event).map(x => <div className="iris-list-row" key={x.date}><div><strong>{x.event}</strong><span>{x.date}</span></div><b>{money(x.balance)}</b></div>)}</div> : <Limited text="There is not enough recurring evidence for a forward event view."/>}<p className="iris-method">{intelligence?.forward_projection.basis}</p></section></div>; }
+function Accounts({ overview, onRefresh }: { overview: Overview; onRefresh: () => void }) { return <div className="iris-page"><PageIntro eyebrow="ACCOUNTS" title="Every connected account, clearly owned." text="These are real connected provider accounts. Round-Ups are a feature setting; they do not represent money held by iBag."/><div className="iris-account-grid large">{overview.accounts.map(a => <div className="iris-account-card detailed" key={a.id}><div className="iris-account-logo">{(a.name || "A").slice(0,1).toUpperCase()}</div><div><strong>{a.name}</strong><span>{a.subtype ?? a.type ?? "Account"}{a.mask ? ` · ••${a.mask}` : ""}</span><small>{a.card_roundup_ledger?.[0]?.lifetime_roundup_total ? `${money(a.card_roundup_ledger[0].lifetime_roundup_total)} lifetime round-ups` : "No round-up contribution recorded"}</small></div><label className="iris-toggle"><input type="checkbox" checked={a.roundup_enabled} onChange={async e => { await api.toggleAccountRoundup(a.id, e.target.checked); onRefresh(); }}/><i/><span>Round-Ups</span></label></div>)}</div></div>; }
+function RoundUps({ overview, intelligence }: { overview: Overview; intelligence: Intelligence | null }) { const total = overview.accounts.reduce((s,a) => s + Number(a.card_roundup_ledger?.[0]?.lifetime_roundup_total ?? 0), 0); return <div className="iris-page"><PageIntro eyebrow="ROUND-UPS" title="Small change, intelligently understood." text="Iris treats Round-Ups as a derived opportunity from eligible real transactions. Phase 1 does not move money."/><section className="iris-roundup-hero"><div><span className="iris-eyebrow">PROJECTED OPPORTUNITY</span><strong>{money(intelligence?.roundup_projection.projected)}</strong><p>{intelligence?.roundup_projection.dailyRate != null ? `${money(intelligence.roundup_projection.dailyRate)} per day projected from ${intelligence.roundup_projection.basisDays} days of history.` : "Not enough history to project a rate."}</p></div><div><span>Recorded lifetime</span><b>{money(total)}</b><small>Derived ledger total</small></div></section><section className="iris-section"><SectionHead title="Card coverage" eyebrow="ROUND-UP SETTINGS"/>{overview.accounts.map(a => <div className="iris-roundup-row" key={a.id}><div><strong>{a.name}</strong><span>{a.mask ? `••${a.mask}` : "Connected account"}</span></div><b>{a.roundup_enabled ? "ON" : "OFF"}</b><small>{money(a.card_roundup_ledger?.[0]?.lifetime_roundup_total ?? 0)} lifetime</small></div>)}</section><div className="iris-method-box"><Evidence state="calculated"/><p>Round-Up values are calculated from eligible transaction observations and lineage-backed contributions. No Phase 1 withdrawal or transfer occurs.</p></div></div>; }
+function Insights({ intelligence, go }: { intelligence: Intelligence | null; go: (v: View) => void }) { const r = intelligence?.reasoning; return <div className="iris-page"><PageIntro eyebrow="INSIGHTS" title="Go beyond reporting." text="Pattern drift, risk, opportunity and relational reasoning are separated from raw observations and exposed with evidence."/><section className="iris-insight-grid"><div className="iris-insight-column"><SectionHead title="Risks" eyebrow="WATCH"/>{r?.risks.length ? r.risks.map(x => <InsightCard key={x.key} title={x.statement} evidence={x.evidence} severity={x.severity}/>) : <Limited text="No evidence-backed risk finding is currently available."/>}</div><div className="iris-insight-column"><SectionHead title="Opportunities" eyebrow="POSSIBILITY"/>{r?.opportunities.length ? r.opportunities.map(x => <InsightCard key={x.key} title={x.statement} evidence={x.evidence}/>) : <Limited text="No evidence-backed opportunity is currently available."/>}</div></section><section className="iris-section"><SectionHead title="Behavioral shifts" eyebrow="PATTERN DRIFT" onOpen={() => go("spending")}/>{intelligence?.category_drift.filter(d => d.significant).length ? <div className="iris-list">{intelligence.category_drift.filter(d => d.significant).map(d => <div className="iris-list-row" key={d.subdomainKey}><div><strong>{d.subdomainLabel}</strong><span>{d.baselineTransactionCount} baseline transactions</span></div><b>{pct(d.deviationPct)}</b><Evidence state={d.evidence}/></div>)}</div> : <Limited/>}</section></div>; }
+function InsightCard({ title, evidence, severity }: { title: string; evidence: string; severity?: string }) { return <article className={`iris-insight-card ${severity ? `severity-${severity}` : ""}`}><div className="iris-insight-icon">{severity === "high" ? "!" : "✦"}</div><div><h3>{title}</h3><p>{evidence}</p><Evidence state="calculated"/></div></article>; }
+function IrisCenter({ intelligence, go }: { intelligence: Intelligence | null; go: (v: View) => void }) { const r = intelligence?.reasoning; return <div className="iris-page iris-center"><section className="iris-iris-hero"><div className="iris-big-orb"><IrisMark size={62} color="#fff" /></div><span className="iris-eyebrow">IRIS INTELLIGENCE</span><h1>Your financial intelligence layer.</h1><p>Iris continuously turns observations into classifications, patterns, relationships, forecasts, risks, opportunities and decisions—while keeping uncertainty visible.</p></section><section className="iris-section"><SectionHead title="Current read" eyebrow="SYNTHESIS"/>{intelligence?.narrative ? <div className="iris-narrative"><span>✦</span><div><h3>{intelligence.narrative}</h3><Evidence/></div></div> : <Limited/>}</section><section className="iris-section"><SectionHead title="How Iris reasons" eyebrow="TRANSPARENT INTELLIGENCE"/><div className="iris-reasoning-grid">{["Observe","Classify","Relate","Detect","Forecast","Assess","Decide","Explain"].map((x,i) => <div key={x}><span>0{i+1}</span><strong>{x}</strong><small>{["Real provider observations","Economic meaning","Connections across entities","Behavior and drift","Forward possibilities","Risk and opportunity","Actionable choices","Evidence and uncertainty"][i]}</small></div>)}</div></section><section className="iris-section"><SectionHead title="Open deeper analysis" eyebrow="INTERACTIVE"/><div className="iris-command-grid"><button onClick={() => go("whatif")}><strong>What-If Lab</strong><span>Change a variable and see calculated impact.</span><Arrow/></button><button onClick={() => go("insights")}><strong>Risk & Opportunity</strong><span>Inspect evidence-backed findings.</span><Arrow/></button><button onClick={() => go("spending")}><strong>Behavior Explorer</strong><span>Move from domains to anomalies.</span><Arrow/></button><button onClick={() => go("connections")}><strong>Evidence Center</strong><span>Inspect provider coverage and lifecycle.</span><Arrow/></button></div></section>{r?.unresolvedQuestions.length ? <div className="iris-method-box"><span className="iris-eyebrow">UNRESOLVED</span><p>{r.unresolvedQuestions.join(" ")}</p></div> : null}</div>; }
+function WhatIf({ scenarioType, setScenarioType, scenarioAmount, setScenarioAmount, result, loading, run }: any) { return <div className="iris-page"><PageIntro eyebrow="WHAT-IF LAB" title="Test decisions without changing reality." text="Scenarios are hypothetical calculations over your observed baseline. They never mutate financial records or move money."/><section className="iris-whatif"><div className="iris-whatif-controls"><label>Variable<select value={scenarioType} onChange={e => setScenarioType(e.target.value)}><option value="spending_change">Spending changes by $</option><option value="bill_change">Essential bills change by $</option><option value="income_change">30-day inflow changes by %</option></select></label><label>Change<input type="number" value={scenarioAmount} onChange={e => setScenarioAmount(e.target.value)} placeholder={scenarioType === "income_change" ? "−10" : "−300"}/></label><button onClick={run} disabled={loading || !scenarioAmount}>{loading ? "Calculating…" : "Run scenario"}</button></div>{result?.evidence === "calculated" ? <div className="iris-scenario-result"><h3>Calculated impact</h3><ScenarioRow name="Safe to spend" a={result.baseline.safeToSpend} b={result.scenario.safeToSpend} d={result.delta.safeToSpend}/><ScenarioRow name="30-day cash flow" a={result.baseline.cashFlowNet} b={result.scenario.cashFlowNet} d={result.delta.cashFlowNet}/><p>{result.assumption}</p><Evidence state="calculated"/></div> : result ? <Limited text={result.reason ?? "Not enough evidence."}/> : <div className="iris-whatif-empty"><span>◇</span><h3>Explore a financial possibility</h3><p>Try a controlled change to spending, bills or income and Iris will calculate the difference against your real baseline.</p></div>}</section></div>; }
+function ScenarioRow({ name, a, b, d }: { name: string; a: number; b: number; d: number }) { return <div className="iris-scenario-row"><span>{name}</span><b>{money(a)}</b><Arrow/><strong>{money(b)}</strong><em className={d >= 0 ? "good" : "bad"}>{signed(d)}</em></div>; }
+function Activity({ overview }: { overview: Overview }) { return <div className="iris-page"><PageIntro eyebrow="ACTIVITY" title="The evidence behind the picture." text="Every transaction shown here comes from connected provider data. Iris interprets it; it does not invent it."/><section className="iris-section"><SectionHead title={`${overview.recent_transactions.length} recent observations`} eyebrow="TRANSACTIONS"/><div className="iris-activity-list">{overview.recent_transactions.map(t => <div className="iris-activity-row" key={t.id}><div className="iris-date-box"><b>{new Date(t.posted_date).getDate()}</b><span>{new Date(t.posted_date).toLocaleString("en-US", { month: "short" })}</span></div><div><strong>{t.merchants?.canonical_name ?? t.merchant_name ?? "Unknown merchant"}</strong><span>{t.subdomains?.domains?.label ?? label(t.plaid_category_primary ?? "uncategorized")} · {t.subdomains?.label ?? "Unclassified"}{t.pending ? " · Pending" : ""}</span></div><b className={t.amount < 0 ? "out" : "in"}>{t.amount < 0 ? "−" : "+"}{money(t.amount)}</b></div>)}</div></section></div>; }
+function Connections({ products, overview }: { products: PlaidProducts | null; overview: Overview }) { return <div className="iris-page"><PageIntro eyebrow="DATA & CONNECTIONS" title="See what Iris can actually observe." text="Provider capability, authorization and observation are different states. This screen keeps those distinctions explicit."/><section className="iris-section"><SectionHead title="Provider coverage" eyebrow="PLAID PRODUCT LIFECYCLE"/>{products ? <div className="iris-product-grid">{products.products.map(p => <div className="iris-product" key={p.product}><span>{label(p.product)}</span><b className={`status-${p.status}`}>{label(p.status ?? "unknown")}</b></div>)}</div> : <Limited text="Provider diagnostics could not be loaded."/>}</section><section className="iris-section"><SectionHead title="Connected institutions" eyebrow={`${products?.items.length ?? 0} CONNECTIONS`}/><div className="iris-institutions">{products?.items.map((x,i) => <div key={i}><div className="iris-institution-mark">{(x.institution_name ?? "P").slice(0,1)}</div><div><strong>{x.institution_name ?? "Unknown institution"}</strong><span>{x.status} · {x.billed_products.map(label).join(", ") || "No billed products"}</span></div></div>)}</div></section><div className="iris-method-box"><Evidence state="observed"/><p>{overview.accounts.length} real provider accounts are currently represented in the ownership chain. Absence of a product here is not treated as proof that the provider does not support it.</p></div></div>; }
+function Settings({ features, onToggle }: { features: Features | null; onToggle: (k: string, e: boolean) => Promise<void> }) { return <div className="iris-page"><PageIntro eyebrow="SETTINGS" title="Control how Iris works for you." text="Feature controls affect intelligence presentation and analysis. They do not create financial data."/><section className="iris-settings">{features ? Object.entries(features).map(([k,f]) => <div className="iris-setting" key={k}><div><strong>{f.label}</strong><span>{k.replace(/_/g, " ")}</span></div><label className="iris-toggle"><input type="checkbox" checked={f.enabled} onChange={e => void onToggle(k, e.target.checked)}/><i/><span>{f.enabled ? "On" : "Off"}</span></label></div>) : <Limited text="Settings could not be loaded."/>}</section><div className="iris-method-box"><span className="iris-eyebrow">PHASE 1 CONTRACT</span><p>Read-only intelligence. Real authorized financial data only. No money movement. No fabricated, mock or seeded financial data.</p></div><button className="iris-signout" onClick={() => void supabase.auth.signOut()}>Sign out</button></div>; }
+function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <section className="iris-page-intro"><span className="iris-eyebrow">{eyebrow}</span><h1>{title}</h1><p>{text}</p></section>; }
+function Limited({ text = "There is not enough evidence to produce this analysis yet." }: { text?: string }) { return <div className="iris-limited"><span>◌</span><div><strong>Evidence limited</strong><p>{text}</p><Evidence state="insufficient_evidence"/></div></div>; }
+function EmptyOnboarding({ onConnect }: { onConnect: () => void }) { return <div className="iris-empty-page"><div className="iris-empty-orb"><IrisMark size={52} color="#fff"/></div><span className="iris-eyebrow">WELCOME TO IRIS</span><h1>Your money deserves an intelligence layer.</h1><p>Connect a real financial account and Iris will build your picture from observed data—cash flow, spending, obligations, patterns, risks and opportunities.</p><div className="iris-empty-features"><span>✓ Real data only</span><span>✓ Evidence-gated</span><span>✓ No money movement in Phase 1</span></div><div onClick={onConnect}><PlaidLinkButton onSuccess={() => window.location.reload()}/></div></div>; }
