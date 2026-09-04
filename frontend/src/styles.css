@@ -40,6 +40,33 @@
   --radius: 10px;
   --radius-sm: 6px;
   --shadow-card: 0 1px 2px rgba(18, 20, 28, 0.04), 0 8px 24px -12px rgba(18, 20, 28, 0.12);
+  --shadow-card-hover: 0 2px 4px rgba(18, 20, 28, 0.06), 0 12px 32px -12px rgba(18, 20, 28, 0.18);
+
+  /* motion — used deliberately, not everywhere: state changes and
+     entrances get it, static chrome doesn't */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
 }
 
 * {
@@ -461,6 +488,147 @@ a {
 
 .section {
   margin-bottom: 28px;
+  animation: fadeInUp var(--duration-base) var(--ease);
+}
+
+/* ---------------------------------------------------------------
+   Domain hierarchy — the centerpiece classification display.
+   Previously entirely unstyled; this is the real implementation.
+------------------------------------------------------------------ */
+
+.hierarchy {
+  margin-bottom: 8px;
+}
+
+.hierarchy-ring-row {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  gap: 2px;
+  margin-bottom: 20px;
+  background: var(--bg);
+}
+
+.hierarchy-segment {
+  height: 100%;
+  min-width: 3px;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.hierarchy-segment:hover {
+  opacity: 0.85;
+}
+
+.hierarchy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hierarchy-domain {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: box-shadow var(--duration-base) var(--ease);
+}
+
+.hierarchy-domain:hover {
+  box-shadow: var(--shadow-card);
+}
+
+.hierarchy-domain-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 13px 16px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.hierarchy-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hierarchy-domain-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.hierarchy-domain-pct {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.hierarchy-domain-amount {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  min-width: 84px;
+  text-align: right;
+}
+
+.hierarchy-chevron {
+  color: var(--ink-faint);
+  font-size: 14px;
+  transition: transform var(--duration-base) var(--ease);
+  flex-shrink: 0;
+}
+
+.hierarchy-chevron.open {
+  transform: rotate(180deg);
+}
+
+.hierarchy-subdomains {
+  padding: 4px 16px 14px 35px;
+  animation: fadeInUp var(--duration-fast) var(--ease);
+}
+
+.hierarchy-subdomain-row {
+  display: grid;
+  grid-template-columns: 1fr 90px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.hierarchy-subdomain-label {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+.hierarchy-subdomain-track {
+  height: 5px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hierarchy-subdomain-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  opacity: 0.75;
+}
+
+.hierarchy-subdomain-amount {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-align: right;
+  white-space: nowrap;
 }
 
 .section-head {
@@ -641,15 +809,51 @@ a {
   color: var(--ink-muted);
 }
 
+.hero-metric {
+  background: var(--accent);
+  border-radius: var(--radius);
+  padding: 24px 22px;
+  margin-bottom: 12px;
+  animation: fadeInUp var(--duration-base) var(--ease);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-border) 0px, #f4f5f7 40px, var(--surface-border) 80px);
+  background-size: 200px 100%;
+  border-radius: var(--radius);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.hero-metric .metric-label {
+  color: #cabfdd;
+}
+
+.hero-metric-value {
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-weight: 500;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin: 4px 0 8px;
+}
+
+.hero-metric .metric-note {
+  color: #d6cfe4;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  animation: fadeInUp var(--duration-base) var(--ease);
+  animation-delay: 40ms;
+  animation-fill-mode: backwards;
 }
 
 @media (min-width: 620px) {
   .metric-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -658,6 +862,12 @@ a {
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-sm);
   padding: 14px 16px;
+  transition: box-shadow var(--duration-base) var(--ease), transform var(--duration-base) var(--ease);
+}
+
+.metric-card:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
 }
 
 .metric-label {
@@ -813,6 +1023,7 @@ a {
   white-space: nowrap;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
+  transition: color var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
 }
 
 .tab-button:hover {
@@ -978,6 +1189,7 @@ a {
   cursor: pointer;
   border-radius: 999px;
   white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
 }
 
 .mode-button.active {

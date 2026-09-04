@@ -447,25 +447,26 @@ export function Dashboard() {
             {intelligence.balance_history.length > 1 && (
               <BalanceTrendChart data={intelligence.balance_history} />
             )}
-            <div className="metric-grid">
-              <div className="metric-card">
-                <p className="metric-label">Safe-to-spend</p>
-                <p className="metric-value">
-                  {intelligence.cash_flow_safety.safeToSpend !== null
-                    ? `$${fmt(intelligence.cash_flow_safety.safeToSpend)}`
-                    : "—"}
+            <div className="hero-metric">
+              <p className="metric-label">Safe-to-spend</p>
+              <p className="hero-metric-value">
+                {intelligence.cash_flow_safety.safeToSpend !== null
+                  ? `$${fmt(intelligence.cash_flow_safety.safeToSpend)}`
+                  : "—"}
+              </p>
+              {intelligence.cash_flow_safety.safeToSpend !== null && (
+                <p className="metric-note">
+                  ${intelligence.cash_flow_safety.currentAvailable !== null
+                    ? fmt(intelligence.cash_flow_safety.currentAvailable)
+                    : "—"}{" "}
+                  available minus $
+                  {fmt(intelligence.cash_flow_safety.essentialBillsTotal)} in essential bills due within{" "}
+                  {intelligence.cash_flow_safety.horizonDays} days.
                 </p>
-                {intelligence.cash_flow_safety.safeToSpend !== null && (
-                  <p className="metric-note">
-                    ${intelligence.cash_flow_safety.currentAvailable !== null
-                      ? fmt(intelligence.cash_flow_safety.currentAvailable)
-                      : "—"}{" "}
-                    available minus $
-                    {fmt(intelligence.cash_flow_safety.essentialBillsTotal)} in essential bills due within{" "}
-                    {intelligence.cash_flow_safety.horizonDays} days.
-                  </p>
-                )}
-              </div>
+              )}
+            </div>
+
+            <div className="metric-grid">
               <div className="metric-card">
                 <p className="metric-label">Liquid assets</p>
                 <p className="metric-value">

@@ -29,6 +29,10 @@ function colorFor(key: string) {
   return DOMAIN_COLORS[key] ?? "#8890a0";
 }
 
+function fmt(n: number): string {
+  return Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function DomainHierarchy({ domains }: { domains: Domain[] }) {
   const [expanded, setExpanded] = useState<string | null>(domains[0]?.key ?? null);
 
@@ -42,7 +46,7 @@ export function DomainHierarchy({ domains }: { domains: Domain[] }) {
             key={d.key}
             className="hierarchy-segment"
             style={{ width: `${Math.max(d.pctOfTotal, 3)}%`, background: colorFor(d.key) }}
-            title={`${d.label}: $${d.amount.toFixed(2)}`}
+            title={`${d.label}: $${fmt(d.amount)}`}
           />
         ))}
       </div>
@@ -60,7 +64,7 @@ export function DomainHierarchy({ domains }: { domains: Domain[] }) {
                 <span className="hierarchy-dot" style={{ background: colorFor(d.key) }} />
                 <span className="hierarchy-domain-label">{d.label}</span>
                 <span className="hierarchy-domain-pct">{d.pctOfTotal.toFixed(0)}%</span>
-                <span className="hierarchy-domain-amount">${d.amount.toFixed(2)}</span>
+                <span className="hierarchy-domain-amount">${fmt(d.amount)}</span>
                 <span className={`hierarchy-chevron${isOpen ? " open" : ""}`}>⌄</span>
               </button>
               {isOpen && (
@@ -77,7 +81,7 @@ export function DomainHierarchy({ domains }: { domains: Domain[] }) {
                           }}
                         />
                       </span>
-                      <span className="hierarchy-subdomain-amount">${s.amount.toFixed(2)}</span>
+                      <span className="hierarchy-subdomain-amount">${fmt(s.amount)}</span>
                     </div>
                   ))}
                 </div>
