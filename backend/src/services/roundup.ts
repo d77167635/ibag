@@ -6,79 +6,70 @@ import { getFeatureFlags } from "./features.js";
 /**
  * Round-Up Intelligence Engine — SIMULATION ONLY (Phase 1).
  *
- * Nothing here moves money. Every "sweep" is a logged event and a virtual
- * ledger update. This function is written so that swapping the logging
- * calls for real ACH-pull calls (Phase 2, once a BaaS/bank partner is in
- * place) is the only change required — the math and the overdraft-safety
- * check are already correct against real data.
+ * No money moves. The calculation is derived only from persisted transaction
+ * classification evidence and real provider balance observations.
  */
 export async function recomputeRoundupsForAccount(
   userId: string,
   accountId: string,
   accessToken: string
 ) {
-  // Respect both the per-card toggle (a user may want round-up on a debit
-  // card but not a credit card) and the global "roundup" feature flag.
-  // Checked here rather than at the caller so every entry point (sync,
-  // resync, webhook-triggered sync) gets the same behavior for free.
-  const { data: accountFlags } = await supabaseAdmin
+  const { data: accountFlags, error: accountFlagsError } = await supabaseAdmin
     .from("plaid_accounts")
     .select("roundup_enabled")
     .eq("id", accountId)
+    .eq("user_id", userId)
     .single();
-
-  if (accountFlags && accountFlags.roundup_enabled === false) {
-    return; // explicitly disabled for this card — skip silently, not an error
-  }
+  if (accountFlagsError) throw accountFlagsError;
+  if (accountFlags?.roundup_enabled === false) return;
 
   const flags = await getFeatureFlags(userId);
-  if (!flags.roundup) {
-    return; // round-up disabled account-wide
-  }
+  if (!flags.roundup) return;
 
-  // 1. Sum round-ups over every POSTED (non-pending) transaction on this
-  //    account. Round-up is only computed on money actually spent —
-  //    ceil(amount) - amount, and only for positive (outflow) amounts.
+  // Round-Ups are derived from canonical economic classification, never from
+  // amount sign alone. Only active, posted purchases with sufficient evidence
+  // can create an opportunity; refunds, transfers, debt payments and fees are
+  // therefore excluded by construction. The $800 rent-sized guard remains a
+  // deterministic safety rule even if a provider classifies an item as a purchase.
   const { data: txRows, error: txErr } = await supabaseAdmin
     .from("transactions")
-    .select("amount, pending")
+    .select("amount, pending, transaction_class, classification_evidence")
     .eq("account_id", accountId)
-    .eq("pending", false);
-
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .eq("pending", false)
+    .eq("transaction_class", "purchase")
+    .in("classification_evidence", ["observed", "calculated"]);
   if (txErr) throw txErr;
 
   const lifetimeRoundupTotal = (txRows ?? []).reduce((sum, tx) => {
     const amount = Number(tx.amount);
-    if (amount <= 0) return sum; // ignore refunds/credits
-    const roundUp = Math.ceil(amount) - amount;
-    return sum + roundUp;
+    if (!Number.isFinite(amount) || amount <= 0 || amount >= 800) return sum;
+    return sum + (Math.ceil(amount) - amount);
   }, 0);
 
-  // 2. How much of that lifetime total has already been swept into the ibag,
-  //    per this account's sweep event history.
   const { data: sweptEvents, error: sweepErr } = await supabaseAdmin
     .from("roundup_sweep_events")
     .select("amount")
+    .eq("user_id", userId)
     .eq("account_id", accountId)
     .eq("event_type", "simulated_sweep");
-
   if (sweepErr) throw sweepErr;
 
-  const alreadySwept = (sweptEvents ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
-  let unswept = lifetimeRoundupTotal - alreadySwept;
+  const alreadySwept = (sweptEvents ?? []).reduce((sum, event) => {
+    const amount = Number(event.amount);
+    return Number.isFinite(amount) && amount > 0 ? sum + amount : sum;
+  }, 0);
+  let unswept = Math.max(0, lifetimeRoundupTotal - alreadySwept);
 
   const { data: accountRow, error: accountErr } = await supabaseAdmin
     .from("plaid_accounts")
     .select("plaid_account_id, type")
     .eq("id", accountId)
+    .eq("user_id", userId)
     .single();
   if (accountErr) throw accountErr;
 
-  // Fetched once per sync, not once per $2 threshold crossed. In Phase 1
-  // nothing actually moves money, so the live balance cannot change
-  // between iterations of this loop within a single sync call — repeating
-  // the API/DB call per iteration was pure waste, and would become a real
-  // rate-limit risk once a real backlog exists.
   let availableBalance: number | null = null;
   let safetyThreshold: number | null = null;
   if (accountRow.type === "depository") {
@@ -91,26 +82,12 @@ export async function recomputeRoundupsForAccount(
     safetyThreshold = env.roundupSweepThreshold + env.roundupSafetyBuffer;
   }
 
-  // While there's enough accrued to cross the threshold, attempt a
-  // simulated sweep using the balance snapshot taken above.
   while (unswept >= env.roundupSweepThreshold) {
-    let canSweep: boolean;
+    const canSweep = accountRow.type === "depository"
+      ? availableBalance !== null && availableBalance >= safetyThreshold!
+      : true;
 
-    if (accountRow.type === "depository") {
-      // Only depository accounts have a real "available cash" concept, so
-      // only these get the overdraft-safety check — sweeping $2 from a
-      // checking account with $1 available would be a real overdraft risk
-      // once this becomes live money movement in Phase 2.
-      canSweep = availableBalance !== null && availableBalance >= safetyThreshold!;
-    } else {
-      // Credit, loan, and investment accounts have no "available cash" to
-      // overdraw — a credit-card round-up isn't a withdrawal from the
-      // card, it's spend-based accrual that would eventually be funded
-      // through however that card's bill gets paid. No safety check applies.
-      canSweep = true;
-    }
-
-    await supabaseAdmin.from("roundup_sweep_events").insert({
+    const { error: eventError } = await supabaseAdmin.from("roundup_sweep_events").insert({
       user_id: userId,
       account_id: accountId,
       event_type: canSweep ? "simulated_sweep" : "held_insufficient_balance",
@@ -118,30 +95,28 @@ export async function recomputeRoundupsForAccount(
       available_balance_at_check: availableBalance,
       safety_threshold: safetyThreshold,
     });
+    if (eventError) throw eventError;
 
-    if (!canSweep) {
-      // Held — stop trying this account until the next sync brings fresh balance data.
-      break;
-    }
+    if (!canSweep) break;
 
     unswept -= env.roundupSweepThreshold;
 
-    // Update the aggregate virtual ibag balance (one row per user, across all cards).
-    const { data: existingIbag } = await supabaseAdmin
+    const { data: existingIbag, error: ibagError } = await supabaseAdmin
       .from("virtual_ibag_balance")
       .select("projected_balance")
       .eq("user_id", userId)
       .maybeSingle();
+    if (ibagError) throw ibagError;
 
     const newBalance = (existingIbag?.projected_balance ?? 0) + env.roundupSweepThreshold;
-
-    await supabaseAdmin.from("virtual_ibag_balance").upsert({
+    const { error: balanceError } = await supabaseAdmin.from("virtual_ibag_balance").upsert({
       user_id: userId,
       projected_balance: newBalance,
       updated_at: new Date().toISOString(),
     });
+    if (balanceError) throw balanceError;
 
-    await supabaseAdmin.from("calculation_audit_log").insert({
+    const { error: auditError } = await supabaseAdmin.from("calculation_audit_log").insert({
       user_id: userId,
       metric_key: "virtual_ibag_balance",
       inputs: {
@@ -149,13 +124,14 @@ export async function recomputeRoundupsForAccount(
         sweep_amount: env.roundupSweepThreshold,
         available_balance_at_check: availableBalance,
         safety_threshold: safetyThreshold,
+        calculation_basis: "canonical_purchase_classification_v1",
       },
       result: newBalance,
     });
+    if (auditError) throw auditError;
   }
 
-  // 4. Persist the current per-card accrual state (what hasn't crossed $2 yet).
-  await supabaseAdmin.from("card_roundup_ledger").upsert(
+  const { error: ledgerError } = await supabaseAdmin.from("card_roundup_ledger").upsert(
     {
       user_id: userId,
       account_id: accountId,
@@ -165,6 +141,7 @@ export async function recomputeRoundupsForAccount(
     },
     { onConflict: "account_id" }
   );
+  if (ledgerError) throw ledgerError;
 }
 
 /**
