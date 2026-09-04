@@ -6,6 +6,7 @@ import { webhooksRouter, recoverPendingWebhookEvents } from "./routes/webhooks.j
 import { dashboardRouter } from "./routes/dashboard.js";
 import { plaidSelectionRouter } from "./routes/plaidSelection.js";
 import { plaidSurfaceRouter } from "./routes/plaidSurface.js";
+import { plaidCapabilitiesRouter } from "./routes/plaidCapabilities.js";
 import { featuresRouter } from "./routes/features.js";
 import { irisRouter } from "./routes/iris.js";
 import { goalsRouter } from "./routes/goals.js";
@@ -27,6 +28,7 @@ app.use(webhooksRouter);
 app.use(dashboardRouter);
 app.use(plaidSelectionRouter);
 app.use(plaidSurfaceRouter);
+app.use(plaidCapabilitiesRouter);
 app.use(featuresRouter);
 app.use(irisRouter);
 app.use(goalsRouter);
