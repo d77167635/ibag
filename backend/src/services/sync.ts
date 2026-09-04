@@ -7,19 +7,13 @@ import { syncLiabilitiesForItem } from "../intelligence/liabilities.js";
 
 /**
  * Pulls real Plaid data for an Item and writes it through two layers:
- *  1. plaid_raw_* — the untouched API response (audit source of truth)
+ *  1. plaid_raw_* — immutable provider observations (audit source of truth)
  *  2. transactions / plaid_accounts — normalized, app-facing rows derived
  *     only from what was just fetched.
- *
- * This function is the ONLY place transaction/account/balance rows get
- * written. No other code path may insert into these tables, which is what
- * keeps the "no fake data" rule structurally true rather than just a policy.
  */
 export async function fullSyncForItem(itemDbId: string, userId: string, accessToken: string) {
-  // --- Accounts ---
   const accountsResp = await plaidClient.accountsGet({ access_token: accessToken });
-
-  const accountIdMap = new Map<string, string>(); // plaid_account_id -> our uuid
+  const accountIdMap = new Map<string, string>();
 
   for (const acct of accountsResp.data.accounts) {
     const { data: row, error } = await supabaseAdmin
@@ -39,7 +33,7 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
           credit_limit: acct.balances.limit,
           balance_updated_at: new Date().toISOString(),
         },
-        { onConflict: "plaid_account_id" }
+        { onConflict: "plaid_account_id" },
       )
       .select()
       .single();
@@ -47,49 +41,35 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
     if (error) throw error;
     accountIdMap.set(acct.account_id, row.id);
 
-    // Raw balance mirror — the exact object Plaid returned for this account
-    await supabaseAdmin.from("plaid_raw_balances").insert({
+    const { error: balanceError } = await supabaseAdmin.from("plaid_raw_balances").insert({
       user_id: userId,
       account_id: row.id,
       raw_response: acct,
+      observation_hash: undefined,
     });
+    if (balanceError) throw balanceError;
   }
 
-  // --- Transactions (Plaid's /transactions/sync, real API, cursor-based) ---
   let cursor: string | undefined;
   let hasMore = true;
 
   while (hasMore) {
-    const txResp = await plaidClient.transactionsSync({
-      access_token: accessToken,
-      cursor,
-    });
+    const txResp = await plaidClient.transactionsSync({ access_token: accessToken, cursor });
 
-    // Plaid's sync response also returns modified (corrected/updated
-    // transactions, same shape as added — an upsert handles both) and
-    // removed (transactions that no longer exist and must be deleted, e.g.
-    // a pending charge that got cancelled). Previously only `added` was
-    // processed, silently letting the local table drift from Plaid's
-    // actual state whenever a correction or retraction happened.
     for (const tx of [...txResp.data.added, ...txResp.data.modified]) {
       const localAccountId = accountIdMap.get(tx.account_id);
-      if (!localAccountId) continue; // account not yet mapped this pass; will catch on next sync
+      if (!localAccountId) continue;
 
-      const { data: rawRow, error: rawErr } = await supabaseAdmin
-        .from("plaid_raw_transactions")
-        .upsert(
-          {
-            user_id: userId,
-            account_id: localAccountId,
-            plaid_transaction_id: tx.transaction_id,
-            raw_response: tx,
-          },
-          { onConflict: "plaid_transaction_id" }
-        )
-        .select()
-        .single();
-
-      if (rawErr) throw rawErr;
+      const { data: rawRow, error: rawErr } = await supabaseAdmin.rpc(
+        "record_plaid_transaction_observation",
+        {
+          p_user_id: userId,
+          p_account_id: localAccountId,
+          p_plaid_transaction_id: tx.transaction_id,
+          p_raw_response: tx,
+        },
+      );
+      if (rawErr || !rawRow) throw rawErr ?? new Error("Failed to record Plaid observation");
 
       const rawMerchantString = tx.merchant_name ?? tx.name ?? "";
       const [merchantId, subdomainId] = await Promise.all([
@@ -97,7 +77,7 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
         resolveSubdomain(tx.personal_finance_category?.detailed ?? null),
       ]);
 
-      await supabaseAdmin.from("transactions").upsert(
+      const { error: normalizedError } = await supabaseAdmin.from("transactions").upsert(
         {
           user_id: userId,
           account_id: localAccountId,
@@ -113,35 +93,43 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
           posted_date: tx.date,
           pending: tx.pending,
         },
-        { onConflict: "plaid_transaction_id" }
+        { onConflict: "plaid_transaction_id" },
       );
+      if (normalizedError) throw normalizedError;
     }
 
     for (const removedTx of txResp.data.removed) {
       if (!removedTx.transaction_id) continue;
-      await supabaseAdmin.from("transactions").delete().eq("plaid_transaction_id", removedTx.transaction_id);
-      await supabaseAdmin.from("plaid_raw_transactions").delete().eq("plaid_transaction_id", removedTx.transaction_id);
+      const { error: retireError } = await supabaseAdmin.rpc(
+        "retire_plaid_transaction_observation",
+        { p_user_id: userId, p_plaid_transaction_id: removedTx.transaction_id },
+      );
+      if (retireError) throw retireError;
+
+      const { error: normalizedDeleteError } = await supabaseAdmin
+        .from("transactions")
+        .delete()
+        .eq("plaid_transaction_id", removedTx.transaction_id)
+        .eq("user_id", userId);
+      if (normalizedDeleteError) throw normalizedDeleteError;
     }
 
     cursor = txResp.data.next_cursor;
     hasMore = txResp.data.has_more;
   }
 
-  // --- Observe liabilities (APR, minimum payment, due dates) for any
-  //     credit/student/mortgage accounts on this item. Non-fatal if the
-  //     item has no liability accounts — see syncLiabilitiesForItem. ---
   await syncLiabilitiesForItem(userId, accessToken);
 
-  // --- Recompute round-up simulation for every account touched this sync ---
   for (const localAccountId of accountIdMap.values()) {
     await recomputeRoundupsForAccount(userId, localAccountId, accessToken);
   }
 
-  // --- Detect recurring bills/subscriptions from the transaction history ---
   await detectRecurringSeries(userId);
 
-  await supabaseAdmin
+  const { error: itemError } = await supabaseAdmin
     .from("plaid_items")
     .update({ last_synced_at: new Date().toISOString(), status: "active" })
-    .eq("id", itemDbId);
+    .eq("id", itemDbId)
+    .eq("user_id", userId);
+  if (itemError) throw itemError;
 }
