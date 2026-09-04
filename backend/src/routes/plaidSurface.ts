@@ -3,19 +3,18 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { getPlaidAccessToken } from "../services/tokenStore.js";
 import { plaidClient } from "../plaid/client.js";
-import { PLAID_PRODUCT_CATALOG } from "../config/plaidProductCatalog.js";
+import { PLAID_PRODUCT_CATALOG_V2 } from "../config/plaidProductCatalogV2.js";
 
 export const plaidSurfaceRouter = Router();
 
 plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: AuthedRequest, res) => {
-  const { data: items, error } = await supabaseAdmin
-    .from("plaid_items")
+  const { data: items, error } = await supabaseAdmin.from("plaid_items")
     .select("id, user_id, institution_name, status, last_synced_at, plaid_access_token")
     .eq("user_id", req.userId!);
   if (error) return res.status(500).json({ error: error.message });
 
   const stateByProduct = new Map<string, { active: number; consented: number; available: number; unavailable: number; itemCount: number }>();
-  for (const definition of PLAID_PRODUCT_CATALOG) stateByProduct.set(definition.key, { active: 0, consented: 0, available: 0, unavailable: 0, itemCount: 0 });
+  for (const definition of PLAID_PRODUCT_CATALOG_V2) stateByProduct.set(definition.key, { active: 0, consented: 0, available: 0, unavailable: 0, itemCount: 0 });
   const summaries: any[] = [];
 
   for (const item of items ?? []) {
@@ -26,8 +25,7 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
       const active = new Set<string>([...(raw.products ?? []), ...(raw.billed_products ?? [])]);
       const consented = new Set<string>(raw.consented_products ?? []);
       const available = new Set<string>(raw.available_products ?? []);
-
-      for (const definition of PLAID_PRODUCT_CATALOG) {
+      for (const definition of PLAID_PRODUCT_CATALOG_V2) {
         const state = stateByProduct.get(definition.key)!;
         state.itemCount += 1;
         if (definition.plaidProductStates.some((p) => active.has(p))) state.active += 1;
@@ -35,36 +33,20 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
         else if (definition.plaidProductStates.some((p) => available.has(p))) state.available += 1;
         else state.unavailable += 1;
       }
-
-      summaries.push({
-        institution_name: item.institution_name,
-        status: item.status,
-        last_synced_at: item.last_synced_at,
-        billed_products: [...new Set<string>(raw.billed_products ?? [])],
-        available_products: [...available],
-        consented_products: [...consented],
-      });
+      summaries.push({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, billed_products: [...active], available_products: [...available], consented_products: [...consented] });
     } catch (err) {
       console.error(`Plaid surface itemGet failed for ${item.id}:`, err);
       summaries.push({ institution_name: item.institution_name, status: "provider_state_unavailable", last_synced_at: item.last_synced_at, billed_products: [], available_products: [], consented_products: [] });
     }
   }
 
-  const products = PLAID_PRODUCT_CATALOG.map((definition) => {
+  const products = PLAID_PRODUCT_CATALOG_V2.map((definition) => {
     const state = stateByProduct.get(definition.key)!;
-    return {
-      ...definition,
-      status: items?.length ? (state.active ? "active" : state.consented ? "consented" : state.available ? "available" : "not_available") : "not_connected",
-      item_count: state.itemCount,
-      active_item_count: state.active,
-      consented_item_count: state.consented,
-      available_item_count: state.available,
-      unavailable_item_count: state.unavailable,
-    };
+    return { ...definition, status: items?.length ? (state.active ? "active" : state.consented ? "consented" : state.available ? "available" : "not_available") : "not_connected", item_count: state.itemCount, active_item_count: state.active, consented_item_count: state.consented, available_item_count: state.available, unavailable_item_count: state.unavailable };
   });
 
   res.json({
-    catalog_version: "2026-09-04",
+    catalog_version: "2026-09-04-v2",
     source: "plaid_runtime_item_state",
     items: summaries,
     products,
