@@ -26,7 +26,7 @@ dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedReques
   const userId = req.userId!;
   const [{ data: accounts, error: accountsErr }, { data: recentTx, error: txErr }, { data: ibag, error: ibagErr }] = await Promise.all([
     supabaseAdmin.from("plaid_accounts").select("*, card_roundup_ledger(accrued_unswept, lifetime_roundup_total)").eq("user_id", userId),
-    supabase.from("transactions").select("*, merchants(canonical_name), subdomains(label, domains(key, label))").eq("user_id", userId).order("posted_date", { ascending: false }).limit(50),
+    supabaseAdmin.from("transactions").select("*, merchants(canonical_name), subdomains(label, domains(key, label))").eq("user_id", userId).order("posted_date", { ascending: false }).limit(50),
     supabaseAdmin.from("virtual_ibag_balance").select("*").eq("user_id", userId).maybeSingle(),
   ]);
   if (accountsErr) console.error("dashboard/overview accounts query error:", accountsErr.message);
@@ -86,14 +86,14 @@ const PLAID_STANDARD_PRODUCTS = ["transactions", "auth", "balance", "identity", 
 
 dashboardRouter.get("/dashboard/plaid", requireAuth, async (req: AuthedRequest, res) => {
   const userId = req.userId!;
-  const { data: items, error } = await supabaseAdmin.from("plaid_items").select("id, plaid_item_id, plaid_access_token, institution_name, status, last_synced_at").eq("user_id", userId);
+  const { data: items, error } = await supabaseAdmin.from("plaid_items").select("id, user_id, plaid_item_id, plaid_access_token, institution_name, status, last_synced_at").eq("user_id", userId);
   if (error) return res.status(500).json({ error: error.message });
   if (!items || items.length === 0) return res.json({ items: [], products: PLAID_STANDARD_PRODUCTS.map((p) => ({ product: p, status: "not_connected" as const })) });
   const productStatus = new Map<string, "active" | "available" | "not_requested">(PLAID_STANDARD_PRODUCTS.map((p) => [p, "not_requested"]));
   const itemSummaries = [];
   for (const item of items) {
     try {
-      const accessToken = await getPlaidAccessToken(item.id, item.user_id ?? userId, item.plaid_access_token);
+      const accessToken = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
       const itemResp = await plaidClient.itemGet({ access_token: accessToken });
       const billed = new Set(itemResp.data.item.billed_products ?? []);
       const available = new Set(itemResp.data.item.available_products ?? []);
