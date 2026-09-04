@@ -138,7 +138,7 @@ export interface DebtCostIntelligence {
 export async function computeDebtCostIntelligence(userId: string): Promise<DebtCostIntelligence> {
   const { data: rows, error } = await supabaseAdmin
     .from("liability_details")
-    .select("apr_percentage, minimum_payment_amount, plaid_accounts(current_balance)")
+    .select("apr_percentage, minimum_payment_amount, plaid_accounts!liability_details_account_user_fk(current_balance)")
     .eq("user_id", userId)
     .eq("liability_type", "credit");
 
