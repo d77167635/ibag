@@ -33,43 +33,23 @@ function getCanonicalIntelligence() {
 
 export const api = {
   createLinkToken: () => authedFetch("/link/token", { method: "POST" }),
-  exchangePublicToken: (publicToken: string) =>
-    authedFetch("/link/exchange", {
-      method: "POST",
-      body: JSON.stringify({ public_token: publicToken }),
-    }),
+  exchangePublicToken: (publicToken: string) => authedFetch("/link/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken }) }),
   getOverview: () => authedFetch("/dashboard/overview"),
   getIntelligence: getCanonicalIntelligence,
-  askIris: (question: string, context?: Record<string, unknown>) =>
-    authedFetch("/iris/ask", {
-      method: "POST",
-      body: JSON.stringify({ question, context }),
-    }),
+  askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
   resync: () => authedFetch("/link/resync", { method: "POST" }),
   getHierarchy: () => authedFetch("/dashboard/hierarchy"),
   getRoundups: () => authedFetch("/dashboard/roundups"),
-  previewTransfer: (accountId: string, amount: number) =>
-    authedFetch("/dashboard/roundups/preview-transfer", {
-      method: "POST",
-      body: JSON.stringify({ account_id: accountId, amount }),
-    }),
+  previewTransfer: (accountId: string, amount: number) => authedFetch("/dashboard/roundups/preview-transfer", { method: "POST", body: JSON.stringify({ account_id: accountId, amount }) }),
   getFeatures: () => authedFetch("/features"),
-  toggleFeature: (key: string, enabled: boolean) =>
-    authedFetch(`/features/${key}/toggle`, {
-      method: "POST",
-      body: JSON.stringify({ enabled }),
-    }),
+  toggleFeature: (key: string, enabled: boolean) => authedFetch(`/features/${key}/toggle`, { method: "POST", body: JSON.stringify({ enabled }) }),
   getPlaidProducts: () => authedFetch("/dashboard/plaid"),
   getPlaidSurface: () => authedFetch("/dashboard/plaid/surface"),
   getPlaidSelection: () => authedFetch("/dashboard/plaid/selection"),
-  runScenario: (type: string, amount: number) =>
-    authedFetch("/dashboard/scenario", {
-      method: "POST",
-      body: JSON.stringify({ type, amount }),
-    }),
-  toggleAccountRoundup: (accountId: string, enabled: boolean) =>
-    authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, {
-      method: "POST",
-      body: JSON.stringify({ enabled }),
-    }),
+  runScenario: (type: string, amount: number) => authedFetch("/dashboard/scenario", { method: "POST", body: JSON.stringify({ type, amount }) }),
+  toggleAccountRoundup: (accountId: string, enabled: boolean) => authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, { method: "POST", body: JSON.stringify({ enabled })),
+  getGoals: () => authedFetch("/goals"),
+  createGoal: (goal: Record<string, unknown>) => authedFetch("/goals", { method: "POST", body: JSON.stringify(goal) }),
+  updateGoal: (goalId: string, goal: Record<string, unknown>) => authedFetch(`/goals/${goalId}`, { method: "PATCH", body: JSON.stringify(goal) }),
+  deleteGoal: (goalId: string) => authedFetch(`/goals/${goalId}`, { method: "DELETE" }),
 };
