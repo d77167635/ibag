@@ -45,7 +45,6 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       user_id: userId,
       account_id: row.id,
       raw_response: acct,
-      observation_hash: undefined,
     });
     if (balanceError) throw balanceError;
   }
