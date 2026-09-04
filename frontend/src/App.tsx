@@ -6,6 +6,7 @@ import { IrisAssistant } from "./components/IrisAssistant";
 import { IrisShell } from "./components/IrisShell";
 import { IrisRouterBridge } from "./components/IrisRouterBridge";
 import { PlaidControlPlane } from "./components/PlaidControlPlane";
+import { IrisMoneyExperience } from "./components/IrisMoneyExperience";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -23,5 +24,5 @@ export default function App() {
   if (!checkedAuth) return null;
   if (!session) return <Auth />;
   if (path === "/plaid" || path === "/plaid/") return <PlaidControlPlane />;
-  return <><IrisRouterBridge /><IrisShell /><IrisAssistant /></>;
+  return <><IrisRouterBridge /><IrisShell /><IrisMoneyExperience /><IrisAssistant /></>;
 }
