@@ -8,6 +8,7 @@ import { plaidSelectionRouter } from "./routes/plaidSelection.js";
 import { plaidSurfaceRouter } from "./routes/plaidSurface.js";
 import { featuresRouter } from "./routes/features.js";
 import { irisRouter } from "./routes/iris.js";
+import { goalsRouter } from "./routes/goals.js";
 import { migrateLegacyPlaidAccessTokens } from "./services/tokenStore.js";
 
 const app = express();
@@ -28,6 +29,7 @@ app.use(plaidSelectionRouter);
 app.use(plaidSurfaceRouter);
 app.use(featuresRouter);
 app.use(irisRouter);
+app.use(goalsRouter);
 
 async function start() {
   const migrated = await migrateLegacyPlaidAccessTokens();
