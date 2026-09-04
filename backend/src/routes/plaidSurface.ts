@@ -3,7 +3,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { getPlaidAccessToken } from "../services/tokenStore.js";
 import { plaidClient } from "../plaid/client.js";
-import { PLAID_PRODUCT_CATALOG, PLAID_PRODUCT_STATE_TO_CATALOG_KEY } from "../config/plaidProductCatalog.js";
+import { PLAID_PRODUCT_CATALOG } from "../config/plaidProductCatalog.js";
 
 export const plaidSurfaceRouter = Router();
 
@@ -15,9 +15,7 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
   if (error) return res.status(500).json({ error: error.message });
 
   const stateByProduct = new Map<string, { active: number; consented: number; available: number; unavailable: number; itemCount: number }>();
-  for (const definition of PLAID_PRODUCT_CATALOG) {
-    stateByProduct.set(definition.key, { active: 0, consented: 0, available: 0, unavailable: 0, itemCount: 0 });
-  }
+  for (const definition of PLAID_PRODUCT_CATALOG) stateByProduct.set(definition.key, { active: 0, consented: 0, available: 0, unavailable: 0, itemCount: 0 });
   const summaries: any[] = [];
 
   for (const item of items ?? []) {
@@ -25,21 +23,16 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
       const token = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
       const response = await plaidClient.itemGet({ access_token: token });
       const raw = response.data.item as any;
-      const active = new Set<string>(raw.products ?? []);
-      const billed = new Set<string>(raw.billed_products ?? []);
+      const active = new Set<string>([...(raw.products ?? []), ...(raw.billed_products ?? [])]);
       const consented = new Set<string>(raw.consented_products ?? []);
       const available = new Set<string>(raw.available_products ?? []);
-      const observedStates = new Set<string>([...active, ...billed, ...consented, ...available]);
 
       for (const definition of PLAID_PRODUCT_CATALOG) {
         const state = stateByProduct.get(definition.key)!;
         state.itemCount += 1;
-        const activeOrBilled = definition.plaidProductStates.some((p) => active.has(p) || billed.has(p));
-        const isConsented = definition.plaidProductStates.some((p) => consented.has(p));
-        const isAvailable = definition.plaidProductStates.some((p) => available.has(p));
-        if (activeOrBilled) state.active += 1;
-        else if (isConsented) state.consented += 1;
-        else if (isAvailable) state.available += 1;
+        if (definition.plaidProductStates.some((p) => active.has(p))) state.active += 1;
+        else if (definition.plaidProductStates.some((p) => consented.has(p))) state.consented += 1;
+        else if (definition.plaidProductStates.some((p) => available.has(p))) state.available += 1;
         else state.unavailable += 1;
       }
 
@@ -47,22 +40,13 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
         institution_name: item.institution_name,
         status: item.status,
         last_synced_at: item.last_synced_at,
-        billed_products: [...billed],
+        billed_products: [...new Set<string>(raw.billed_products ?? [])],
         available_products: [...available],
         consented_products: [...consented],
-        observed_product_states: [...observedStates],
       });
     } catch (err) {
       console.error(`Plaid surface itemGet failed for ${item.id}:`, err);
-      summaries.push({
-        institution_name: item.institution_name,
-        status: "provider_state_unavailable",
-        last_synced_at: item.last_synced_at,
-        billed_products: [],
-        available_products: [],
-        consented_products: [],
-        observed_product_states: [],
-      });
+      summaries.push({ institution_name: item.institution_name, status: "provider_state_unavailable", last_synced_at: item.last_synced_at, billed_products: [], available_products: [], consented_products: [] });
     }
   }
 
