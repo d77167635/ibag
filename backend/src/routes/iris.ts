@@ -4,6 +4,8 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { computeFullIntelligence } from "../intelligence/orchestrator.js";
 import { resolveIrisContext, type IrisQuestionContext } from "../intelligence/irisContext.js";
 import { evidenceSummary, planIrisEvidence } from "../intelligence/irisEvidence.js";
+import { buildReasoningTrace } from "../intelligence/reasoningTrace.js";
+import { verifyProviderLineage } from "../intelligence/evidenceGraph.js";
 
 export const irisRouter = Router();
 
@@ -70,14 +72,23 @@ irisRouter.post("/iris/ask", requireAuth, async (req: AuthedRequest, res) => {
     const userId = req.userId!;
     const suppliedContext: IrisQuestionContext = req.body?.context && typeof req.body.context === "object" ? req.body.context : {};
     const resolved = resolveIrisContext(question, suppliedContext);
-    const [{ data: accounts, error: accountError }, intelligence] = await Promise.all([
+    const [{ data: accounts, error: accountError }, intelligence, providerLineage] = await Promise.all([
       supabaseAdmin.from("plaid_accounts").select("id").eq("user_id", userId),
       computeFullIntelligence(userId),
+      verifyProviderLineage(supabaseAdmin, userId),
     ]);
     if (accountError) return res.status(500).json({ error: accountError.message });
     const evidencePlan = planIrisEvidence(resolved.intent, intelligence);
+    const reasoningTrace = buildReasoningTrace(resolved.intent, intelligence.evidence_graph);
     const answer = answerFor(resolved.intent, intelligence, accounts?.length ?? 0, evidencePlan);
-    res.json({ question: resolved.normalizedQuestion, context: resolved.context, generated_at: new Date().toISOString(), ...answer });
+    res.json({
+      question: resolved.normalizedQuestion,
+      context: resolved.context,
+      generated_at: new Date().toISOString(),
+      provider_lineage: providerLineage,
+      reasoning_trace: reasoningTrace,
+      ...answer,
+    });
   } catch (error) {
     console.error("Iris question failed", error);
     res.status(500).json({ error: "Iris could not complete the question from the current evidence" });
