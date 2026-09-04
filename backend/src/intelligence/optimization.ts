@@ -30,7 +30,6 @@ const evidenceScore: Record<Evidence, number> = {
   observed: 1,
   calculated: 0.9,
   inferred: 0.65,
-  limited: 0.35,
   insufficient_evidence: 0,
 };
 
@@ -38,10 +37,7 @@ function consequenceFor(option: DecisionOption, model: ConsequenceModel): Conseq
   return model.scenarios.find((s) => s.decision_option_id === option.id);
 }
 
-/**
- * Compares analysis-only options using transparent, non-probabilistic scoring.
- * This is optimization of analytical preference, not an instruction to transact.
- */
+/** Compares analysis-only options using transparent, non-probabilistic scoring. */
 export function buildOptimizationIntelligence(
   decision: DecisionIntelligence,
   consequences: ConsequenceModel,
