@@ -6,12 +6,25 @@ export function PlaidLinkButton({ onSuccess }: { onSuccess: () => void }) {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [loadingToken, setLoadingToken] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoadingToken(true);
     api
       .createLinkToken()
-      .then((res) => setLinkToken(res.link_token))
-      .catch(() => setError("Couldn't start card connection. Try reloading the page."));
+      .then((res) => {
+        if (!cancelled) setLinkToken(res.link_token);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Couldn't start card connection. Try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingToken(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSuccess = useCallback(
@@ -21,8 +34,8 @@ export function PlaidLinkButton({ onSuccess }: { onSuccess: () => void }) {
       try {
         await api.exchangePublicToken(publicToken);
         onSuccess();
-      } catch {
-        setError("Card connected, but syncing failed. Try reloading in a moment.");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Card connected, but syncing failed. Try Refresh.");
       } finally {
         setConnecting(false);
       }
@@ -30,17 +43,30 @@ export function PlaidLinkButton({ onSuccess }: { onSuccess: () => void }) {
     [onSuccess]
   );
 
-  const { open, ready } = usePlaidLink({
-    token: linkToken ?? "",
-    onSuccess: handleSuccess,
-  });
+  const { open, ready } = usePlaidLink({ token: linkToken ?? "", onSuccess: handleSuccess });
+  const disabled = connecting || loadingToken || !ready || !linkToken;
 
   return (
-    <div>
-      <button className="btn-accent" onClick={() => open()} disabled={!ready || !linkToken || connecting}>
-        {connecting ? "Connecting…" : "Connect a card"}
+    <div className="plaid-connect-wrap">
+      <button
+        className="btn-accent plaid-connect-button"
+        onClick={() => {
+          setError(null);
+          open();
+        }}
+        disabled={disabled}
+        aria-busy={connecting || loadingToken}
+      >
+        {connecting ? "Connecting…" : loadingToken ? "Preparing…" : "Connect a card"}
       </button>
-      {error && <p className="field-error" style={{ marginTop: 8, textAlign: "right" }}>{error}</p>}
+      {error && (
+        <div className="plaid-connect-error" role="alert">
+          <span>{error}</span>
+          <button type="button" onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        </div>
+      )}
     </div>
   );
 }
