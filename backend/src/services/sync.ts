@@ -41,9 +41,10 @@ async function markProductObserved(userId: string, itemId: string, product: stri
     .select("billed,available,authorized,requested,provider_added")
     .eq("user_id", userId).eq("item_id", itemId).eq("provider", "plaid").eq("product", product).eq("is_current", true).maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error(`Cannot mark Plaid product ${product} observed without prior provider evidence`);
   await productObservation(userId, itemId, product, "observed", {
-    billed: data?.billed ?? false, available: data?.available ?? false, authorized: data?.authorized ?? true,
-    requested: data?.requested ?? false, providerAdded: data?.provider_added ?? true,
+    billed: data.billed, available: data.available, authorized: data.authorized,
+    requested: data.requested, providerAdded: data.provider_added,
   }, source);
 }
 
