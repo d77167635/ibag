@@ -12,7 +12,7 @@
 .iris-shell-state-primary strong,.iris-big-number{font-variant-numeric:tabular-nums;text-shadow:0 0 30px rgba(111,232,255,.10)}
 .iris-shell-stat strong{font-variant-numeric:tabular-nums}
 .iris-panel-head span:last-child{font-variant-numeric:tabular-nums}
-.iris-list-row{transition:background .18s ease,padding-left .18s ease;padding-left:8px;padding-right:8px;border-radius:9px}
+.iris-list-row{transition:background .18s ease,padding-left .18s ease;border-radius:9px;padding:11px 8px;position:relative}
 .iris-list-row:hover{background:rgba(255,255,255,.025);padding-left:12px}
 .iris-bar-row{position:relative;padding:4px 8px;border-radius:10px;transition:background .18s ease}
 .iris-bar-row:hover{background:rgba(255,255,255,.025)}
@@ -29,6 +29,14 @@
 .iris-shell-state-grid{margin-bottom:11px}
 .iris-shell-two-col{margin:11px 0}
 .iris-shell-panel{min-width:0}
+/* Money: turn the existing observed-account list into a spatial topology without changing its data contract. */
+.iris-shell-page:has(.iris-panel-head span:first-child){container-type:inline-size}
+.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child){isolation:isolate}
+.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child) .iris-list-row{background:linear-gradient(100deg,rgba(255,255,255,.018),rgba(93,74,190,.045));border:1px solid rgba(255,255,255,.045);margin:7px 0;padding:13px 15px;box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child) .iris-list-row:before{content:"";position:absolute;left:-14px;top:50%;width:12px;height:1px;background:linear-gradient(90deg,transparent,rgba(105,225,255,.38));opacity:.65}
+.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child) .iris-list-row:after{content:"";position:absolute;left:-17px;top:calc(50% - 3px);width:5px;height:5px;border-radius:50%;background:#68e8ff;box-shadow:0 0 12px rgba(104,232,255,.75)}
+.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child) .iris-list-row:hover{transform:translateX(4px);border-color:rgba(104,232,255,.20);background:linear-gradient(100deg,rgba(104,232,255,.055),rgba(112,76,255,.07))}
+.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child) .iris-list-row strong{font-size:15px;text-shadow:0 0 18px rgba(104,232,255,.10)}
 @keyframes iris-flow{0%,45%{transform:translateX(-110%)}75%,100%{transform:translateX(110%)}}
-@media(max-width:900px){.iris-shell-page{min-height:calc(100vh - 128px)}.iris-shell-hero,.iris-shell-page-intro{align-items:flex-start;flex-direction:column;gap:12px}.iris-shell-page:before{width:70vw;height:70vw;right:-20vw}.iris-shell-state-primary:hover,.iris-shell-stat:hover,.iris-shell-panel:hover{transform:none}}
+@media(max-width:900px){.iris-shell-page{min-height:calc(100vh - 128px)}.iris-shell-hero,.iris-shell-page-intro{align-items:flex-start;flex-direction:column;gap:12px}.iris-shell-page:before{width:70vw;height:70vw;right:-20vw}.iris-shell-state-primary:hover,.iris-shell-stat:hover,.iris-shell-panel:hover{transform:none}.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child) .iris-list-row:before,.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child) .iris-list-row:after{display:none}.iris-shell-page .iris-shell-panel:has(.iris-panel-head span:first-child) .iris-list-row:hover{transform:none}}
 @media(prefers-reduced-motion:reduce){.iris-shell-state-primary,.iris-shell-stat,.iris-shell-panel,.iris-list-row,.iris-bar-row,.iris-discovery-links button,.iris-action-row button{transition:none}.iris-bar-row i b:after{animation:none}}
