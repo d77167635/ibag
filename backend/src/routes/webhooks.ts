@@ -3,17 +3,11 @@ import crypto from "node:crypto";
 import * as jose from "jose";
 import { supabaseAdmin } from "../config/supabase.js";
 import { fullSyncForItem } from "../services/sync.js";
-import { decryptToken } from "../config/crypto.js";
 import { plaidClient } from "../plaid/client.js";
+import { getPlaidAccessToken } from "../services/tokenStore.js";
 
 export const webhooksRouter = Router();
 
-// Plaid signs webhooks with an ES256 JWT in the Plaid-Verification header.
-// Verification is optional per Plaid's docs, but without it this endpoint
-// accepts and acts on any POST from anyone who finds the URL — it can
-// trigger real syncs and mark items as needing reauth. The verification
-// keys rotate rarely, so caching by kid is safe and avoids a Plaid API
-// call on every webhook.
 const verificationKeyCache = new Map<string, jose.CryptoKey | Uint8Array>();
 
 async function getVerificationKey(kid: string) {
@@ -35,9 +29,6 @@ async function verifyPlaidWebhook(verificationHeader: string | undefined, rawBod
 
     const key = await getVerificationKey(kid);
     const { payload } = await jose.jwtVerify(verificationHeader, key);
-
-    // Reject stale webhooks — Plaid recommends rejecting if the JWT is
-    // more than a few minutes old, which also protects against replay.
     const issuedAt = (payload.iat as number | undefined) ?? 0;
     if (Date.now() / 1000 - issuedAt > 300) return false;
 
@@ -48,8 +39,6 @@ async function verifyPlaidWebhook(verificationHeader: string | undefined, rawBod
   }
 }
 
-// Plaid requires a fast (<10s) ack. We log the raw payload immediately and
-// process it asynchronously — never do the sync work inline in the handler.
 webhooksRouter.post("/webhooks/plaid", async (req, res) => {
   const payload = req.body;
   const rawBody = (req as typeof req & { rawBody?: Buffer }).rawBody;
@@ -57,8 +46,6 @@ webhooksRouter.post("/webhooks/plaid", async (req, res) => {
   const verified = await verifyPlaidWebhook(req.header("Plaid-Verification"), rawBody);
   if (!verified) {
     console.warn("Rejected unverified webhook", { webhook_type: payload?.webhook_type, webhook_code: payload?.webhook_code });
-    // Still 200 — Plaid doesn't need a distinguishable error, and giving
-    // one just tells an attacker their forged payload was noticed.
     return res.status(200).json({ received: true });
   }
 
@@ -73,7 +60,6 @@ webhooksRouter.post("/webhooks/plaid", async (req, res) => {
     .select()
     .single();
 
-  // Ack immediately regardless of downstream processing outcome.
   res.status(200).json({ received: true });
 
   if (error) {
@@ -81,9 +67,6 @@ webhooksRouter.post("/webhooks/plaid", async (req, res) => {
     return;
   }
 
-  // Fire-and-forget async processing. In production, replace this with a
-  // real queue (e.g. a Postgres-backed job table polled by a Render worker,
-  // or a proper queue service) rather than in-process async work.
   processWebhookEvent(eventRow.id).catch((err) => {
     console.error("Webhook processing failed", err);
   });
@@ -105,7 +88,8 @@ async function processWebhookEvent(eventId: string) {
       .single();
 
     if (item) {
-      await fullSyncForItem(item.id, item.user_id, decryptToken(item.plaid_access_token));
+      const accessToken = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
+      await fullSyncForItem(item.id, item.user_id, accessToken);
     }
   }
 
