@@ -18,6 +18,7 @@ import { computeFinancialReasoning } from "./relational.js";
 import { buildNarrative, recordExplainabilityTrace } from "./decision.js";
 import { buildMaximumIntelligence } from "./maxIntelligence.js";
 import { buildEvidenceGraph } from "./evidenceGraph.js";
+import { assessUncertainty } from "./uncertainty.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -106,10 +107,11 @@ export async function computeFullIntelligence(userId: string) {
   };
 
   const evidenceGraph = buildEvidenceGraph(baseResult);
+  const uncertainty = assessUncertainty(evidenceGraph);
 
   recordExplainabilityTrace(userId, reasoning).catch((err) =>
     console.error("explainability trace failed:", err)
   );
 
-  return { ...baseResult, evidence_graph: evidenceGraph };
+  return { ...baseResult, evidence_graph: evidenceGraph, uncertainty };
 }
