@@ -14,12 +14,11 @@ import { computeCategoryDrift } from "./behavioral.js";
 import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
 import { computeFinancialReasoning } from "./relational.js";
 import { buildNarrative, recordExplainabilityTrace } from "./decision.js";
+import { buildMaximumIntelligence } from "./maxIntelligence.js";
 
 /**
- * ORCHESTRATOR — runs every layer and returns one response whose shape
- * mirrors the architecture: each key is a layer, not a flat list of
- * cards. This replaces the single flat handler that used to live inline
- * in routes/dashboard.ts.
+ * Canonical intelligence orchestrator. Dashboard and Iris should consume
+ * this synthesis rather than independently recomputing the same metrics.
  */
 export async function computeFullIntelligence(userId: string) {
   const [
@@ -53,7 +52,6 @@ export async function computeFullIntelligence(userId: string) {
   ]);
 
   const trajectory = assessTrajectory(multiWindowFlow);
-
   const narrative = buildNarrative(reasoning, {
     safeToSpend: cashFlowSafety.safeToSpend,
     essentialBillsCount: cashFlowSafety.upcomingBills.length,
@@ -63,8 +61,16 @@ export async function computeFullIntelligence(userId: string) {
     anomalyCount: anomalies.length,
   });
 
-  // Fire-and-forget — explainability logging should never block or fail
-  // the response the user is waiting on.
+  const maximumIntelligence = buildMaximumIntelligence({
+    flows: multiWindowFlow,
+    reasoning,
+    safeToSpend: cashFlowSafety.safeToSpend,
+    cashFlowNet: cashFlow.net,
+    cashFlowWindowDays: cashFlow.windowDays,
+    currentLiquidAssets: balances.liquidAssets,
+    forwardProjectionBasis: forwardProjection.basis ?? null,
+  });
+
   recordExplainabilityTrace(userId, reasoning).catch((err) =>
     console.error("explainability trace failed:", err)
   );
@@ -72,8 +78,6 @@ export async function computeFullIntelligence(userId: string) {
   return {
     narrative,
     generated_at: new Date().toISOString(),
-
-    // Layer 1/3/8 — observation-derived calculated metrics & forecasts
     layer_metrics: {
       net_worth: { liquid_assets: balances.liquidAssets, as_of: balances.asOf },
       debt_health: {
@@ -90,17 +94,10 @@ export async function computeFullIntelligence(userId: string) {
       forward_projection: forwardProjection,
       anomalies,
     },
-
-    // Layer 1 (extended) + 8 — liabilities-derived debt cost, previously null
     layer_debt_cost: debtCost,
-
-    // Layer 3 — multi-window temporal comparison
     layer_temporal: { windows: multiWindowFlow, trajectory },
-
-    // Layer 5/6 — behavioral/pattern drift vs. established baseline
     layer_behavioral: { categoryDrift },
-
-    // Layer 4/7/9/10/11 — relational chain, risk, opportunity, decision
     layer_reasoning: reasoning,
+    layer_max_intelligence: maximumIntelligence,
   };
 }
