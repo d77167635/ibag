@@ -133,7 +133,7 @@ export async function computeFullIntelligence(userId: string) {
     multiWindowFlow.length ? multiWindowFlow.reduce((widest, current) => current.windowDays > widest.windowDays ? current : widest).outflow : null,
     cashFlow.windowDays,
   );
-  const optimization = buildOptimizationIntelligence(decisionIntelligence, consequenceModel, financialState);
+  const optimization = buildOptimizationIntelligence(decisionIntelligence, consequenceModel, financialState, declaredGoals);
   const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimization, declaredGoals);
   goals.limitations = [...new Set([...goals.limitations, ...goalDataLimitations])];
 
