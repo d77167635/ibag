@@ -34,6 +34,6 @@ export const api = {
   getPlaidProducts: () => authedFetch("/dashboard/plaid"),
   getPlaidSurface: () => authedFetch("/dashboard/plaid/surface"),
   getPlaidSelection: () => authedFetch("/dashboard/plaid/selection"),
-  runScenario: (type: string, amount: number) => authedFetch("/dashboard/scenario", { method: "POST", body: JSON.stringify({ type, amount })),
-  toggleAccountRoundup: (accountId: string, enabled: boolean) => authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, { method: "POST", body: JSON.stringify({ enabled })),
+  runScenario: (type: string, amount: number) => authedFetch("/dashboard/scenario", { method: "POST", body: JSON.stringify({ type, amount }) }),
+  toggleAccountRoundup: (accountId: string, enabled: boolean) => authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, { method: "POST", body: JSON.stringify({ enabled })) },
 };
