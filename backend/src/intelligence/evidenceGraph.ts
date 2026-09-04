@@ -26,15 +26,16 @@ export interface EvidenceGraph {
 }
 
 function addMetricNode(nodes: EvidenceNode[], id: string, label: string, value: unknown, state: EvidenceNode["state"], source: string) {
-  nodes.push({ id, kind: state === "observed" ? "provider" : state === "inferred" ? "inference" : "intelligence", label, value, state, source });
+  const kind: EvidenceNodeKind = state === "observed" ? "provider" : state === "inferred" ? "inference" : "calculation";
+  nodes.push({ id, kind, label, value, state, source });
 }
 
 /** Builds a deterministic relationship graph from real provider evidence and canonical Iris intelligence. */
 export function buildEvidenceGraph(intel: any): EvidenceGraph {
   const nodes: EvidenceNode[] = [];
   const edges: EvidenceEdge[] = [];
-  const limitations = Array.isArray(intel?.layer_max_intelligence?.evidence_coverage?.limitations)
-    ? intel.layer_max_intelligence.evidence_coverage.limitations.map(String)
+  const limitations: string[] = Array.isArray(intel?.layer_max_intelligence?.evidence_coverage?.limitations)
+    ? intel.layer_max_intelligence.evidence_coverage.limitations.map((value: unknown) => String(value))
     : [];
 
   const add = (id: string, label: string, value: unknown, state: EvidenceNode["state"], source: string) => addMetricNode(nodes, id, label, value, state, source);
@@ -57,7 +58,7 @@ export function buildEvidenceGraph(intel: any): EvidenceGraph {
   if (nodes.some((n) => n.id === "roundup_projection") && nodes.some((n) => n.id === "forward_projection")) edges.push({ from: "roundup_projection", to: "forward_projection", relation: "supports" });
   if (nodes.some((n) => n.id === "debt_cost") && nodes.some((n) => n.id === "safe_to_spend")) edges.push({ from: "debt_cost", to: "safe_to_spend", relation: "constrains" });
   if (limitations.length) {
-    limitations.forEach((text, index) => {
+    limitations.forEach((text: string, index: number) => {
       const id = `limitation_${index + 1}`;
       nodes.push({ id, kind: "limitation", label: text, state: "limited", source: "Iris evidence coverage" });
       if (nodes.some((n) => n.id === "forward_projection")) edges.push({ from: id, to: "forward_projection", relation: "limits" });
