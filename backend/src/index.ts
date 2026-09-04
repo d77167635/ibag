@@ -5,6 +5,7 @@ import { linkRouter } from "./routes/link.js";
 import { webhooksRouter, recoverPendingWebhookEvents } from "./routes/webhooks.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { plaidSelectionRouter } from "./routes/plaidSelection.js";
+import { plaidSurfaceRouter } from "./routes/plaidSurface.js";
 import { featuresRouter } from "./routes/features.js";
 import { migrateLegacyPlaidAccessTokens } from "./services/tokenStore.js";
 
@@ -23,6 +24,7 @@ app.use(linkRouter);
 app.use(webhooksRouter);
 app.use(dashboardRouter);
 app.use(plaidSelectionRouter);
+app.use(plaidSurfaceRouter);
 app.use(featuresRouter);
 
 async function start() {
