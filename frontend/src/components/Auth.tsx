@@ -86,20 +86,16 @@ export function Auth() {
     }
 
     if (mode === "sign_up" && !result.data.session) {
-      // Email confirmation is required — signUp succeeded but there's no
-      // session yet, so tell the person what to do next instead of
-      // leaving them staring at an unchanged form.
       setNotice("Check your inbox — confirm your email to finish creating your account.");
       return;
     }
-    // On success App.tsx picks up the new session via onAuthStateChange.
   }
 
   const heading =
     mode === "sign_in" ? "Sign in" : mode === "sign_up" ? "Create your account" : "Reset your password";
   const subheading =
     mode === "sign_in"
-      ? "Welcome back — see where your round-ups stand."
+      ? "Welcome back — see where your money stands."
       : mode === "sign_up"
       ? "Takes under a minute. No card required to start."
       : "Enter the email on your account and we'll send a reset link.";
@@ -112,13 +108,12 @@ export function Auth() {
           Iris
         </div>
         <div className="auth-brand-copy">
-          <h1>Every purchase, a little saved.</h1>
+          <h1>Your money, understood.</h1>
           <p>
-            Iris rounds up what you spend and shows you what it adds up to — a clear view of
-            spare change becoming something.
+            Iris connects to your authorized financial data and turns what is actually observed into clear financial intelligence.
           </p>
         </div>
-        <p className="auth-brand-foot">Phase 1 — round-ups are simulated, not yet swept to a real account.</p>
+        <p className="auth-brand-foot">Phase 1 — read-only intelligence. No money movement. No simulated financial data.</p>
       </aside>
 
       <div className="auth-panel">
