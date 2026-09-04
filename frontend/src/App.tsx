@@ -7,8 +7,6 @@ import { IrisShell } from "./components/IrisShell";
 import { IrisRouterBridge } from "./components/IrisRouterBridge";
 import { IrisPlaidConnect } from "./components/IrisPlaidConnect";
 import { PlaidControlPlane } from "./components/PlaidControlPlane";
-import { PlaidKnowledgeCenter } from "./components/PlaidKnowledgeCenter";
-import { SourceTruth } from "./components/SourceTruth";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -25,8 +23,6 @@ export default function App() {
 
   if (!checkedAuth) return null;
   if (!session) return <Auth />;
-  if (path === "/source" || path === "/source/") return <SourceTruth />;
-  if (path === "/plaid/knowledge" || path === "/plaid/knowledge/") return <PlaidKnowledgeCenter />;
   if (path === "/plaid" || path === "/plaid/") return <PlaidControlPlane />;
   return <><IrisRouterBridge /><IrisShell /><IrisAssistant /><IrisPlaidConnect /></>;
 }
