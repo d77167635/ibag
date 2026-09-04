@@ -25,6 +25,7 @@ import { buildDecisionGraph } from "./decisionGraph.js";
 import { buildDecisionIntelligence } from "./decisionIntelligence.js";
 import { buildConsequenceModel } from "./consequence.js";
 import { buildOptimizationIntelligence } from "./optimization.js";
+import { buildGoalIntelligence } from "./goals.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -127,6 +128,7 @@ export async function computeFullIntelligence(userId: string) {
     cashFlow.windowDays,
   );
   const optimization = buildOptimizationIntelligence(decisionIntelligence, consequenceModel, financialState);
+  const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimization);
 
   recordExplainabilityTrace(userId, reasoning).catch((err) =>
     console.error("explainability trace failed:", err)
@@ -142,5 +144,6 @@ export async function computeFullIntelligence(userId: string) {
     decision_intelligence: decisionIntelligence,
     consequence_model: consequenceModel,
     optimization_intelligence: optimization,
+    goal_intelligence: goals,
   };
 }
