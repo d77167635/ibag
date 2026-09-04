@@ -37,6 +37,10 @@ function consequenceFor(option: DecisionOption, model: ConsequenceModel): Conseq
   return model.scenarios.find((s) => s.decision_option_id === option.id);
 }
 
+function normalizeEvidence(value: Evidence | "limited"): Evidence {
+  return value === "limited" ? "inferred" : value;
+}
+
 /** Compares analysis-only options using transparent, non-probabilistic scoring. */
 export function buildOptimizationIntelligence(
   decision: DecisionIntelligence,
@@ -60,7 +64,7 @@ export function buildOptimizationIntelligence(
 
   const scores = decision.options.map((option) => {
     const scenario = consequenceFor(option, consequences);
-    const evidence = scenario?.evidence ?? option.evidence_state;
+    const evidence = normalizeEvidence(scenario?.evidence ?? option.evidence_state);
     const evidenceQuality = evidenceScore[evidence];
     const reversibility = option.reversibility === "high" ? 1 : option.reversibility === "medium" ? 0.65 : 0.35;
     const downside = scenario?.tradeoffs.length ? Math.min(1, scenario.tradeoffs.length / 4) : 0;
