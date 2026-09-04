@@ -3,774 +3,156 @@
   --iris-muted: #69707d;
   --iris-faint: #9299a6;
   --iris-line: #e3e6eb;
-  --iris-line-strong: #d6dae1;
   --iris-paper: #ffffff;
   --iris-canvas: #f5f6f8;
-  --iris-soft: #f0eef8;
   --iris-violet: #5b478d;
-  --iris-violet-deep: #3f3168;
-  --iris-green: #277253;
-  --iris-red: #a4474d;
   --iris-shadow: 0 8px 28px rgba(22, 24, 30, 0.055);
-  --iris-shadow-hover: 0 14px 36px rgba(22, 24, 30, 0.09);
 }
 
-/* --------------------------------------------------------------------------
-   IrisShell — application workspace
-   The interface is intentionally quiet: hierarchy, evidence and numbers do
-   the work. Large purple surfaces are reserved for meaningful state, not chrome.
----------------------------------------------------------------------------- */
-.iris-shell {
-  min-height: 100vh !important;
-  background: var(--iris-canvas) !important;
-  color: var(--iris-ink) !important;
-}
-
-.iris-shell-sidebar {
-  width: 248px !important;
-  background: #111217 !important;
-  border-right: 1px solid #292b31 !important;
-}
-
-.iris-shell-brand {
-  padding: 25px 20px 22px !important;
-  grid-template-columns: 34px auto !important;
-  grid-template-rows: 24px 17px !important;
-}
-
-.iris-shell-brand b {
-  font-size: 20px !important;
-  letter-spacing: -0.025em !important;
-}
-
-.iris-shell-brand small {
-  color: #8e919b !important;
-  font-size: 10px !important;
-  letter-spacing: 0.02em !important;
-}
-
-.iris-shell-sidebar nav {
-  padding: 7px 10px !important;
-}
-
-.iris-shell-nav-label {
-  padding: 20px 11px 7px !important;
-  color: #656872 !important;
-  font-size: 9px !important;
-  letter-spacing: 0.17em !important;
-}
-
-.iris-shell-nav-item {
-  position: relative !important;
-  min-height: 39px !important;
-  margin: 2px 0 !important;
-  padding: 9px 11px !important;
-  border-radius: 8px !important;
-  color: #999da7 !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-}
-
-.iris-shell-nav-item b {
-  color: #777b86 !important;
-  font-size: 15px !important;
-}
-
-.iris-shell-nav-item:hover {
-  background: #1b1d23 !important;
-  color: #f7f7f8 !important;
-}
-
-.iris-shell-nav-item.active {
-  background: #f4f4f5 !important;
-  color: #17181d !important;
-  box-shadow: none !important;
-}
-
-.iris-shell-nav-item.active::before {
-  content: "";
-  position: absolute;
-  left: -10px;
-  top: 7px;
-  bottom: 7px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: #8068b9;
-}
-
-.iris-shell-nav-item.active b {
-  color: #8068b9 !important;
-}
-
-.iris-shell-nav-item em {
-  background: #30323a !important;
-  color: #d7d9de !important;
-}
-
-.iris-shell-sidebar-foot {
-  padding: 17px 20px 22px !important;
-  border-top: 1px solid #292b31 !important;
-  color: #a7aab3 !important;
-  font-size: 10px !important;
-}
-
-.iris-shell-sidebar-foot small {
-  color: #686b75 !important;
-}
-
-.iris-shell-main {
-  margin-left: 248px !important;
-  width: calc(100% - 248px) !important;
-  min-width: 0 !important;
-}
-
-.iris-shell-top {
-  height: 66px !important;
-  padding: 0 32px !important;
-  background: rgba(255, 255, 255, 0.96) !important;
-  border-bottom: 1px solid var(--iris-line) !important;
-  backdrop-filter: blur(12px);
-}
-
-.iris-shell-crumb {
-  gap: 9px !important;
-  color: #8a909b !important;
-  font-size: 12px !important;
-}
-
-.iris-shell-crumb strong {
-  color: #282a31 !important;
-  font-weight: 600 !important;
-}
-
-.iris-shell-top-actions {
-  gap: 8px !important;
-}
-
-.iris-shell-top-actions button {
-  min-height: 36px;
-}
-
-.iris-shell-avatar {
-  width: 34px !important;
-  height: 34px !important;
-  background: #efedf7 !important;
-  color: var(--iris-violet) !important;
-}
-
-.iris-shell-menu {
-  color: #25272e !important;
-}
-
-.iris-shell-page {
-  width: min(100%, 1320px) !important;
-  max-width: 1320px !important;
-  padding: 42px 44px 100px !important;
-}
-
-.iris-shell-hero {
-  align-items: center !important;
-  margin-bottom: 30px !important;
-}
-
-.iris-shell-kicker {
-  color: #715ca1 !important;
-  font-size: 10px !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.16em !important;
-}
-
-.iris-shell-hero h1,
-.iris-shell-page-intro h1 {
-  margin: 8px 0 11px !important;
-  color: #17181d !important;
-  font-size: clamp(34px, 4vw, 48px) !important;
-  line-height: 1.04 !important;
-  letter-spacing: -0.055em !important;
-  font-weight: 720 !important;
-}
-
-.iris-shell-hero p,
-.iris-shell-page-intro p {
-  max-width: 720px !important;
-  color: #69707d !important;
-  font-size: 15px !important;
-  line-height: 1.62 !important;
-}
-
-.iris-state-badge {
-  flex: 0 0 auto !important;
-  border: 1px solid #d7e9df !important;
-  background: #f5fbf7 !important;
-  color: #2d7658 !important;
-  border-radius: 999px !important;
-  padding: 8px 12px !important;
-  font-size: 11px !important;
-}
-
-.iris-shell-state-grid,
-.iris-shell-stat-grid {
-  gap: 11px !important;
-}
-
-.iris-shell-state-primary,
-.iris-shell-stat,
-.iris-shell-panel {
-  border: 1px solid var(--iris-line) !important;
-  border-radius: 13px !important;
-  background: var(--iris-paper) !important;
-  box-shadow: var(--iris-shadow) !important;
-}
-
-.iris-shell-state-primary {
-  min-height: 154px !important;
-  padding: 23px 25px !important;
-  background: linear-gradient(135deg, #302653 0%, #4c3b72 100%) !important;
-  border-color: #463765 !important;
-  color: #fff !important;
-}
-
-.iris-shell-state-primary .iris-shell-kicker {
-  color: #cfc5e6 !important;
-}
-
-.iris-shell-state-primary strong {
-  margin: 8px 0 9px !important;
-  font-size: clamp(36px, 4vw, 48px) !important;
-  letter-spacing: -0.055em !important;
-  font-variant-numeric: tabular-nums;
-}
-
-.iris-shell-state-primary p {
-  color: #d7d0e4 !important;
-}
-
-.iris-shell-stat {
-  min-height: 154px !important;
-  padding: 21px !important;
-}
-
-.iris-shell-stat span {
-  color: #777e89 !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.1em !important;
-}
-
-.iris-shell-stat strong {
-  margin-top: 19px !important;
-  color: #202229 !important;
-  font-size: 25px !important;
-  letter-spacing: -0.035em !important;
-  font-variant-numeric: tabular-nums;
-}
-
-.iris-shell-stat small {
-  color: #89909b !important;
-  font-size: 11px !important;
-}
-
-.iris-shell-two-col,
-.iris-insight-grid {
-  gap: 14px !important;
-  margin: 16px 0 !important;
-}
-
-.iris-shell-panel {
-  padding: 22px !important;
-}
-
-.iris-panel-head {
-  margin-bottom: 15px !important;
-  color: #7b818c !important;
-  font-size: 9px !important;
-  letter-spacing: 0.15em !important;
-}
-
-.iris-panel-head button {
-  padding: 5px 0 !important;
-  color: #654f96 !important;
-  font-size: 12px !important;
-}
-
-.iris-shell-panel h2 {
-  color: #1b1d23 !important;
-  font-size: 21px !important;
-  line-height: 1.25 !important;
-}
-
-.iris-shell-panel p {
-  color: #69707d !important;
-  font-size: 13px !important;
-  line-height: 1.6 !important;
-}
-
-.iris-list-row {
-  grid-template-columns: minmax(0, 1fr) auto !important;
-  gap: 4px 14px !important;
-  min-height: 53px !important;
-  padding: 12px 0 !important;
-  border-top: 1px solid #eceef1 !important;
-}
-
-.iris-list-row span {
-  color: #272930 !important;
-  font-size: 13px !important;
-  min-width: 0;
-}
-
-.iris-list-row strong {
-  color: #22242b !important;
-  font-size: 13px !important;
-  font-variant-numeric: tabular-nums;
-}
-
-.iris-list-row small {
-  color: #858c97 !important;
-  font-size: 10px !important;
-}
-
-.temporal-context {
-  min-width: 0 !important;
-  gap: 3px !important;
-  padding: 3px 0 !important;
-  color: #343740 !important;
-}
-
-.temporal-context b {
-  color: #715ca1 !important;
-  font-size: 9px !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase;
-}
-
-.temporal-context strong {
-  color: #343740 !important;
-  font-size: 11px !important;
-  line-height: 1.35 !important;
-}
-
-.temporal-context small {
-  color: #858c97 !important;
-  font-size: 9px !important;
-  line-height: 1.35 !important;
-}
-
-.iris-basis {
-  color: #858c97 !important;
-  font-size: 10px !important;
-  line-height: 1.45 !important;
-}
-
-.iris-discovery {
-  margin-top: 16px !important;
-  background: #191a20 !important;
-  border-color: #292b32 !important;
-}
-
-.iris-discovery h2 {
-  color: #fff !important;
-  font-size: 25px !important;
-}
-
-.iris-discovery p {
-  color: #b9bdc7 !important;
-}
-
-.iris-action-row,
-.iris-discovery-links {
-  gap: 8px !important;
-}
-
-.iris-action-row button,
-.iris-discovery-links button {
-  border: 1px solid #dfe1e6 !important;
-  border-radius: 8px !important;
-  background: #fafbfc !important;
-  color: #594486 !important;
-  padding: 8px 11px !important;
-  font-size: 12px !important;
-}
-
-.iris-discovery-links button {
-  border-color: #3b3d45 !important;
-  background: #24262d !important;
-  color: #e9e7f0 !important;
-}
-
-.iris-shell-evidence {
-  border-radius: 999px !important;
-  padding: 4px 7px !important;
-  font-size: 9px !important;
-  font-weight: 750 !important;
-  letter-spacing: 0.01em;
-}
-
-.iris-shell-evidence.observed {
-  background: #edf5fb !important;
-  color: #3c6f97 !important;
-}
-
-.iris-shell-evidence.calculated {
-  background: #f0ecf8 !important;
-  color: #624b93 !important;
-}
-
-.iris-shell-evidence.inferred {
-  background: #fbf1df !important;
-  color: #95671e !important;
-}
-
-.iris-shell-evidence.insufficient_evidence {
-  background: #eff0f2 !important;
-  color: #747a84 !important;
-}
-
-.iris-insight-hero {
-  background: linear-gradient(135deg, #faf9fc, #f3f0f8) !important;
-}
-
-.iris-insight-hero h2 {
-  font-size: clamp(23px, 3vw, 31px) !important;
-  line-height: 1.24 !important;
-}
-
-.iris-finding {
-  padding: 14px 0 !important;
-  border-top: 1px solid #eceef1 !important;
-}
-
-.iris-finding b {
-  font-size: 13px !important;
-}
-
-.iris-finding span {
-  color: #505661 !important;
-  font-size: 12px !important;
-  line-height: 1.55 !important;
-}
-
-.iris-finding small {
-  color: #858c97 !important;
-  font-size: 10px !important;
-}
-
-.iris-setting-row {
-  padding: 14px 0 !important;
-  border-bottom-color: #eceef1 !important;
-}
-
-.iris-setting-row strong {
-  color: #25272e !important;
-  font-size: 13px !important;
-}
-
-.iris-setting-row small {
-  color: #858c97 !important;
-  font-size: 10px !important;
-}
-
-.iris-shell-alert {
-  margin: 14px 32px 0 !important;
-  border-radius: 9px !important;
-  border-color: #ead9da !important;
-  background: #fff9f9 !important;
-}
-
-.iris-shell-page button {
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* --------------------------------------------------------------------------
-   Legacy Dashboard compatibility.
-   This keeps an older cached bundle readable while the current IrisShell is
-   propagated, without changing its data or behavior.
----------------------------------------------------------------------------- */
-.iris-app {
-  background: var(--iris-canvas) !important;
-  color: var(--iris-ink) !important;
-}
-
-.iris-sidebar {
-  background: #111217 !important;
-  border-right: 1px solid #292b31 !important;
-}
-
-.iris-sidebar .active {
-  background: #f4f4f5 !important;
-  color: #17181d !important;
-}
-
-.iris-topbar {
-  background: rgba(255, 255, 255, 0.96) !important;
-  border-bottom: 1px solid var(--iris-line) !important;
-}
-
-.iris-page {
-  max-width: 1320px !important;
-  margin: 0 auto !important;
-  padding: 42px 44px 100px !important;
-}
-
-.iris-hero-grid {
-  gap: 12px !important;
-}
-
-.iris-hero-card,
-.iris-metric,
-.iris-section,
-.iris-card,
-.iris-panel,
-.iris-page section > article,
-.iris-page section > div {
-  border-color: var(--iris-line) !important;
-}
-
-.balance-card {
-  min-height: 0 !important;
-  margin-bottom: 18px !important;
-  padding: 28px 32px !important;
-  border-radius: 18px !important;
-  background: linear-gradient(135deg, #302653 0%, #4c3b72 100%) !important;
-  box-shadow: 0 16px 40px rgba(48, 38, 80, 0.14) !important;
-}
-
-.balance-label:after {
-  font-size: 13px !important;
-}
-
-.balance-figure {
-  font-size: clamp(48px, 7vw, 70px) !important;
-}
-
-.balance-note {
-  max-width: 58ch !important;
-  line-height: 1.55 !important;
-}
-
-.dashboard-mode-switch {
-  margin-bottom: 22px !important;
-  background: #e9ebef !important;
-}
-
-.mode-button {
-  border-radius: 9px !important;
-}
-
-.mode-button.active {
-  background: #fff !important;
-  color: #27232f !important;
-}
-
-/* --------------------------------------------------------------------------
-   Responsive rules — no cramped controls, no one-character date columns.
----------------------------------------------------------------------------- */
-@media (max-width: 1050px) {
-  .iris-shell-page,
-  .iris-page {
-    padding-left: 30px !important;
-    padding-right: 30px !important;
-  }
-
-  .iris-shell-state-grid {
-    grid-template-columns: 1.5fr 1fr 1fr !important;
-  }
-
-  .iris-shell-state-primary {
-    grid-column: 1 / -1 !important;
-  }
-}
-
-@media (max-width: 820px) {
-  .iris-shell-sidebar,
-  .iris-sidebar {
-    width: 250px !important;
-    transform: translateX(-100%);
-    transition: transform 180ms ease;
-  }
-
-  .iris-shell-sidebar.open,
-  .iris-sidebar.open {
-    transform: translateX(0) !important;
-    box-shadow: 16px 0 40px rgba(0, 0, 0, 0.18);
-  }
-
-  .iris-shell-main,
-  .iris-main {
-    width: 100% !important;
-    margin-left: 0 !important;
-  }
-
-  .iris-shell-menu,
-  .iris-mobile-menu {
-    display: block !important;
-    flex: 0 0 auto;
-    width: 38px;
-    height: 38px;
-    margin-right: 8px;
-    border: 1px solid var(--iris-line) !important;
-    border-radius: 9px;
-    background: #fff !important;
-    font-size: 18px !important;
-  }
-
-  .iris-shell-top,
-  .iris-topbar {
-    height: 62px !important;
-    padding: 0 14px !important;
-  }
-
-  .iris-shell-crumb {
-    min-width: 0;
-    flex: 1;
-  }
-
-  .iris-shell-crumb b,
-  .iris-shell-crumb span {
-    display: none !important;
-  }
-
-  .iris-shell-top-actions,
-  .iris-actions {
-    gap: 5px !important;
-  }
-
-  .iris-shell-page,
-  .iris-page {
-    padding: 28px 16px 88px !important;
-  }
-
-  .iris-shell-hero,
-  .iris-welcome {
-    display: block !important;
-    margin-bottom: 24px !important;
-  }
-
-  .iris-shell-hero h1,
-  .iris-shell-page-intro h1,
-  .iris-welcome h1 {
-    font-size: 36px !important;
-  }
-
-  .iris-state-badge,
-  .iris-live-pill {
-    display: inline-flex !important;
-    margin-top: 16px;
-  }
-
-  .iris-shell-state-grid,
-  .iris-shell-stat-grid,
-  .iris-hero-grid,
-  .metric-grid {
-    grid-template-columns: 1fr 1fr !important;
-  }
-
-  .iris-shell-state-primary,
-  .iris-hero-card {
-    grid-column: 1 / -1 !important;
-  }
-
-  .iris-shell-two-col,
-  .iris-insight-grid,
-  .iris-two-col {
-    grid-template-columns: 1fr !important;
-  }
-
-  .iris-shell-panel {
-    padding: 19px !important;
-  }
-}
-
-@media (max-width: 560px) {
-  .iris-shell-top-actions .iris-shell-avatar,
-  .iris-actions .iris-avatar {
-    display: none !important;
-  }
-
-  .iris-shell-top-actions .btn-accent,
-  .iris-actions .btn-accent,
-  .iris-actions .iris-connect-button {
-    min-width: 0 !important;
-  }
-
-  .iris-shell-page,
-  .iris-page {
-    padding: 24px 13px 88px !important;
-  }
-
-  .iris-shell-hero h1,
-  .iris-shell-page-intro h1,
-  .iris-welcome h1 {
-    font-size: 31px !important;
-    letter-spacing: -0.045em !important;
-  }
-
-  .iris-shell-hero p,
-  .iris-shell-page-intro p,
-  .iris-welcome p {
-    font-size: 14px !important;
-  }
-
-  .iris-shell-state-grid,
-  .iris-shell-stat-grid,
-  .iris-hero-grid,
-  .metric-grid,
-  .cashflow-row {
-    grid-template-columns: 1fr !important;
-  }
-
-  .iris-shell-state-primary,
-  .iris-hero-card {
-    grid-column: auto !important;
-  }
-
-  .iris-shell-state-primary,
-  .iris-shell-stat {
-    min-height: 132px !important;
-  }
-
-  .iris-shell-state-primary strong {
-    font-size: 40px !important;
-  }
-
-  .iris-shell-stat strong {
-    margin-top: 13px !important;
-    font-size: 24px !important;
-  }
-
-  .iris-list-row {
-    grid-template-columns: minmax(0, 1fr) auto !important;
-  }
-
-  .temporal-context {
-    grid-column: 1 / -1;
-    align-items: flex-start;
-  }
-
-  .iris-discovery h2 {
-    font-size: 22px !important;
-  }
-
-  .balance-card {
-    padding: 25px 22px !important;
-    border-radius: 17px !important;
-  }
-
-  .balance-figure {
-    font-size: 48px !important;
-  }
-
-  .balance-note {
-    max-width: 34ch !important;
-  }
-
-  .dashboard-mode-switch {
-    width: 100% !important;
-  }
+.iris-shell { min-height:100vh!important; background:var(--iris-canvas)!important; color:var(--iris-ink)!important; }
+.iris-shell-sidebar { width:248px!important; background:#111217!important; border-right:1px solid #292b31!important; }
+.iris-shell-brand { padding:25px 20px 22px!important; grid-template-columns:34px auto!important; grid-template-rows:24px 17px!important; }
+.iris-shell-brand b { font-size:20px!important; letter-spacing:-.025em!important; }
+.iris-shell-brand small { color:#8e919b!important; font-size:10px!important; }
+.iris-shell-sidebar nav { padding:7px 10px!important; }
+.iris-shell-nav-label { padding:20px 11px 7px!important; color:#656872!important; font-size:9px!important; letter-spacing:.17em!important; }
+.iris-shell-nav-item { position:relative!important; min-height:39px!important; margin:2px 0!important; padding:9px 11px!important; border-radius:8px!important; color:#999da7!important; font-size:13px!important; font-weight:500!important; }
+.iris-shell-nav-item b { color:#777b86!important; font-size:15px!important; }
+.iris-shell-nav-item:hover { background:#1b1d23!important; color:#f7f7f8!important; }
+.iris-shell-nav-item.active { background:#f4f4f5!important; color:#17181d!important; box-shadow:none!important; }
+.iris-shell-nav-item.active:before { content:""; position:absolute; left:-10px; top:7px; bottom:7px; width:3px; border-radius:0 3px 3px 0; background:#8068b9; }
+.iris-shell-nav-item.active b { color:#8068b9!important; }
+.iris-shell-nav-item em { background:#30323a!important; color:#d7d9de!important; }
+.iris-shell-sidebar-foot { padding:17px 20px 22px!important; border-top:1px solid #292b31!important; color:#a7aab3!important; font-size:10px!important; }
+.iris-shell-sidebar-foot small { color:#686b75!important; }
+.iris-shell-main { margin-left:248px!important; width:calc(100% - 248px)!important; min-width:0!important; }
+.iris-shell-top { height:66px!important; padding:0 32px!important; background:rgba(255,255,255,.96)!important; border-bottom:1px solid var(--iris-line)!important; backdrop-filter:blur(12px); }
+.iris-shell-crumb { gap:9px!important; color:#8a909b!important; font-size:12px!important; }
+.iris-shell-crumb strong { color:#282a31!important; font-weight:600!important; }
+.iris-shell-top-actions { gap:8px!important; }
+.iris-shell-top-actions button { min-height:36px; }
+.iris-shell-avatar { width:34px!important; height:34px!important; background:#efedf7!important; color:var(--iris-violet)!important; }
+.iris-shell-menu { color:#25272e!important; }
+.iris-shell-page { width:min(100%,1320px)!important; max-width:1320px!important; padding:42px 44px 100px!important; }
+.iris-shell-hero { align-items:center!important; margin-bottom:30px!important; }
+.iris-shell-kicker { color:#715ca1!important; font-size:10px!important; font-weight:800!important; letter-spacing:.16em!important; }
+.iris-shell-hero h1,.iris-shell-page-intro h1 { margin:8px 0 11px!important; color:#17181d!important; font-size:clamp(34px,4vw,48px)!important; line-height:1.04!important; letter-spacing:-.055em!important; font-weight:720!important; }
+.iris-shell-hero p,.iris-shell-page-intro p { max-width:720px!important; color:#69707d!important; font-size:15px!important; line-height:1.62!important; }
+.iris-state-badge { flex:0 0 auto!important; border:1px solid #d7e9df!important; background:#f5fbf7!important; color:#2d7658!important; border-radius:999px!important; padding:8px 12px!important; font-size:11px!important; }
+.iris-shell-state-grid,.iris-shell-stat-grid { gap:11px!important; }
+.iris-shell-state-primary,.iris-shell-stat,.iris-shell-panel { border:1px solid var(--iris-line)!important; border-radius:13px!important; background:var(--iris-paper)!important; box-shadow:var(--iris-shadow)!important; }
+.iris-shell-state-primary { min-height:154px!important; padding:23px 25px!important; background:linear-gradient(135deg,#302653 0%,#4c3b72 100%)!important; border-color:#463765!important; color:#fff!important; }
+.iris-shell-state-primary .iris-shell-kicker { color:#cfc5e6!important; }
+.iris-shell-state-primary strong { margin:8px 0 9px!important; font-size:clamp(36px,4vw,48px)!important; letter-spacing:-.055em!important; font-variant-numeric:tabular-nums; }
+.iris-shell-state-primary p { color:#d7d0e4!important; }
+.iris-shell-stat { min-height:154px!important; padding:21px!important; }
+.iris-shell-stat span { color:#777e89!important; font-size:10px!important; font-weight:700!important; letter-spacing:.1em!important; }
+.iris-shell-stat strong { margin-top:19px!important; color:#202229!important; font-size:25px!important; letter-spacing:-.035em!important; font-variant-numeric:tabular-nums; }
+.iris-shell-stat small { color:#89909b!important; font-size:11px!important; }
+.iris-shell-two-col,.iris-insight-grid { gap:14px!important; margin:16px 0!important; }
+.iris-shell-panel { padding:22px!important; }
+.iris-panel-head { margin-bottom:15px!important; color:#7b818c!important; font-size:9px!important; letter-spacing:.15em!important; }
+.iris-panel-head button { padding:5px 0!important; color:#654f96!important; font-size:12px!important; }
+.iris-shell-panel h2 { color:#1b1d23!important; font-size:21px!important; line-height:1.25!important; }
+.iris-shell-panel p { color:#69707d!important; font-size:13px!important; line-height:1.6!important; }
+.iris-list-row { grid-template-columns:minmax(0,1fr) auto!important; gap:4px 14px!important; min-height:53px!important; padding:12px 0!important; border-top:1px solid #eceef1!important; }
+.iris-list-row span { color:#272930!important; font-size:13px!important; min-width:0; }
+.iris-list-row strong { color:#22242b!important; font-size:13px!important; font-variant-numeric:tabular-nums; }
+.iris-list-row small { color:#858c97!important; font-size:10px!important; }
+.temporal-context { min-width:0!important; gap:3px!important; padding:3px 0!important; color:#343740!important; }
+.temporal-context b { color:#715ca1!important; font-size:9px!important; font-weight:800!important; letter-spacing:.08em!important; text-transform:uppercase; }
+.temporal-context strong { color:#343740!important; font-size:11px!important; line-height:1.35!important; }
+.temporal-context small { color:#858c97!important; font-size:9px!important; line-height:1.35!important; }
+.iris-basis { color:#858c97!important; font-size:10px!important; line-height:1.45!important; }
+.iris-discovery { margin-top:16px!important; background:#191a20!important; border-color:#292b32!important; }
+.iris-discovery h2 { color:#fff!important; font-size:25px!important; }
+.iris-discovery p { color:#b9bdc7!important; }
+.iris-action-row,.iris-discovery-links { gap:8px!important; }
+.iris-action-row button,.iris-discovery-links button { border:1px solid #dfe1e6!important; border-radius:8px!important; background:#fafbfc!important; color:#594486!important; padding:8px 11px!important; font-size:12px!important; }
+.iris-discovery-links button { border-color:#3b3d45!important; background:#24262d!important; color:#e9e7f0!important; }
+.iris-shell-evidence { border-radius:999px!important; padding:4px 7px!important; font-size:9px!important; font-weight:750!important; }
+.iris-shell-evidence.observed { background:#edf5fb!important; color:#3c6f97!important; }
+.iris-shell-evidence.calculated { background:#f0ecf8!important; color:#624b93!important; }
+.iris-shell-evidence.inferred { background:#fbf1df!important; color:#95671e!important; }
+.iris-shell-evidence.insufficient_evidence { background:#eff0f2!important; color:#747a84!important; }
+.iris-insight-hero { background:linear-gradient(135deg,#faf9fc,#f3f0f8)!important; }
+.iris-insight-hero h2 { font-size:clamp(23px,3vw,31px)!important; line-height:1.24!important; }
+.iris-finding { padding:14px 0!important; border-top:1px solid #eceef1!important; }
+.iris-finding b { font-size:13px!important; }
+.iris-finding span { color:#505661!important; font-size:12px!important; line-height:1.55!important; }
+.iris-finding small { color:#858c97!important; font-size:10px!important; }
+.iris-setting-row { padding:14px 0!important; border-bottom-color:#eceef1!important; }
+.iris-setting-row strong { color:#25272e!important; font-size:13px!important; }
+.iris-setting-row small { color:#858c97!important; font-size:10px!important; }
+.iris-shell-alert { margin:14px 32px 0!important; border-radius:9px!important; border-color:#ead9da!important; background:#fff9f9!important; }
+.iris-shell-page button { -webkit-tap-highlight-color:transparent; }
+
+/* Older dashboard bundle: keep the exact same visual hierarchy while a cached client expires. */
+.iris-app { background:var(--iris-canvas)!important; color:var(--iris-ink)!important; }
+.iris-sidebar { background:#111217!important; border-right:1px solid #292b31!important; }
+.iris-sidebar .active { background:#f4f4f5!important; color:#17181d!important; }
+.iris-topbar { background:rgba(255,255,255,.96)!important; border-bottom:1px solid var(--iris-line)!important; }
+.iris-page { max-width:1320px!important; margin:0 auto!important; padding:42px 44px 100px!important; }
+.iris-hero-grid { gap:12px!important; }
+.balance-card { min-height:0!important; width:100%!important; margin-bottom:18px!important; padding:28px 32px!important; border-radius:18px!important; background:linear-gradient(135deg,#302653 0%,#4c3b72 100%)!important; box-shadow:0 16px 40px rgba(48,38,80,.14)!important; }
+.balance-label { display:block!important; white-space:nowrap!important; }
+.balance-label:after { font-size:13px!important; }
+.balance-figure { display:block!important; font-size:clamp(48px,7vw,70px)!important; white-space:nowrap!important; }
+.balance-note { display:block!important; width:min(100%,58ch)!important; max-width:58ch!important; line-height:1.55!important; white-space:normal!important; overflow-wrap:normal!important; word-break:normal!important; }
+.balance-note:after { display:block!important; font-size:13px!important; white-space:normal!important; overflow-wrap:normal!important; word-break:normal!important; }
+.dashboard-mode-switch { margin-bottom:22px!important; background:#e9ebef!important; }
+.mode-button { border-radius:9px!important; white-space:nowrap!important; }
+
+@media (max-width:1050px) {
+  .iris-shell-page,.iris-page { padding-left:30px!important; padding-right:30px!important; }
+  .iris-shell-state-grid { grid-template-columns:1.5fr 1fr 1fr!important; }
+  .iris-shell-state-primary { grid-column:1/-1!important; }
+}
 
-  .mode-button {
-    flex: 1;
-    padding: 9px 10px !important;
-  }
+@media (max-width:820px) {
+  .iris-shell-sidebar,.iris-sidebar { width:250px!important; transform:translateX(-100%); transition:transform 180ms ease; }
+  .iris-shell-sidebar.open,.iris-sidebar.open { transform:translateX(0)!important; box-shadow:16px 0 40px rgba(0,0,0,.18); }
+  .iris-shell-main,.iris-main { width:100%!important; margin-left:0!important; }
+  .iris-shell-menu,.iris-mobile-menu { display:block!important; flex:0 0 auto; width:38px; height:38px; margin-right:8px; border:1px solid var(--iris-line)!important; border-radius:9px; background:#fff!important; color:#25272e!important; font-size:18px!important; }
+  .iris-shell-top,.iris-topbar { height:62px!important; padding:0 14px!important; }
+  .iris-shell-crumb { min-width:0; flex:1; }
+  .iris-shell-crumb b,.iris-shell-crumb span { display:none!important; }
+  .iris-shell-top-actions,.iris-actions { gap:5px!important; }
+  .iris-shell-page,.iris-page { padding:28px 16px 88px!important; }
+  .iris-shell-hero,.iris-welcome { display:block!important; margin-bottom:24px!important; }
+  .iris-shell-hero h1,.iris-shell-page-intro h1,.iris-welcome h1 { font-size:36px!important; }
+  .iris-state-badge,.iris-live-pill { display:inline-flex!important; margin-top:16px; }
+  .iris-shell-state-grid,.iris-shell-stat-grid,.iris-hero-grid,.metric-grid { grid-template-columns:1fr 1fr!important; }
+  .iris-shell-state-primary,.iris-hero-card { grid-column:1/-1!important; }
+  .iris-shell-two-col,.iris-insight-grid,.iris-two-col { grid-template-columns:1fr!important; }
+  .iris-shell-panel { padding:19px!important; }
+  .balance-card { padding:27px 24px!important; }
+  .balance-note { width:min(100%,58ch)!important; }
+  .app-header-actions { flex-wrap:nowrap!important; min-width:0; }
+  .app-header-actions .btn-ghost,.app-header-actions .btn-accent { white-space:nowrap!important; flex:0 0 auto; }
+}
+
+@media (max-width:560px) {
+  .iris-shell-top-actions .iris-shell-avatar,.iris-actions .iris-avatar { display:none!important; }
+  .iris-shell-page,.iris-page { padding:24px 13px 88px!important; }
+  .iris-shell-hero h1,.iris-shell-page-intro h1,.iris-welcome h1 { font-size:31px!important; letter-spacing:-.045em!important; }
+  .iris-shell-hero p,.iris-shell-page-intro p,.iris-welcome p { font-size:14px!important; }
+  .iris-shell-state-grid,.iris-shell-stat-grid,.iris-hero-grid,.metric-grid,.cashflow-row { grid-template-columns:1fr!important; }
+  .iris-shell-state-primary,.iris-hero-card { grid-column:auto!important; }
+  .iris-shell-state-primary,.iris-shell-stat { min-height:132px!important; }
+  .iris-shell-state-primary strong { font-size:40px!important; }
+  .iris-shell-stat strong { margin-top:13px!important; font-size:24px!important; }
+  .iris-list-row { grid-template-columns:minmax(0,1fr) auto!important; }
+  .temporal-context { grid-column:1/-1; align-items:flex-start; }
+  .iris-discovery h2 { font-size:22px!important; }
+  .balance-card { padding:25px 20px!important; border-radius:17px!important; }
+  .balance-figure { font-size:48px!important; }
+  .balance-note { width:100%!important; max-width:34ch!important; }
+  .balance-note:after { font-size:13px!important; }
+  .dashboard-mode-switch { width:100%!important; }
+  .mode-button { flex:1; padding:9px 10px!important; }
+  .app-header { gap:8px!important; }
+  .app-header-actions { gap:3px!important; }
+  .app-header-actions .btn-ghost { padding:7px 8px!important; }
+  .app-header-actions .btn-accent { padding:9px 10px!important; }
 }
