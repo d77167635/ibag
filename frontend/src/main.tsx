@@ -5,6 +5,7 @@ import "./styles.css";
 import "./premium-dashboard.css";
 import "./interaction-fix.css";
 import "./iris-experience.css";
+import "./iris-premium.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
