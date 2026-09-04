@@ -20,6 +20,17 @@ async function authedFetch(path: string, init?: RequestInit) {
   return resp.json();
 }
 
+let intelligenceInFlight: Promise<any> | null = null;
+
+function getCanonicalIntelligence() {
+  if (!intelligenceInFlight) {
+    intelligenceInFlight = authedFetch("/dashboard/intelligence").finally(() => {
+      intelligenceInFlight = null;
+    });
+  }
+  return intelligenceInFlight;
+}
+
 export const api = {
   createLinkToken: () => authedFetch("/link/token", { method: "POST" }),
   exchangePublicToken: (publicToken: string) =>
@@ -28,7 +39,7 @@ export const api = {
       body: JSON.stringify({ public_token: publicToken }),
     }),
   getOverview: () => authedFetch("/dashboard/overview"),
-  getIntelligence: () => authedFetch("/dashboard/intelligence"),
+  getIntelligence: getCanonicalIntelligence,
   resync: () => authedFetch("/link/resync", { method: "POST" }),
   getHierarchy: () => authedFetch("/dashboard/hierarchy"),
   getRoundups: () => authedFetch("/dashboard/roundups"),
@@ -42,7 +53,7 @@ export const api = {
     authedFetch(`/features/${key}/toggle`, {
       method: "POST",
       body: JSON.stringify({ enabled }),
-    }),
+  }),
   getPlaidProducts: () => authedFetch("/dashboard/plaid"),
   getPlaidSurface: () => authedFetch("/dashboard/plaid/surface"),
   getPlaidSelection: () => authedFetch("/dashboard/plaid/selection"),
