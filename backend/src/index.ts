@@ -5,6 +5,7 @@ import { linkRouter } from "./routes/link.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { featuresRouter } from "./routes/features.js";
+import { migrateLegacyPlaidAccessTokens } from "./services/tokenStore.js";
 
 const app = express();
 
@@ -17,10 +18,8 @@ app.use(
   })
 );
 
-// The `verify` callback captures the exact raw bytes of every request body
-// before JSON parsing — needed by the webhook route to check Plaid's
-// request_body_sha256 claim against what was actually received. Cheap for
-// the handful of small JSON bodies this API handles.
+// Capture the exact raw bytes before JSON parsing so Plaid webhook
+// verification can compare request_body_sha256 against the received body.
 app.use(
   express.json({
     verify: (req, _res, buf) => {
@@ -29,10 +28,6 @@ app.use(
   })
 );
 
-// Every request logged with method/path/status/duration — without this,
-// a 401 or CORS-blocked request leaves zero trace, indistinguishable from
-// the request never having been sent at all. That gap is what made an
-// earlier debugging session take much longer than it should have.
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
@@ -48,6 +43,18 @@ app.use(webhooksRouter);
 app.use(dashboardRouter);
 app.use(featuresRouter);
 
-app.listen(env.port, () => {
-  console.log(`Iris backend listening on :${env.port} (${env.nodeEnv}, Plaid env: ${env.plaidEnv})`);
+async function start() {
+  const migrated = await migrateLegacyPlaidAccessTokens();
+  if (migrated > 0) {
+    console.log(`Migrated ${migrated} legacy Plaid access token(s) to encrypted storage.`);
+  }
+
+  app.listen(env.port, () => {
+    console.log(`Iris backend listening on :${env.port} (${env.nodeEnv}, Plaid env: ${env.plaidEnv})`);
+  });
+}
+
+start().catch((err) => {
+  console.error("Backend startup failed", err);
+  process.exit(1);
 });
