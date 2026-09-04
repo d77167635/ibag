@@ -6,6 +6,20 @@ import type { OptimizationIntelligence } from "./optimization.js";
 export type GoalObjective = "stabilize_liquidity" | "improve_cash_flow" | "reduce_pressure" | "build_roundups" | "understand_finances";
 export type GoalSource = "user_declared" | "iris_inferred" | "system_default";
 
+export interface DeclaredIrisGoal {
+  id: string;
+  objective: GoalObjective;
+  title: string;
+  description?: string | null;
+  priority: number;
+  horizon_days?: number | null;
+  target_amount_cents?: number | null;
+  target_date?: string | null;
+  active: boolean;
+  constraints?: string[];
+  preferences?: Record<string, unknown>;
+}
+
 export interface IrisGoal {
   id: string;
   objective: GoalObjective;
@@ -15,6 +29,11 @@ export interface IrisGoal {
   rationale: string;
   evidence: Evidence;
   active: boolean;
+  title?: string;
+  target_amount_cents?: number | null;
+  target_date?: string | null;
+  constraints?: string[];
+  preferences?: Record<string, unknown>;
 }
 
 export interface GoalConflict {
@@ -53,51 +72,65 @@ function alignment(goal: GoalObjective, optionKind: string): number {
   return map[goal]?.[optionKind] ?? 0;
 }
 
-/** Produces evidence-derived analytical objectives without fabricating user intent. */
+/** User-declared goals are authoritative intent inputs; inferred objectives remain explicit and secondary. */
 export function buildGoalIntelligence(
   state: FinancialStateModel,
   decision: DecisionIntelligence,
   optimization: OptimizationIntelligence,
+  declaredGoals: DeclaredIrisGoal[] = [],
 ): GoalIntelligence {
+  const activeDeclared = declaredGoals.filter((goal) => goal.active).sort((a, b) => a.priority - b.priority);
   const candidates = inferredObjectives(state);
-  if (!candidates.length) {
-    return {
-      architecture_version: "IRIS_GOAL_INTELLIGENCE_V1",
-      goals: [],
-      active_goal_id: null,
-      conflicts: [],
-      objective_alignment: [],
-      limitations: [...new Set([...decision.missing_evidence, "Financial evidence is insufficient to infer an analytical objective."])],
-    };
-  }
-
-  const goals: IrisGoal[] = candidates.map((candidate, index) => ({
-    id: `goal:${candidate.objective}`,
-    objective: candidate.objective,
-    source: "iris_inferred",
-    priority: candidate.priority,
-    horizon_days: candidate.horizon_days,
-    rationale: `Iris inferred ${candidate.objective.replaceAll("_", " ")} from current financial-state evidence. ${candidate.rationale} This is not user-declared intent.`,
-    evidence: "inferred",
-    active: index === 0,
+  const goals: IrisGoal[] = activeDeclared.map((goal) => ({
+    id: `user-goal:${goal.id}`,
+    objective: goal.objective,
+    source: "user_declared",
+    priority: goal.priority,
+    horizon_days: goal.horizon_days ?? null,
+    rationale: goal.description ? `${goal.title}: ${goal.description}` : goal.title,
+    evidence: "observed",
+    active: true,
+    title: goal.title,
+    target_amount_cents: goal.target_amount_cents ?? null,
+    target_date: goal.target_date ?? null,
+    constraints: goal.constraints ?? [],
+    preferences: goal.preferences ?? {},
   }));
+
+  const inferred = candidates
+    .filter((candidate) => !goals.some((goal) => goal.objective === candidate.objective))
+    .map((candidate, index) => ({
+      id: `goal:${candidate.objective}`,
+      objective: candidate.objective,
+      source: "iris_inferred" as const,
+      priority: Math.max(candidate.priority, goals.length + index + 1),
+      horizon_days: candidate.horizon_days,
+      rationale: `Iris inferred ${candidate.objective.replaceAll("_", " ")} from current financial-state evidence. ${candidate.rationale} This is not user-declared intent.`,
+      evidence: "inferred" as const,
+      active: goals.length === 0 && index === 0,
+      constraints: [],
+      preferences: {},
+    }));
+  goals.push(...inferred);
 
   const conflicts: GoalConflict[] = [];
   const liquidityGoal = goals.find((goal) => goal.objective === "stabilize_liquidity");
-  if (liquidityGoal && decision.options.some((o) => o.kind === "optimize_roundups")) {
-    conflicts.push({
-      goal_ids: [liquidityGoal.id, "decision:optimize_roundups"],
-      statement: "Immediate liquidity preservation can compete with optional Round-Up accumulation when liquidity pressure is active.",
-      resolution_rule: "Treat liquidity pressure as the governing safety constraint; do not imply that Round-Up optimization is preferred without adequate liquidity evidence.",
-    });
-  }
-  if (goals.length > 1) {
-    conflicts.push({
-      goal_ids: goals.map((goal) => goal.id),
-      statement: "Multiple financial-state signals can produce objectives that compete for the same limited financial capacity.",
-      resolution_rule: "Higher-priority safety objectives govern lower-priority objectives; unresolved tradeoffs remain explicit rather than being silently optimized away.",
-    });
-  }
+  if (liquidityGoal && decision.options.some((o) => o.kind === "optimize_roundups")) conflicts.push({
+    goal_ids: [liquidityGoal.id, "decision:optimize_roundups"],
+    statement: "Liquidity preservation can compete with optional Round-Up accumulation.",
+    resolution_rule: "Safety constraints govern: never recommend increasing optional Round-Up exposure when it conflicts with an explicit user constraint or insufficient liquidity evidence.",
+  });
+  const constraintGoals = goals.filter((goal) => (goal.constraints?.length ?? 0) > 0);
+  if (constraintGoals.length) conflicts.push({
+    goal_ids: constraintGoals.map((goal) => goal.id),
+    statement: "User-declared constraints can restrict otherwise attractive analytical options.",
+    resolution_rule: "Treat explicit user constraints as hard boundaries unless the user changes them; surface conflicts rather than silently overriding them.",
+  });
+  if (goals.length > 1) conflicts.push({
+    goal_ids: goals.map((goal) => goal.id),
+    statement: "Multiple objectives may compete for the same financial capacity.",
+    resolution_rule: "Respect explicit user priority first, then established financial safety states; unresolved tradeoffs remain visible.",
+  });
 
   const objectiveAlignment = goals.flatMap((goal) => decision.options.map((option) => {
     const score = alignment(goal.objective, option.kind);
@@ -105,16 +138,19 @@ export function buildGoalIntelligence(
       goal_id: goal.id,
       option_id: option.id,
       alignment: score,
-      explanation: `${option.label} has ${score.toFixed(2)} analytical alignment with the inferred ${goal.objective.replaceAll("_", " ")} objective.` + (optimization.preferred_option_id === option.id ? " It is also the current optimization preference." : ""),
+      explanation: `${option.label} has ${score.toFixed(2)} analytical alignment with the ${goal.source === "user_declared" ? "user-declared" : "inferred"} ${goal.objective.replaceAll("_", " ")} objective.` + (optimization.preferred_option_id === option.id ? " It is also the current optimization preference." : ""),
     };
   }));
 
   return {
     architecture_version: "IRIS_GOAL_INTELLIGENCE_V1",
     goals,
-    active_goal_id: goals[0]?.id ?? null,
+    active_goal_id: goals.find((goal) => goal.active)?.id ?? null,
     conflicts,
     objective_alignment: objectiveAlignment,
-    limitations: [...new Set([...decision.missing_evidence, "No user-declared goal has been supplied; these objectives are Iris inferences, not user intent."])],
+    limitations: [...new Set([
+      ...decision.missing_evidence,
+      ...(declaredGoals.length ? [] : ["No user-declared goal has been supplied; Iris is using evidence-derived objectives."]),
+    ])],
   };
 }
