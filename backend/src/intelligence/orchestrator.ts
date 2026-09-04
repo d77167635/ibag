@@ -124,7 +124,7 @@ export async function computeFullIntelligence(userId: string) {
     financialState,
     reasoning,
     cashFlow.net,
-    multiWindowFlow.length ? multiWindowFlow[multiWindowFlow.length - 1].outflow : null,
+    multiWindowFlow.length ? multiWindowFlow.reduce((widest, current) => current.windowDays > widest.windowDays ? current : widest).outflow : null,
     cashFlow.windowDays,
   );
   const optimization = buildOptimizationIntelligence(decisionIntelligence, consequenceModel, financialState);
