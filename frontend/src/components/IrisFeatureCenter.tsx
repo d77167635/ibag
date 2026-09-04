@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
+import "../styles/iris-feature.css";
 
 type Feature = { enabled: boolean; label: string; group?: string };
-
 const DESCRIPTIONS: Record<string, { description: string; depth: string[]; evidence: string[] }> = {
   financial_life_state: { description: "A continuously reconstructed view of your observed financial position and its relationships.", depth: ["Observe state", "Relate domains", "Detect change", "Explain state", "Forecast where evidence supports"], evidence: ["Accounts", "Balances", "Transactions", "Liabilities and investments when observed"] },
   spending_intelligence: { description: "Understand where money goes, what is changing, and what drives the change.", depth: ["Observe", "Classify", "Compare", "Detect patterns", "Explain drivers", "Forecast"], evidence: ["Transactions", "Merchant and category relationships"] },
@@ -25,24 +25,7 @@ const DESCRIPTIONS: Record<string, { description: string; depth: string[]; evide
   relational_reasoning: { description: "Reason across connected financial objects instead of treating each number as an isolated metric.", depth: ["Entity", "Relationship", "Pattern", "Impact", "Explanation"], evidence: ["Canonical financial relationships"] },
   roundup: { description: "Turn eligible observed purchases into a transparent simulated Round-Up intelligence feature.", depth: ["Eligibility", "Contribution", "Per-card accumulation", "Threshold", "Projection", "Lineage"], evidence: ["Observed transactions", "Round-Up contribution lineage"] },
 };
-
 export function IrisFeatureCenter({ features, onToggle, onOpen }: { features: Record<string, Feature> | null; onToggle: (key: string, enabled: boolean) => Promise<void>; onOpen: (key: string) => void }) {
-  const [group, setGroup] = useState("All");
-  const groups = useMemo(() => ["All", ...Array.from(new Set(Object.keys(features ?? {}).map((key) => DESCRIPTIONS[key]?.description ? (features?.[key]?.group ?? "Iris") : "Iris")))], [features]);
-  const entries = Object.entries(features ?? {});
-  const visible = group === "All" ? entries : entries.filter(([key]) => (features?.[key]?.group ?? "Iris") === group);
-  return <section className="iris-shell-page">
-    <div className="iris-page-intro"><div><span className="iris-kicker">IRIS INTELLIGENCE SYSTEM</span><h1>Iris Features</h1><p>Every capability Iris creates from your financial life state is an independent feature. Turn features on or off without changing the underlying evidence.</p></div><div className="iris-feature-count"><strong>{entries.filter(([, f]) => f.enabled).length}</strong><span>active</span><small>of {entries.length} registered</small></div></div>
-    <div className="iris-filter-row">{groups.map((item) => <button key={item} className={group === item ? "selected" : ""} onClick={() => setGroup(item)}>{item}</button>)}</div>
-    <div className="iris-feature-grid">{visible.map(([key, feature]) => {
-      const meta = DESCRIPTIONS[key];
-      return <article className={`iris-feature-tile ${feature.enabled ? "enabled" : "disabled"}`} key={key}>
-        <div className="iris-feature-tile-top"><span className="iris-feature-symbol">✦</span><span className={`iris-toggle-state ${feature.enabled ? "on" : "off"}`}>{feature.enabled ? "Active" : "Off"}</span></div>
-        <h2>{feature.label}</h2><p>{meta?.description ?? "Iris intelligence capability."}</p>
-        <div className="iris-feature-depth"><span>Intelligence depth</span><div>{(meta?.depth ?? []).map((step) => <i key={step}>{step}</i>)}</div></div>
-        <div className="iris-feature-evidence"><span>Evidence domains</span><p>{(meta?.evidence ?? []).join(" · ")}</p></div>
-        <div className="iris-feature-actions"><button onClick={() => onOpen(key)}>Open feature <span>→</span></button><button className="iris-switch" aria-label={`${feature.enabled ? "Disable" : "Enable"} ${feature.label}`} onClick={() => void onToggle(key, !feature.enabled)}><span className={feature.enabled ? "thumb on" : "thumb"}/></button></div>
-      </article>;
-    })}</div>
-  </section>;
+  const [group, setGroup] = useState("All"); const entries = Object.entries(features ?? {}); const groups = ["All", ...Array.from(new Set(entries.map(([,f]) => f.group ?? "Iris")))]; const visible = group === "All" ? entries : entries.filter(([,f]) => (f.group ?? "Iris") === group);
+  return <section className="iris-shell-page"><div className="iris-page-intro"><div><span className="iris-kicker">IRIS INTELLIGENCE SYSTEM</span><h1>Iris Features</h1><p>Every capability Iris creates from your financial life state is an independent feature. Turn features on or off without changing the underlying evidence.</p></div><div className="iris-feature-count"><strong>{entries.filter(([,f])=>f.enabled).length}</strong><span>active</span><small>of {entries.length} registered</small></div></div><div className="iris-filter-row">{groups.map(item=><button key={item} className={group===item?"selected":""} onClick={()=>setGroup(item)}>{item}</button>)}</div><div className="iris-feature-grid">{visible.map(([key,feature])=>{const meta=DESCRIPTIONS[key];return <article className={`iris-feature-tile ${feature.enabled?"enabled":"disabled"}`} key={key}><div className="iris-feature-tile-top"><span className="iris-feature-symbol">✦</span><span className={`iris-toggle-state ${feature.enabled?"on":"off"}`}>{feature.enabled?"Active":"Off"}</span></div><h2>{feature.label}</h2><p>{meta?.description??"Iris intelligence capability."}</p><div className="iris-feature-depth"><span>Intelligence depth</span><div>{(meta?.depth??[]).map(step=><i key={step}>{step}</i>)}</div></div><div className="iris-feature-evidence"><span>Evidence domains</span><p>{(meta?.evidence??[]).join(" · ")}</p></div><div className="iris-feature-actions"><button onClick={()=>onOpen(key)}>Open feature <span>→</span></button><button className="iris-switch" aria-label={`${feature.enabled?"Disable":"Enable"} ${feature.label}`} onClick={()=>void onToggle(key,!feature.enabled)}><span className={feature.enabled?"thumb on":"thumb"}/></button></div></article>})}</div></section>;
 }
