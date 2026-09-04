@@ -13,6 +13,7 @@ const TRANSFER_PRIMARY = new Set(["TRANSFER_IN", "TRANSFER_OUT"]);
 const INCOME_PRIMARY = new Set(["INCOME"]);
 const FEE_PRIMARY = new Set(["BANK_FEES"]);
 const LOAN_PRIMARY = new Set(["LOAN_PAYMENTS"]);
+const PURCHASE_PRIMARY = new Set(["FOOD_AND_DRINK", "GENERAL_MERCHANDISE", "HOME_IMPROVEMENT", "PERSONAL_CARE", "GENERAL_SERVICES", "ENTERTAINMENT", "TRANSPORTATION", "TRAVEL", "RENT_AND_UTILITIES"]);
 const DEBT_PAYMENT_DETAILED_SUBSTRINGS = ["CREDIT_CARD_PAYMENT", "LOAN_PAYMENTS"];
 const REFUND_DETAILED_SUBSTRINGS = ["REFUND", "PURCHASE_REFUND"];
 
@@ -47,8 +48,8 @@ export function classifyTransactionWithEvidence(tx: ClassifiableTransaction): Cl
   if (tx.amount > 0 && (LOAN_PRIMARY.has(primary) || DEBT_PAYMENT_DETAILED_SUBSTRINGS.some((s) => detailed.includes(s)))) {
     return { class: "debt_payment", evidence: "calculated", basis: "Plaid category identifies a debt/loan payment." };
   }
-  if (tx.amount > 0 && detailed) {
-    return { class: "purchase", evidence: "calculated", basis: "Positive movement with a non-transfer, non-income, non-fee Plaid detailed category." };
+  if (tx.amount > 0 && PURCHASE_PRIMARY.has(primary)) {
+    return { class: "purchase", evidence: "calculated", basis: `Plaid primary category explicitly identifies a purchase domain (${primary}).` };
   }
   return { class: "unknown", evidence: "insufficient_evidence", basis: "Available provider fields do not establish the economic nature of this movement." };
 }
