@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
-import { selectPlaidProducts } from "../services/plaidProductSelectionV3.js";
+import { selectPlaidProducts } from "../services/plaidProductSelectionV4.js";
 
 export const plaidSelectionRouter = Router();
 
