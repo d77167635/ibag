@@ -25,7 +25,7 @@ dashboardRouter.post("/dashboard/accounts/:accountId/roundup-toggle", requireAut
 dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedRequest, res) => {
   const userId = req.userId!;
   const [{ data: accounts, error: accountsErr }, { data: recentTx, error: txErr }, { data: ibag, error: ibagErr }] = await Promise.all([
-    supabaseAdmin.from("plaid_accounts").select("*, card_roundup_ledger(accrued_unswept, lifetime_roundup_total)").eq("user_id", userId),
+    supabaseAdmin.from("plaid_accounts").select("*, card_roundup_ledger!card_roundup_ledger_account_id_fkey(accrued_unswept, lifetime_roundup_total)").eq("user_id", userId),
     supabaseAdmin.from("transactions").select("*, merchants(canonical_name), subdomains(label, domains(key, label))").eq("user_id", userId).order("posted_date", { ascending: false }).limit(50),
     supabaseAdmin.from("virtual_ibag_balance").select("*").eq("user_id", userId).maybeSingle(),
   ]);
