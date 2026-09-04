@@ -20,6 +20,7 @@ import { buildMaximumIntelligence } from "./maxIntelligence.js";
 import { buildEvidenceGraph } from "./evidenceGraph.js";
 import { assessUncertainty } from "./uncertainty.js";
 import { buildFinancialStateModel } from "./financialState.js";
+import { buildCausalAnalysis } from "./causal.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -110,10 +111,17 @@ export async function computeFullIntelligence(userId: string) {
   const evidenceGraph = buildEvidenceGraph(baseResult);
   const uncertainty = assessUncertainty(evidenceGraph);
   const financialState = buildFinancialStateModel(evidenceGraph, uncertainty);
+  const causalAnalysis = buildCausalAnalysis(reasoning, financialState);
 
   recordExplainabilityTrace(userId, reasoning).catch((err) =>
     console.error("explainability trace failed:", err)
   );
 
-  return { ...baseResult, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState };
+  return {
+    ...baseResult,
+    evidence_graph: evidenceGraph,
+    uncertainty,
+    financial_state: financialState,
+    causal_analysis: causalAnalysis,
+  };
 }
