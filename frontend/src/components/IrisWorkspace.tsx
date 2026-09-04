@@ -6,7 +6,7 @@ import { TemporalContext } from "./TemporalContext";
 import "./IrisWorkspace.css";
 
 type View = "home" | "money" | "cashflow" | "spending" | "insights" | "activity" | "data";
-type Finding = { title:string; statement:string; evidence:string; state:string; date?:string; where?:string; why?:string };
+type Finding = { title:string; statement:string; evidence:string; state:string; date?:string; where?:string; why?:string; source?:string };
 const nav:[View,string,string][] = [["home","Home","⌂"],["money","Money","◒"],["cashflow","Cash Flow","⇄"],["spending","Spending","◔"],["insights","Insights","✦"],["activity","Activity","≡"],["data","Data & Evidence","⌁"]];
 const money=(n:number|null|undefined)=>n==null?"—":`${n<0?"−":""}$${Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const signed=(n:number|null|undefined)=>n==null?"—":`${n>=0?"+":"−"}$${Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
