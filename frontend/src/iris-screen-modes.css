@@ -1,0 +1,52 @@
+/* iBag / Iris — distinct screen information models. Additive only. */
+.iris-shell-page{position:relative;isolation:isolate;display:grid;grid-template-rows:auto 1fr;gap:18px;min-height:0;height:100%;overflow:hidden}
+.iris-shell-page-intro{margin:0;max-width:980px}
+.iris-shell-page-intro h1{max-width:900px}
+.iris-shell-page-intro p{max-width:760px}
+
+/* LIFE STATE — orientation map */
+.iris-shell-page:has(.iris-shell-state-grid){grid-template-rows:auto auto 1fr auto}
+.iris-shell-page:has(.iris-shell-state-grid) .iris-shell-state-grid{display:grid;grid-template-columns:minmax(1.7fr,2.2fr) repeat(3,minmax(150px,1fr));gap:12px;margin:0}
+.iris-shell-page:has(.iris-shell-state-grid) .iris-shell-state-primary{min-height:150px}
+.iris-shell-page:has(.iris-shell-state-grid) .iris-shell-two-col{min-height:0;display:grid;grid-template-columns:1.15fr .85fr;gap:12px}
+.iris-shell-page:has(.iris-shell-state-grid) .iris-shell-two-col .iris-shell-panel{min-height:0;overflow:hidden}
+.iris-shell-page:has(.iris-shell-state-grid) .iris-shell-two-col .iris-list-row{padding:9px 12px;margin:5px 0}
+.iris-shell-page:has(.iris-shell-state-grid) .iris-discovery{margin:0;min-height:74px;padding:14px 18px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px}
+.iris-shell-page:has(.iris-shell-state-grid) .iris-discovery h2,.iris-shell-page:has(.iris-shell-state-grid) .iris-discovery p{margin:0}
+
+/* CASH FLOW — flow field */
+.iris-shell-page:has(.iris-shell-stat-grid) .iris-shell-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:0}
+.iris-shell-page:has(.iris-shell-stat-grid) .iris-shell-two-col{min-height:0;display:grid;grid-template-columns:1fr 1.35fr;gap:12px}
+.iris-shell-page:has(.iris-shell-stat-grid) .iris-shell-two-col .iris-shell-panel{min-height:0;overflow:hidden}
+.iris-shell-page:has(.iris-shell-stat-grid) .iris-shell-two-col .iris-list-row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:9px 12px;margin:5px 0}
+.iris-shell-page:has(.iris-shell-stat-grid) .iris-shell-two-col .iris-temporal-context{grid-column:1/-1}
+
+/* MONEY — topology is the primary experience; suppress the legacy list underneath it. */
+.iris-shell-page:has(.iris-shell-stat-grid) .iris-shell-stat-grid + .iris-shell-panel:only-child{display:none}
+
+/* SPENDING — analytical field */
+.iris-shell-page:has(.iris-bar-row){grid-template-rows:auto 1fr}
+.iris-shell-page:has(.iris-bar-row)>.iris-shell-two-col{min-height:0;display:grid;grid-template-columns:1.45fr .75fr;gap:12px}
+.iris-shell-page:has(.iris-bar-row)>.iris-shell-two-col>.iris-shell-panel{min-height:0;overflow:hidden}
+.iris-shell-page:has(.iris-bar-row)>.iris-shell-panel{min-height:0;overflow:hidden}
+.iris-shell-page:has(.iris-bar-row) .iris-bar-row{display:grid;grid-template-columns:minmax(150px,1fr) 110px;grid-template-rows:auto 7px;gap:7px 14px;padding:10px 14px;margin:5px 0}
+.iris-shell-page:has(.iris-bar-row) .iris-bar-row i{grid-column:1/-1}
+.iris-shell-page:has(.iris-bar-row) .iris-list-row{padding:9px 12px;margin:5px 0}
+
+/* INSIGHTS — reasoning console */
+.iris-shell-page:has(.iris-insight-grid){grid-template-rows:auto 1fr}
+.iris-shell-page:has(.iris-insight-grid) .iris-insight-grid{min-height:0;display:grid;grid-template-columns:1.25fr .75fr;grid-template-rows:minmax(170px,1fr) minmax(120px,.7fr);gap:12px;overflow:hidden}
+.iris-shell-page:has(.iris-insight-grid) .iris-insight-hero{grid-row:1/-1;min-height:0;overflow:hidden}
+.iris-shell-page:has(.iris-insight-grid) .iris-shell-panel{min-height:0;overflow:hidden}
+.iris-shell-page:has(.iris-insight-grid) .iris-finding{padding:9px 12px;margin:5px 0}
+.iris-shell-page .iris-shell-evidence{letter-spacing:.04em}
+
+@media(min-width:901px){.iris-shell-main{overflow:hidden}.iris-shell-page>*{min-width:0}}
+@media(max-width:900px){
+  .iris-shell-page{height:auto;min-height:calc(100dvh - 66px);overflow:visible;display:block}
+  .iris-shell-page>*{margin-bottom:12px}
+  .iris-shell-page:has(.iris-shell-state-grid) .iris-shell-state-grid,.iris-shell-page:has(.iris-shell-stat-grid) .iris-shell-stat-grid{grid-template-columns:1fr 1fr}
+  .iris-shell-page:has(.iris-shell-state-grid) .iris-shell-two-col,.iris-shell-page:has(.iris-shell-stat-grid) .iris-shell-two-col,.iris-shell-page:has(.iris-bar-row)>.iris-shell-two-col,.iris-shell-page:has(.iris-insight-grid) .iris-insight-grid{display:grid;grid-template-columns:1fr;grid-template-rows:auto}
+  .iris-shell-page:has(.iris-insight-grid) .iris-insight-hero{grid-row:auto}
+  .iris-shell-page:has(.iris-shell-state-grid) .iris-discovery{display:block}
+}
