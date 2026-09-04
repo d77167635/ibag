@@ -18,7 +18,7 @@ function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], inte
   const metrics = intel?.layer_metrics ?? {};
   const limitations = evidencePlan.limitations;
   const evidence = intel?.layer_max_intelligence?.provenance ?? [];
-  const base = { intent, evidence_state: evidencePlan.evidenceState, account_count: accountCount, evidence: evidence.slice(0, 12), evidence_plan: evidencePlan, limitations, financial_state: intel?.financial_state ?? null, uncertainty: intel?.uncertainty ?? null };
+  const base = { intent, evidence_state: evidencePlan.evidenceState, account_count: accountCount, evidence: evidence.slice(0, 12), evidence_plan: evidencePlan, limitations, financial_state: intel?.financial_state ?? null, uncertainty: intel?.uncertainty ?? null, causal_analysis: intel?.causal_analysis ?? null };
 
   switch (intent) {
     case "liquidity": {
