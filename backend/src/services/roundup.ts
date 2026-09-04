@@ -3,11 +3,13 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { env } from "../config/env.js";
 import { getFeatureFlags } from "./features.js";
 
+const ROUNDUP_CALCULATION_VERSION = "ROUNDUP_STANDARD_V2";
+
 /**
  * Round-Up Intelligence Engine — SIMULATION ONLY (Phase 1).
  *
- * No money moves. The calculation is derived only from persisted transaction
- * classification evidence and real provider balance observations.
+ * No money moves. Every contribution is tied to a canonical transaction and
+ * every simulated sweep is atomically allocated back to those contributions.
  */
 export async function recomputeRoundupsForAccount(
   userId: string,
@@ -26,14 +28,9 @@ export async function recomputeRoundupsForAccount(
   const flags = await getFeatureFlags(userId);
   if (!flags.roundup) return;
 
-  // Round-Ups are derived from canonical economic classification, never from
-  // amount sign alone. Only active, posted purchases with sufficient evidence
-  // can create an opportunity; refunds, transfers, debt payments and fees are
-  // therefore excluded by construction. The $800 rent-sized guard remains a
-  // deterministic safety rule even if a provider classifies an item as a purchase.
   const { data: txRows, error: txErr } = await supabaseAdmin
     .from("transactions")
-    .select("amount, pending, transaction_class, classification_evidence")
+    .select("id, plaid_transaction_id, raw_transaction_id, amount, transaction_class, classification_evidence, classification_version")
     .eq("account_id", accountId)
     .eq("user_id", userId)
     .eq("is_active", true)
@@ -42,25 +39,54 @@ export async function recomputeRoundupsForAccount(
     .in("classification_evidence", ["observed", "calculated"]);
   if (txErr) throw txErr;
 
-  const lifetimeRoundupTotal = (txRows ?? []).reduce((sum, tx) => {
+  for (const tx of txRows ?? []) {
     const amount = Number(tx.amount);
-    if (!Number.isFinite(amount) || amount <= 0 || amount >= 800) return sum;
-    return sum + (Math.ceil(amount) - amount);
-  }, 0);
+    if (!Number.isFinite(amount) || amount <= 0 || amount >= 800) continue;
+    const roundup = Math.ceil(amount) - amount;
+    if (roundup <= 0) continue;
 
-  const { data: sweptEvents, error: sweepErr } = await supabaseAdmin
-    .from("roundup_sweep_events")
+    const { error: contributionError } = await supabaseAdmin.rpc(
+      "record_roundup_contribution",
+      {
+        p_user_id: userId,
+        p_account_id: accountId,
+        p_transaction_id: tx.id,
+        p_provider_transaction_id: tx.plaid_transaction_id,
+        p_calculation_version: ROUNDUP_CALCULATION_VERSION,
+        p_classification_version: tx.classification_version,
+        p_eligibility_evidence: tx.classification_evidence,
+        p_amount: roundup,
+        p_source_observation_id: tx.raw_transaction_id,
+      }
+    );
+    if (contributionError) throw contributionError;
+  }
+
+  const { data: contributionRows, error: contributionQueryError } = await supabaseAdmin
+    .from("roundup_contributions")
     .select("amount")
-    .eq("user_id", userId)
     .eq("account_id", accountId)
-    .eq("event_type", "simulated_sweep");
-  if (sweepErr) throw sweepErr;
+    .eq("user_id", userId)
+    .eq("calculation_version", ROUNDUP_CALCULATION_VERSION);
+  if (contributionQueryError) throw contributionQueryError;
 
-  const alreadySwept = (sweptEvents ?? []).reduce((sum, event) => {
-    const amount = Number(event.amount);
+  const lifetimeRoundupTotal = (contributionRows ?? []).reduce((sum, row) => {
+    const amount = Number(row.amount);
     return Number.isFinite(amount) && amount > 0 ? sum + amount : sum;
   }, 0);
-  let unswept = Math.max(0, lifetimeRoundupTotal - alreadySwept);
+
+  const { data: allocatedRows, error: allocationQueryError } = await supabaseAdmin
+    .from("roundup_sweep_allocations")
+    .select("amount")
+    .eq("account_id", accountId)
+    .eq("user_id", userId);
+  if (allocationQueryError) throw allocationQueryError;
+
+  const alreadyAllocated = (allocatedRows ?? []).reduce((sum, row) => {
+    const amount = Number(row.amount);
+    return Number.isFinite(amount) && amount > 0 ? sum + amount : sum;
+  }, 0);
+  let unswept = Math.max(0, lifetimeRoundupTotal - alreadyAllocated);
 
   const { data: accountRow, error: accountErr } = await supabaseAdmin
     .from("plaid_accounts")
@@ -87,17 +113,27 @@ export async function recomputeRoundupsForAccount(
       ? availableBalance !== null && availableBalance >= safetyThreshold!
       : true;
 
-    const { error: eventError } = await supabaseAdmin.from("roundup_sweep_events").insert({
-      user_id: userId,
-      account_id: accountId,
-      event_type: canSweep ? "simulated_sweep" : "held_insufficient_balance",
-      amount: env.roundupSweepThreshold,
-      available_balance_at_check: availableBalance,
-      safety_threshold: safetyThreshold,
-    });
-    if (eventError) throw eventError;
+    if (!canSweep) {
+      const { error: heldError } = await supabaseAdmin.from("roundup_sweep_events").insert({
+        user_id: userId,
+        account_id: accountId,
+        event_type: "held_insufficient_balance",
+        amount: env.roundupSweepThreshold,
+        available_balance_at_check: availableBalance,
+        safety_threshold: safetyThreshold,
+      });
+      if (heldError) throw heldError;
+      break;
+    }
 
-    if (!canSweep) break;
+    const { error: sweepError } = await supabaseAdmin.rpc("record_roundup_sweep", {
+      p_user_id: userId,
+      p_account_id: accountId,
+      p_amount: env.roundupSweepThreshold,
+      p_available_balance: availableBalance,
+      p_safety_threshold: safetyThreshold,
+    });
+    if (sweepError) throw sweepError;
 
     unswept -= env.roundupSweepThreshold;
 
@@ -124,7 +160,7 @@ export async function recomputeRoundupsForAccount(
         sweep_amount: env.roundupSweepThreshold,
         available_balance_at_check: availableBalance,
         safety_threshold: safetyThreshold,
-        calculation_basis: "canonical_purchase_classification_v1",
+        calculation_basis: ROUNDUP_CALCULATION_VERSION,
       },
       result: newBalance,
     });
