@@ -624,3 +624,61 @@ export async function computeSpendingHierarchy(userId: string, windowDays = 30) 
     }))
     .sort((a, b) => b.amount - a.amount);
 }
+
+/**
+ * What-if scenario calculator: pure deterministic arithmetic applied to
+ * the real current baseline (Safe-to-Spend and 30-day cash flow) — not a
+ * forecast, not a prediction, no statistical modeling. Explicitly labeled
+ * as a hypothetical, since that's exactly what it is.
+ */
+export async function computeScenario(
+  userId: string,
+  type: "spending_change" | "bill_change" | "income_change",
+  amount: number
+) {
+  const [cashFlowSafety, cashFlow] = await Promise.all([computeCashFlowSafety(userId), computeCashFlow(userId)]);
+
+  if (cashFlowSafety.safeToSpend === null || cashFlow.net === null) {
+    return {
+      evidence: "insufficient_evidence" as const,
+      reason: "Not enough account/transaction data to run a scenario yet.",
+    };
+  }
+
+  let scenarioSafeToSpend = cashFlowSafety.safeToSpend;
+  let scenarioNet = cashFlow.net;
+  let assumption = "";
+
+  if (type === "spending_change") {
+    // amount > 0 means spending MORE by that much, amount < 0 means less.
+    scenarioSafeToSpend -= amount;
+    scenarioNet -= amount;
+    assumption = `Assumes discretionary spending changes by exactly $${amount.toFixed(2)} with everything else held constant — a direct dollar-for-dollar substitution, not a behavioral prediction.`;
+  } else if (type === "bill_change") {
+    scenarioSafeToSpend -= amount;
+    assumption = `Assumes essential bills change by $${amount.toFixed(2)} within the current 14-day horizon, with no other change.`;
+  } else {
+    if (cashFlow.inflow === null) {
+      return { evidence: "insufficient_evidence" as const, reason: "No inflow data to apply an income change to." };
+    }
+    const inflowDelta = cashFlow.inflow * (amount / 100);
+    scenarioNet += inflowDelta;
+    scenarioSafeToSpend += inflowDelta;
+    assumption = `Assumes ${amount >= 0 ? "an increase" : "a decrease"} of ${Math.abs(amount).toFixed(
+      0
+    )}% applied to the observed 30-day inflow ($${cashFlow.inflow.toFixed(
+      2
+    )}), not a verified income figure — Iris does not yet distinguish income from other inflows.`;
+  }
+
+  return {
+    evidence: "calculated" as const,
+    baseline: { safeToSpend: cashFlowSafety.safeToSpend, cashFlowNet: cashFlow.net },
+    scenario: { safeToSpend: scenarioSafeToSpend, cashFlowNet: scenarioNet },
+    delta: {
+      safeToSpend: scenarioSafeToSpend - cashFlowSafety.safeToSpend,
+      cashFlowNet: scenarioNet - cashFlow.net,
+    },
+    assumption,
+  };
+}

@@ -956,3 +956,138 @@ a {
   color: var(--ink-faint);
   font-style: italic;
 }
+
+.dashboard-mode-switch {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  padding: 3px;
+  margin-bottom: 20px;
+  width: fit-content;
+}
+
+.mode-button {
+  background: none;
+  border: none;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  cursor: pointer;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.mode-button.active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(18, 20, 28, 0.08);
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 620px) {
+  .product-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.product-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.product-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.product-status {
+  font-size: 11px;
+  text-transform: capitalize;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.product-status-active {
+  background: #e6f2ec;
+  color: var(--positive);
+}
+
+.product-status-available {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+
+.product-status-not_requested,
+.product-status-not_connected {
+  background: #f1f2f5;
+  color: var(--ink-faint);
+}
+
+.scenario-block {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.scenario-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scenario-select,
+.scenario-input {
+  padding: 9px 11px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.scenario-input {
+  width: 120px;
+}
+
+.scenario-result {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.scenario-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+}
+
+.scenario-row span:first-child {
+  font-family: var(--font-body);
+  color: var(--ink-muted);
+}
+
+.scenario-assumption {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--ink-faint);
+  line-height: 1.5;
+  font-style: italic;
+}

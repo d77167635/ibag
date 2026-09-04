@@ -130,6 +130,33 @@ function fmt(n: number): string {
   return Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function productLabel(p: string): string {
+  const labels: Record<string, string> = {
+    transactions: "Transactions",
+    auth: "Auth",
+    balance: "Balance",
+    identity: "Identity",
+    investments: "Investments",
+    liabilities: "Liabilities",
+    transfer: "Transfer",
+    signal: "Signal",
+  };
+  return labels[p] ?? p;
+}
+
+type DashboardMode = "iris" | "plaid";
+
+interface PlaidProducts {
+  items: {
+    institution_name: string | null;
+    status: string;
+    last_synced_at: string | null;
+    billed_products: string[];
+    available_products: string[];
+  }[];
+  products: { product: string; status?: "active" | "available" | "not_requested" | "not_connected" }[];
+}
+
 type Tab = "overview" | "spending" | "insights" | "bills" | "accounts" | "activity" | "settings";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -153,6 +180,38 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [resyncing, setResyncing] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
+  const [mode, setMode] = useState<DashboardMode>("iris");
+  const [plaidProducts, setPlaidProducts] = useState<PlaidProducts | null>(null);
+
+  async function loadPlaidProducts() {
+    try {
+      const p = await api.getPlaidProducts();
+      setPlaidProducts(p);
+    } catch {
+      setPlaidProducts(null);
+    }
+  }
+
+  const [scenarioType, setScenarioType] = useState<"spending_change" | "bill_change" | "income_change">(
+    "spending_change"
+  );
+  const [scenarioAmount, setScenarioAmount] = useState("");
+  const [scenarioResult, setScenarioResult] = useState<any>(null);
+  const [scenarioLoading, setScenarioLoading] = useState(false);
+
+  async function runScenario() {
+    const amount = Number(scenarioAmount);
+    if (Number.isNaN(amount)) return;
+    setScenarioLoading(true);
+    try {
+      const result = await api.runScenario(scenarioType, amount);
+      setScenarioResult(result);
+    } catch {
+      setScenarioResult({ evidence: "insufficient_evidence", reason: "Scenario calculation failed." });
+    } finally {
+      setScenarioLoading(false);
+    }
+  }
 
   async function loadFeatures() {
     try {
@@ -210,6 +269,7 @@ export function Dashboard() {
   useEffect(() => {
     refresh();
     loadFeatures();
+    loadPlaidProducts();
   }, []);
 
   const header = (
@@ -285,7 +345,67 @@ export function Dashboard() {
           </section>
         )}
 
-        {hasAccounts && tab === "overview" && intelligence && (
+        {hasAccounts && (
+          <div className="dashboard-mode-switch">
+            <button
+              className={`mode-button${mode === "iris" ? " active" : ""}`}
+              onClick={() => setMode("iris")}
+            >
+              Iris Intelligence
+            </button>
+            <button
+              className={`mode-button${mode === "plaid" ? " active" : ""}`}
+              onClick={() => setMode("plaid")}
+            >
+              Plaid Products
+            </button>
+          </div>
+        )}
+
+        {hasAccounts && mode === "plaid" && (
+          <section className="section">
+            <div className="section-head">
+              <h2>Plaid standard products</h2>
+            </div>
+            {!plaidProducts && <div className="empty-state">Unable to load Plaid product status.</div>}
+            {plaidProducts && (
+              <>
+                <div className="product-grid">
+                  {plaidProducts.products.map((p) => (
+                    <div className="product-card" key={p.product}>
+                      <span className="product-name">{productLabel(p.product)}</span>
+                      <span className={`product-status product-status-${p.status}`}>
+                        {(p.status ?? "unknown").replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="section-head" style={{ marginTop: 24 }}>
+                  <h2>Connected institutions</h2>
+                  <span className="section-count">{plaidProducts.items.length}</span>
+                </div>
+                <div className="account-list">
+                  {plaidProducts.items.map((item, i) => (
+                    <div className="account-row" key={i}>
+                      <span className="account-name">
+                        {item.institution_name ?? "Unknown institution"}
+                        <span className="account-mask">{item.status}</span>
+                      </span>
+                      <span className="account-type">
+                        {item.billed_products.length > 0
+                          ? item.billed_products.map(productLabel).join(", ")
+                          : "No active products"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
+        {hasAccounts && mode === "iris" && tab === "overview" && intelligence && (
           <section className="section">
             {intelligence.narrative && (
               <div className="narrative">
@@ -432,7 +552,7 @@ export function Dashboard() {
           </section>
         )}
 
-        {hasAccounts && tab === "spending" && intelligence && (
+        {hasAccounts && mode === "iris" && tab === "spending" && intelligence && (
           <section className="section">
             <div className="section-head">
               <h2>Where money went</h2>
@@ -464,7 +584,7 @@ export function Dashboard() {
           </section>
         )}
 
-        {hasAccounts && tab === "bills" && intelligence && (
+        {hasAccounts && mode === "iris" && tab === "bills" && intelligence && (
           <section className="section">
             {intelligence.cash_flow_safety.billCollisions.length > 0 && (
               <div className="banner banner-error">
@@ -516,7 +636,7 @@ export function Dashboard() {
           </section>
         )}
 
-        {hasAccounts && tab === "accounts" && (
+        {hasAccounts && mode === "iris" && tab === "accounts" && (
           <section className="section">
             <div className="section-head">
               <h2>Connected cards</h2>
@@ -554,8 +674,63 @@ export function Dashboard() {
           </section>
         )}
 
-        {hasAccounts && tab === "insights" && intelligence && (
+        {hasAccounts && mode === "iris" && tab === "insights" && intelligence && (
           <section className="section">
+            <div className="scenario-block">
+              <p className="metric-label" style={{ marginBottom: 8 }}>
+                What if?
+              </p>
+              <div className="scenario-controls">
+                <select
+                  className="scenario-select"
+                  value={scenarioType}
+                  onChange={(e) => setScenarioType(e.target.value as typeof scenarioType)}
+                >
+                  <option value="spending_change">Spending changes by $</option>
+                  <option value="bill_change">Essential bills change by $</option>
+                  <option value="income_change">30-day inflow changes by %</option>
+                </select>
+                <input
+                  className="scenario-input"
+                  type="number"
+                  placeholder={scenarioType === "income_change" ? "e.g. -10" : "e.g. -300"}
+                  value={scenarioAmount}
+                  onChange={(e) => setScenarioAmount(e.target.value)}
+                />
+                <button className="btn-accent" onClick={runScenario} disabled={scenarioLoading || !scenarioAmount}>
+                  {scenarioLoading ? "…" : "Run"}
+                </button>
+              </div>
+              {scenarioResult && scenarioResult.evidence === "insufficient_evidence" && (
+                <p className="metric-note" style={{ marginTop: 8 }}>
+                  {scenarioResult.reason}
+                </p>
+              )}
+              {scenarioResult && scenarioResult.evidence === "calculated" && (
+                <div className="scenario-result">
+                  <div className="scenario-row">
+                    <span>Safe-to-spend</span>
+                    <span>
+                      ${fmt(scenarioResult.baseline.safeToSpend)} → ${fmt(scenarioResult.scenario.safeToSpend)}{" "}
+                      <span className={scenarioResult.delta.safeToSpend >= 0 ? "delta-positive" : "delta-negative"}>
+                        ({scenarioResult.delta.safeToSpend >= 0 ? "+" : "-"}${fmt(scenarioResult.delta.safeToSpend)})
+                      </span>
+                    </span>
+                  </div>
+                  <div className="scenario-row">
+                    <span>30-day cash flow net</span>
+                    <span>
+                      ${fmt(scenarioResult.baseline.cashFlowNet)} → ${fmt(scenarioResult.scenario.cashFlowNet)}{" "}
+                      <span className={scenarioResult.delta.cashFlowNet >= 0 ? "delta-positive" : "delta-negative"}>
+                        ({scenarioResult.delta.cashFlowNet >= 0 ? "+" : "-"}${fmt(scenarioResult.delta.cashFlowNet)})
+                      </span>
+                    </span>
+                  </div>
+                  <p className="scenario-assumption">{scenarioResult.assumption}</p>
+                </div>
+              )}
+            </div>
+
             {!intelligence.reasoning ? (
               <div className="empty-state">
                 Risk &amp; opportunity analysis is turned off.{" "}
@@ -650,7 +825,7 @@ export function Dashboard() {
           </section>
         )}
 
-        {hasAccounts && tab === "settings" && (
+        {hasAccounts && mode === "iris" && tab === "settings" && (
           <section className="section">
             <div className="section-head">
               <h2>Intelligence features</h2>
@@ -680,7 +855,7 @@ export function Dashboard() {
           </section>
         )}
 
-        {hasAccounts && tab === "activity" && (
+        {hasAccounts && mode === "iris" && tab === "activity" && (
           <section className="section">
             <div className="section-head">
               <h2>Recent transactions</h2>
@@ -763,7 +938,7 @@ export function Dashboard() {
         )}
       </div>
 
-      {hasAccounts && (
+      {hasAccounts && mode === "iris" && (
         <nav className="tab-bar-mobile">
           {TABS.map((t) => (
             <button

@@ -46,6 +46,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ enabled }),
     }),
+  getPlaidProducts: () => authedFetch("/dashboard/plaid"),
+  runScenario: (type: string, amount: number) =>
+    authedFetch("/dashboard/scenario", {
+      method: "POST",
+      body: JSON.stringify({ type, amount }),
+    }),
   toggleAccountRoundup: (accountId: string, enabled: boolean) =>
     authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, {
       method: "POST",

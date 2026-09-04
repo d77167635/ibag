@@ -2,7 +2,7 @@ import { Router } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
-import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain, computeBalanceHistory, computeDebtTrend, detectAnomalies, computeForwardProjection, buildNarrative, computeSpendingHierarchy } from "../services/intelligence.js";
+import { computeBalanceMetrics, computeCashFlowSafety, computeRoundupProjection, computeCashFlow, computeSpendingByDomain, computeBalanceHistory, computeDebtTrend, detectAnomalies, computeForwardProjection, buildNarrative, computeSpendingHierarchy, computeScenario } from "../services/intelligence.js";
 import { decryptToken } from "../config/crypto.js";
 import { getFeatureFlags } from "../services/features.js";
 import { plaidClient } from "../plaid/client.js";
@@ -298,4 +298,26 @@ dashboardRouter.get("/dashboard/plaid", requireAuth, async (req: AuthedRequest, 
     items: itemSummaries,
     products: PLAID_STANDARD_PRODUCTS.map((p) => ({ product: p, status: productStatus.get(p) })),
   });
+});
+
+// What-if scenario calculator — pure arithmetic on the real current
+// baseline, no forecasting model, no fabricated confidence. See
+// computeScenario in intelligence.ts for exactly what each type assumes.
+dashboardRouter.post("/dashboard/scenario", requireAuth, async (req: AuthedRequest, res) => {
+  const { type, amount } = req.body as {
+    type?: "spending_change" | "bill_change" | "income_change";
+    amount?: number;
+  };
+
+  if (!type || !["spending_change", "bill_change", "income_change"].includes(type) || typeof amount !== "number") {
+    return res.status(400).json({ error: "type must be spending_change/bill_change/income_change, amount must be a number" });
+  }
+
+  try {
+    const result = await computeScenario(req.userId!, type, amount);
+    res.json(result);
+  } catch (err) {
+    console.error("dashboard/scenario error:", err);
+    res.status(500).json({ error: "Failed to compute scenario" });
+  }
 });
