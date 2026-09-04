@@ -8,7 +8,9 @@ import {
   computeDebtTrend,
   detectAnomalies,
   computeForwardProjection,
+  computeSpendingHierarchy,
 } from "../services/intelligence.js";
+import { getFeatureFlags } from "../services/features.js";
 import { computeDebtCostIntelligence } from "./liabilities.js";
 import { computeCategoryDrift } from "./behavioral.js";
 import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
@@ -16,10 +18,7 @@ import { computeFinancialReasoning } from "./relational.js";
 import { buildNarrative, recordExplainabilityTrace } from "./decision.js";
 import { buildMaximumIntelligence } from "./maxIntelligence.js";
 
-/**
- * Canonical intelligence orchestrator. Dashboard and Iris should consume
- * this synthesis rather than independently recomputing the same metrics.
- */
+/** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
   const [
     balances,
@@ -31,10 +30,12 @@ export async function computeFullIntelligence(userId: string) {
     debtTrend,
     anomalies,
     forwardProjection,
+    spendingHierarchy,
     debtCost,
     categoryDrift,
     multiWindowFlow,
     reasoning,
+    featureFlags,
   ] = await Promise.all([
     computeBalanceMetrics(userId),
     computeCashFlowSafety(userId),
@@ -45,10 +46,12 @@ export async function computeFullIntelligence(userId: string) {
     computeDebtTrend(userId),
     detectAnomalies(userId),
     computeForwardProjection(userId),
+    computeSpendingHierarchy(userId),
     computeDebtCostIntelligence(userId),
     computeCategoryDrift(userId),
     computeMultiWindowFlow(userId),
     computeFinancialReasoning(userId),
+    getFeatureFlags(userId),
   ]);
 
   const trajectory = assessTrajectory(multiWindowFlow);
@@ -78,6 +81,7 @@ export async function computeFullIntelligence(userId: string) {
   return {
     narrative,
     generated_at: new Date().toISOString(),
+    feature_flags: featureFlags,
     layer_metrics: {
       net_worth: { liquid_assets: balances.liquidAssets, as_of: balances.asOf },
       debt_health: {
@@ -90,6 +94,7 @@ export async function computeFullIntelligence(userId: string) {
       roundup_projection: roundupProjection,
       cash_flow: cashFlow,
       spending_by_domain: spendingByDomain,
+      spending_hierarchy: spendingHierarchy,
       balance_history: balanceHistory,
       forward_projection: forwardProjection,
       anomalies,
