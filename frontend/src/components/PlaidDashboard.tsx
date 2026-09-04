@@ -1,8 +1,44 @@
+import { useEffect, useState } from "react";
+import { api } from "../api/backend";
 import "../styles/plaid-dashboard.css";
 
 type Product = { product: string; status?: string; score?: number; capabilities?: string[]; itemCount?: number };
 type Item = { institution_name: string | null; status: string; last_synced_at: string | null; selected?: Product[]; billed_products?: string[]; available_products?: string[] };
 type Surface = { items: Item[]; products: Product[] };
 type Selection = { strategy: string; selected: Product[]; items: { institution_name: string | null; status: string; last_synced_at: string | null; selected: Product[] }[] };
+type Account = { id: string; name: string; mask?: string | null; type?: string | null; roundup_enabled?: boolean | null };
 const title = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-export function PlaidDashboard({ surface, selection, onRefresh }: { surface: Surface | null; selection: Selection | null; onRefresh: () => void }) { const products = surface?.products ?? []; return <section className="plaid-page"><div className="plaid-intro"><div><span className="plaid-kicker">PLAID DATA LAYER</span><h1>Plaid Dashboard</h1><p>This workspace shows the Plaid products and provider information iBag has actually received. Iris analysis stays on the Iris side.</p></div><button className="plaid-refresh" onClick={onRefresh}>Refresh provider state</button></div><div className="plaid-rule"><strong>Source boundary</strong><span>Plaid products → provider information only</span><span>•</span><span>Iris interpretation → Iris Features</span></div><div className="plaid-institutions">{(surface?.items??[]).map((item,index)=><article className="plaid-institution" key={`${item.institution_name??"institution"}-${index}`}><div><span className="plaid-status-dot"/><strong>{item.institution_name??"Connected institution"}</strong></div><span>{item.status}</span><small>{item.last_synced_at ? `Last synced ${new Date(item.last_synced_at).toLocaleString()}` : "No sync timestamp"}</small></article>)}</div><div className="plaid-section-title"><div><span>PRODUCT INVENTORY</span><h2>Products available to this connected data set</h2></div><small>{products.length} product domains from current Item state</small></div><div className="plaid-product-grid">{products.map(product=><article className="plaid-product" key={product.product}><div className="plaid-product-head"><span>{title(product.product)}</span><b className={`plaid-product-status ${product.status}`}>{title(product.status??"unknown")}</b></div><p>Provider product domain. This surface does not reinterpret the product's data.</p></article>)}</div>{selection&&<section className="plaid-selection"><div><span className="plaid-kicker">IRIS PRODUCT SELECTION</span><h2>Best available evidence for iBag's life-state intelligence</h2><p>Iris ranks products only from current Item state. It does not silently request consent or activate a product.</p></div><div className="plaid-ranking">{selection.selected.slice(0,10).map((product,index)=><div className="plaid-rank" key={product.product}><strong>{String(index+1).padStart(2,"0")}</strong><span>{title(product.product)}</span><b>{product.score??"—"}</b><small>{product.capabilities?.map(title).join(" · ")}</small></div>)}</div></section>}</section>; }
+
+export function PlaidDashboard({ surface, selection, onRefresh }: { surface: Surface | null; selection: Selection | null; onRefresh: () => void }) {
+  const products = surface?.products ?? [];
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getOverview().then((data) => setAccounts(data.accounts ?? [])).catch(() => setAccounts([]));
+  }, [surface]);
+
+  async function setRoundup(accountId: string, enabled: boolean) {
+    setUpdating(accountId);
+    setToggleError(null);
+    try {
+      const result = await api.toggleAccountRoundup(accountId, enabled);
+      setAccounts((current) => current.map((account) => account.id === accountId ? { ...account, roundup_enabled: result.roundup_enabled ?? enabled } : account));
+    } catch (err) {
+      setToggleError(err instanceof Error ? err.message : "Unable to update Round-Ups.");
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  return <section className="plaid-page">
+    <div className="plaid-intro"><div><span className="plaid-kicker">PLAID DATA LAYER</span><h1>Plaid Dashboard</h1><p>This workspace shows the Plaid products and provider information iBag has actually received. Iris analysis stays on the Iris side.</p></div><button className="plaid-refresh" onClick={onRefresh}>Refresh provider state</button></div>
+    <div className="plaid-rule"><strong>Source boundary</strong><span>Plaid products → provider information only</span><span>•</span><span>Iris interpretation → Iris Features</span></div>
+    <div className="plaid-institutions">{(surface?.items??[]).map((item,index)=><article className="plaid-institution" key={`${item.institution_name??"institution"}-${index}`}><div><span className="plaid-status-dot"/><strong>{item.institution_name??"Connected institution"}</strong></div><span>{item.status}</span><small>{item.last_synced_at ? `Last synced ${new Date(item.last_synced_at).toLocaleString()}` : "No sync timestamp"}</small></article>)}</div>
+    <div className="plaid-section-title"><div><span>PRODUCT INVENTORY</span><h2>Products available to this connected data set</h2></div><small>{products.length} product domains from current Item state</small></div>
+    <div className="plaid-product-grid">{products.map(product=><article className="plaid-product" key={product.product}><div className="plaid-product-head"><span>{title(product.product)}</span><b className={`plaid-product-status ${product.status}`}>{title(product.status??"unknown")}</b></div><p>Provider product domain. This surface does not reinterpret the product's data.</p></article>)}</div>
+    <section className="plaid-roundup-panel"><div className="plaid-section-title"><div><span>ROUND-UPS</span><h2>Choose which connected accounts participate</h2></div><small>{accounts.length} observed accounts</small></div><p className="plaid-roundup-note">This controls Round-Up eligibility only. Phase 1 does not move money.</p>{toggleError&&<div className="plaid-connect-error" role="alert">{toggleError}</div>}<div className="plaid-roundup-list">{accounts.map((account)=><div className="plaid-roundup-row" key={account.id}><div><strong>{account.name}</strong><small>{title(account.type??"account")} · {account.mask ? `•••• ${account.mask}` : "mask unavailable"}</small></div><button type="button" className={`plaid-roundup-toggle ${account.roundup_enabled ? "enabled" : ""}`} onClick={() => void setRoundup(account.id, !account.roundup_enabled)} disabled={updating===account.id} aria-pressed={Boolean(account.roundup_enabled)}>{updating===account.id ? "Saving…" : account.roundup_enabled ? "On" : "Off"}</button></div>)}</div></section>
+    {selection&&<section className="plaid-selection"><div><span className="plaid-kicker">IRIS PRODUCT SELECTION</span><h2>Best available evidence for iBag's life-state intelligence</h2><p>Iris ranks products only from current Item state. It does not silently request consent or activate a product.</p></div><div className="plaid-ranking">{selection.selected.slice(0,10).map((product,index)=><div className="plaid-rank" key={product.product}><strong>{String(index+1).padStart(2,"0")}</strong><span>{title(product.product)}</span><b>{product.score??"—"}</b><small>{product.capabilities?.map(title).join(" · ")}</small></div>)}</div></section>}
+  </section>;
+}
