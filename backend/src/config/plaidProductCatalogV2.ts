@@ -1,10 +1,11 @@
 import { PLAID_PRODUCT_CATALOG as BASE_CATALOG, type PlaidProductDefinition } from "./plaidProductCatalog.js";
 
 /**
- * Complete Plaid Item product-state registry from the current Plaid API
- * contract. These are capability identifiers, not proof of availability.
- * Runtime Item state, consent, production access and actual observation are
- * always authoritative for a specific user/Item.
+ * Extended Plaid capability catalog.
+ *
+ * Item product-state identifiers are authoritative only for runtime state;
+ * public Plaid services are cataloged separately and are never treated as
+ * observed merely because they exist in this registry.
  */
 const ADDITIONAL_PRODUCTS: readonly PlaidProductDefinition[] = [
   {
@@ -60,7 +61,7 @@ const ADDITIONAL_PRODUCTS: readonly PlaidProductDefinition[] = [
   },
   {
     key: "income_insights", displayName: "Income Insights", category: "lending",
-    description: "Plaid Check income insights including historical and predictive attributes where available.", phase1Relevant: true,
+    description: "Plaid Check income insights where enabled.", phase1Relevant: true,
     irisCapabilities: ["income", "stability", "timing", "forecasting"], plaidProductStates: ["cra_income_insights"], pricing: "included_unless_plaid_charges",
   },
   {
@@ -80,23 +81,13 @@ const ADDITIONAL_PRODUCTS: readonly PlaidProductDefinition[] = [
   },
   {
     key: "plaid_credit_score", displayName: "Plaid Credit Score", category: "lending",
-    description: "Plaid credit-score capability where enabled for the integration.", phase1Relevant: false,
+    description: "Plaid credit-score capability where enabled.", phase1Relevant: false,
     irisCapabilities: ["credit", "credit_risk", "risk"], plaidProductStates: ["cra_plaid_credit_score"], pricing: "included_unless_plaid_charges",
   },
   {
     key: "qualify", displayName: "Qualify", category: "lending",
     description: "Plaid lending qualification capability where enabled.", phase1Relevant: false,
     irisCapabilities: ["credit", "underwriting", "risk"], plaidProductStates: ["cra_qualify"], pricing: "included_unless_plaid_charges",
-  },
-  {
-    key: "assets", displayName: "Assets", category: "financial_management",
-    description: "Create and retrieve Asset Reports containing supported asset and transaction information.", phase1Relevant: true,
-    irisCapabilities: ["assets", "net_worth", "financial_state", "history"], plaidProductStates: ["assets"], pricing: "included_unless_plaid_charges",
-  },
-  {
-    key: "statements", displayName: "Statements", category: "financial_management",
-    description: "Retrieve financial statements for supported institutions.", phase1Relevant: true,
-    irisCapabilities: ["history", "evidence", "reconciliation", "document_context"], plaidProductStates: ["statements"], pricing: "included_unless_plaid_charges",
   },
   {
     key: "processor_payments", displayName: "Processor Payments", category: "payments",
@@ -109,21 +100,11 @@ const ADDITIONAL_PRODUCTS: readonly PlaidProductDefinition[] = [
     irisCapabilities: ["account_identity", "identity"], plaidProductStates: ["processor_identity"], pricing: "included_unless_plaid_charges",
   },
   {
-    key: "layer", displayName: "Plaid Layer", category: "onboarding",
-    description: "Capture identity, contact and bank information in a unified onboarding flow.", phase1Relevant: false,
-    irisCapabilities: ["onboarding", "identity", "account_linkage"], plaidProductStates: ["layer"], pricing: "included_unless_plaid_charges",
-  },
-  {
     key: "pay_by_bank", displayName: "Pay by Bank", category: "payments",
     description: "Bank-payment checkout capabilities where supported.", phase1Relevant: false,
     irisCapabilities: ["payments", "money_movement"], plaidProductStates: ["pay_by_bank"], pricing: "included_unless_plaid_charges",
   },
-  {
-    key: "protect", displayName: "Protect", category: "fraud_risk",
-    description: "Detect and respond to fraud risk using supported Plaid network signals.", phase1Relevant: true,
-    irisCapabilities: ["fraud_risk", "account_risk", "risk"], plaidProductStates: ["protect_linked_bank", "protect_transactions"], pricing: "included_unless_plaid_charges",
-  },
-] as const;
+];
 
-/** Every Item-level product state documented by Plaid is represented by this registry. */
+/** Complete application capability catalog; runtime state remains authoritative. */
 export const PLAID_PRODUCT_CATALOG_V2: readonly PlaidProductDefinition[] = [...BASE_CATALOG, ...ADDITIONAL_PRODUCTS];
