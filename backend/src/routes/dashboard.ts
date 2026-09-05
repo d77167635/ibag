@@ -79,7 +79,8 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       investigations: full.investigations, uncertainty: full.uncertainty, financial_state: full.financial_state, causal_analysis: full.causal_analysis,
       decision_graph: full.decision_graph, decision_intelligence: full.decision_intelligence, consequence_model: full.consequence_model,
       optimization_intelligence: full.optimization_intelligence, goal_intelligence: full.goal_intelligence, intelligence_atlas: full.intelligence_atlas,
-      intelligence_composition: full.intelligence_composition, higher_order_synthesis: full.higher_order_synthesis, meta_intelligence: full.meta_intelligence,
+      intelligence_composition: full.intelligence_composition, higher_order_synthesis: full.higher_order_synthesis,
+      adversarial_reasoning: full.adversarial_reasoning, counterfactual_intelligence: full.counterfactual_intelligence, meta_intelligence: full.meta_intelligence,
     });
   } catch (err) { console.error("dashboard/intelligence error:", err); res.status(500).json({ error: "Failed to compute intelligence metrics" }); }
 });
