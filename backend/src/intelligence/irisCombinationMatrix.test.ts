@@ -28,6 +28,7 @@ for (const intent of INTENTS) {
       const result = selector(mapFor(observed), intent);
       assert.equal(result.evidence_ready, expectedSingleItem(observed, REQUIRED[intent]), `unexpected gate for ${intent} with ${observed.join(",") || "none"}`);
       assert.deepEqual(result.required_item_ids, result.evidence_ready ? ["item-a"] : []);
+      assert.equal(result.selected_item_id, result.evidence_ready ? "item-a" : null);
     }
   });
 }
@@ -38,6 +39,7 @@ test("cross-Item evidence never satisfies a conjunctive intent", () => {
     const result = selector(split, intent);
     assert.equal(result.evidence_ready, false);
     assert.deepEqual(result.required_item_ids, []);
+    assert.equal(result.selected_item_id, null);
   }
 });
 
@@ -65,16 +67,36 @@ test("every declared combination requires all products on one Item", () => {
     const complete = mapFor([...combo.products] as Product[]);
     const ready = selector(complete, "unknown").ready_combinations.find((c) => c.key === combo.key);
     assert.ok(ready, `combination ${combo.key} should be ready when complete`);
+    assert.equal(ready?.selected_for_request, true);
     const split = new Map<string, Set<string>>();
-    combo.products.forEach((product, index) => split.set(`item-${index}`, new Set([product])));
+    combo.products.forEach((product, index) => split.set(`item-${index}`, new Set([product]));
     const blocked = selector(split, "unknown").ready_combinations.find((c) => c.key === combo.key);
     assert.equal(blocked, undefined, `combination ${combo.key} must not combine across Items`);
+    assert.equal(selector(split, "unknown").selected_item_id, null);
   }
+});
+
+test("when multiple Items qualify, Iris selects one deterministic richest same-Item set", () => {
+  const rich = new Set<Product>(PRODUCTS);
+  const thin = new Set<Product>(["transactions", "balance"]);
+  const result = selector(new Map([["thin-item", thin], ["rich-item", rich]]), "overview");
+  assert.equal(result.evidence_ready, true);
+  assert.equal(result.selected_item_id, "rich-item");
+  assert.equal(result.selected_combinations.every((c) => c.matching_item_ids.includes("rich-item")), true);
+});
+
+test("when richness ties, Item selection is deterministic by Item id", () => {
+  const result = selector(new Map([
+    ["item-z", new Set<Product>(["transactions", "balance"])],
+    ["item-a", new Set<Product>(["transactions", "balance"])],
+  ]), "liquidity");
+  assert.equal(result.selected_item_id, "item-a");
 });
 
 test("full financial state is only ready with all eight products on the same Item", () => {
   const allEight = selector(mapFor([...PRODUCTS]), "unknown");
   assert.deepEqual(allEight.ready_combinations.map((c) => c.key), combinations.map((c) => c.key));
+  assert.deepEqual(allEight.selected_combinations.map((c) => c.key), combinations.map((c) => c.key));
   const seven = selector(mapFor(PRODUCTS.slice(0, 7)), "unknown");
   assert.equal(seven.ready_combinations.some((c) => c.key === "full_financial_state"), false);
   const split = new Map<string, Set<string>>();
