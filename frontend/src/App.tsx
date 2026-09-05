@@ -4,6 +4,7 @@ import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
 import { IrisApplication } from "./components/IrisApplication";
 import { IrisAssistant } from "./components/IrisAssistant";
+import { IrisIntelligenceBridge } from "./components/IrisIntelligenceBridge";
 import { PlaidControlPlane } from "./components/PlaidControlPlane";
 import "./iris-command-deck.css";
 
@@ -29,5 +30,5 @@ export default function App() {
   if (!checkedAuth) return null;
   if (!session) return <Auth />;
   if (path === "/plaid" || path === "/plaid/") return <PlaidControlPlane />;
-  return <><IrisApplication /><IrisAssistant /></>;
+  return <><IrisApplication /><IrisIntelligenceBridge /><IrisAssistant /></>;
 }
