@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/backend";
 import { supabase } from "../api/supabase";
 import { PlaidLinkButton } from "./PlaidLink";
+import "./PlaidControlPlane.css";
 
 type Knowledge = { id:string; key:string; name:string; kind:string; category?:string; description?:string; what_it_does?:string; how_it_works?:string; who_uses_it?:string; when_used?:string; why_it_exists?:string; public_data_scope?:string; iris_capabilities?:string[]; plaid_item_states?:string[]; availability_notes?:string; pricing_notes?:string; official_source_url?:string; official_docs_url?:string; verified_at?:string };
 
@@ -14,7 +15,7 @@ export function PlaidControlPlane(){
  if(loading)return <main className="plaid-space"><div className="plaid-loader"><i/><b>PLAID / IRIS</b><span>Synchronizing the intelligence surface…</span></div></main>;
  if(error)return <main className="plaid-space"><div className="plaid-error"><b>PLAID / IRIS</b><h1>Surface unavailable</h1><p>{error}</p><button onClick={()=>void load()}>Retry connection</button></div></main>;
  return <main className="plaid-space">
-  <header className="plaid-command"><div className="plaid-brand"><span className="plaid-orbit"/><div><small>PLAID · IRIS</small><strong>COMMAND SURFACE</strong></div></div><div className="plaid-command-right"><span className="live-dot">LIVE SURFACE</span><a href="/">IRIS ↗</a><PlaidLinkButton onSuccess={()=>void load()}/></div></header>
+  <header className="plaid-command"><div className="plaid-brand"><span className="plaid-orbit"/><div><small>PLAID · IRIS</small><strong>COMMAND SURFACE</strong></div></div><div className="plaid-command-right"><span className="live-dot">LIVE SURFACE</span><a href="/">iBag ↗</a><PlaidLinkButton onSuccess={()=>void load()}/></div></header>
   <section className="plaid-hero"><div><span className="eyebrow">UNIFIED PLAID ENVIRONMENT</span><h1>Everything Iris knows.<br/><em>Nothing it invents.</em></h1><p>Public Plaid knowledge, live Item state and observed provider evidence converge here — separated by evidence so intelligence remains trustworthy.</p></div><div className="plaid-signal"><span>INTEGRITY</span><strong>Evidence<br/>gated</strong><small>Capability ≠ observation</small></div></section>
   <nav className="plaid-tabs"><button className={mode==="overview"?"active":""} onClick={()=>setMode("overview")}>Overview</button><button className={mode==="runtime"?"active":""} onClick={()=>setMode("runtime")}>Live runtime</button><button className={mode==="knowledge"?"active":""} onClick={()=>setMode("knowledge")}>Plaid knowledge</button></nav>
   {mode==="overview"&&<>
@@ -29,4 +30,3 @@ function Metric({label,value}:{label:string;value:number}){return <div className
 function RuntimeRow({item,detailed}:{item:any;detailed?:boolean}){return <div className="runtime-row"><div className="institution-mark">{(item.institution_name??"P").slice(0,1).toUpperCase()}</div><div className="runtime-name"><b>{item.institution_name??"Institution"}</b><span>{item.status??"unknown"} · {item.last_synced_at?new Date(item.last_synced_at).toLocaleString():"sync not recorded"}</span></div><div className="runtime-state"><i/>{item.status??"unknown"}</div>{detailed&&<div className="runtime-products"><span>Active / billed</span><b>{item.billed_products?.length?item.billed_products.join(" · "):"None reported"}</b><span>Consented</span><b>{item.consented_products?.length?item.consented_products.join(" · "):"None reported"}</b><span>Available</span><b>{item.available_products?.length?item.available_products.join(" · "):"None reported"}</b></div>}</div>}
 function Empty({text}:{text:string}){return <div className="plaid-empty"><span>◌</span>{text}</div>}
 function Fact({label,value}:{label:string;value?:string}){return <div className="fact"><span>{label}</span><p>{value||"—"}</p></div>}
-const styles=`plaid-space{}`;
