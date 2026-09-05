@@ -9,17 +9,13 @@ type RawObservation = {
   acquired_at: string;
 };
 
+type ProductAuthority = { id: string; item_id: string; product: string; acquired_at: string };
+
 export type IrisProductIntent =
-  | "overview"
-  | "cash_flow"
-  | "spending"
-  | "liquidity"
-  | "debt"
-  | "roundups"
-  | "anomaly"
-  | "explanation"
-  | "provider_data"
-  | "unknown";
+  | "overview" | "cash_flow" | "spending" | "liquidity" | "debt"
+  | "roundups" | "anomaly" | "explanation" | "provider_data" | "unknown";
+
+const CORE_PRODUCTS = new Set(["transactions", "balance"]);
 
 const CONSUMPTION: Record<string, string[]> = {
   auth: ["account_integrity"],
@@ -32,8 +28,6 @@ const CONSUMPTION: Record<string, string[]> = {
   balance: ["liquidity", "cash_flow", "net_worth", "financial_state"],
 };
 
-// These are evidence requirements, not permissions. Iris can only choose a
-// product when the corresponding current raw provider observation is certified.
 const INTENT_REQUIREMENTS: Record<IrisProductIntent, string[][]> = {
   overview: [["transactions", "balance"], ["liabilities"], ["assets", "investments"], ["statements"]],
   cash_flow: [["transactions"], ["balance"], ["statements"]],
@@ -42,9 +36,7 @@ const INTENT_REQUIREMENTS: Record<IrisProductIntent, string[][]> = {
   debt: [["liabilities", "balance"], ["transactions"]],
   roundups: [["transactions"], ["balance"]],
   anomaly: [["transactions", "balance"]],
-  explanation: [],
-  provider_data: [],
-  unknown: [],
+  explanation: [], provider_data: [], unknown: [],
 };
 
 const COMBINATION_LIBRARY = [
@@ -118,8 +110,7 @@ function chooseCombinations(observedProducts: string[], intent: IrisProductInten
   const observed = new Set(observedProducts);
   const candidates = COMBINATION_LIBRARY.map((combo) => {
     const missing_products = combo.products.filter((product) => !observed.has(product));
-    const evidence_ready = missing_products.length === 0;
-    return { ...combo, evidence_ready, missing_products };
+    return { ...combo, evidence_ready: missing_products.length === 0, missing_products };
   });
   const required = INTENT_REQUIREMENTS[intent] ?? [];
   const intentReady = required.map((group) => ({
@@ -138,64 +129,66 @@ function chooseCombinations(observedProducts: string[], intent: IrisProductInten
   };
 }
 
-/** Converts certified real Trial-product observations into bounded Iris intelligence inputs. */
+/**
+ * Converts certified provider observations into bounded Iris evidence inputs.
+ * Transactions and Balance have dedicated raw mirror tables, so they are
+ * certified from their product-observation authority plus those source tables;
+ * they are never copied into the generic raw-product table as synthetic data.
+ */
 export async function buildTrialProductIntelligence(userId: string, intent: IrisProductIntent = "unknown") {
-  const { data, error } = await supabaseAdmin
-    .from("plaid_raw_product_observations")
-    .select("id, item_id, product, raw_response, evidence_state, acquired_at")
-    .eq("user_id", userId)
-    .eq("is_current", true)
-    .eq("evidence_state", "observed")
-    .order("acquired_at", { ascending: false });
-  if (error) throw error;
+  const [{ data: authorityRows, error: authorityError }, { data: rawProducts, error: rawProductError }, { count: transactionCount, error: transactionError }, { count: balanceCount, error: balanceError }] = await Promise.all([
+    supabaseAdmin.from("plaid_product_observations")
+      .select("id,item_id,product,acquired_at")
+      .eq("user_id", userId).eq("provider", "plaid").eq("is_current", true)
+      .eq("lifecycle_state", "observed").eq("evidence_state", "observed"),
+    supabaseAdmin.from("plaid_raw_product_observations")
+      .select("id,item_id,product,raw_response,evidence_state,acquired_at")
+      .eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed")
+      .order("acquired_at", { ascending: false }),
+    supabaseAdmin.from("plaid_raw_transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
+    supabaseAdmin.from("plaid_raw_balances").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
+  ]);
+  if (authorityError) throw authorityError;
+  if (rawProductError) throw rawProductError;
+  if (transactionError) throw transactionError;
+  if (balanceError) throw balanceError;
 
-  const observed = (data ?? []) as RawObservation[];
-  const summaries = observed.map((row) => ({ item_id: row.item_id, product: row.product, acquired_at: row.acquired_at, ...summarize(row.product, row.raw_response) }));
+  const authorities = (authorityRows ?? []) as ProductAuthority[];
+  const rawObserved = (rawProducts ?? []) as RawObservation[];
+  const observedProducts = [...new Set(authorities.map((r) => r.product))];
+  const summaries = rawObserved.map((row) => ({ item_id: row.item_id, product: row.product, acquired_at: row.acquired_at, ...summarize(row.product, row.raw_response) }));
+  if (observedProducts.includes("transactions")) summaries.push({ item_id: authorities.find((r) => r.product === "transactions")?.item_id ?? "", product: "transactions", acquired_at: authorities.find((r) => r.product === "transactions")?.acquired_at ?? "", transaction_raw_observation_count: transactionCount ?? 0 } as any);
+  if (observedProducts.includes("balance")) summaries.push({ item_id: authorities.find((r) => r.product === "balance")?.item_id ?? "", product: "balance", acquired_at: authorities.find((r) => r.product === "balance")?.acquired_at ?? "", balance_raw_observation_count: balanceCount ?? 0 } as any);
+
   const consumptionRows: any[] = [];
-
-  for (const row of observed) {
-    const { data: productObservation } = await supabaseAdmin
-      .from("plaid_product_observations")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("item_id", row.item_id)
-      .eq("provider", "plaid")
-      .eq("product", row.product)
-      .eq("is_current", true)
-      .eq("lifecycle_state", "observed")
-      .eq("evidence_state", "observed")
-      .maybeSingle();
-    if (!productObservation?.id) continue;
-
+  for (const row of rawObserved) {
+    const authority = authorities.find((a) => a.item_id === row.item_id && a.product === row.product);
+    if (!authority) continue;
     for (const analysisKey of CONSUMPTION[row.product] ?? []) {
-      consumptionRows.push({
-        user_id: userId,
-        item_id: row.item_id,
-        product: row.product,
-        analysis_key: analysisKey,
-        evidence_observation_id: productObservation.id,
-        raw_observation_id: row.id,
-        details: { evidence_state: row.evidence_state, acquired_at: row.acquired_at },
-      });
+      consumptionRows.push({ user_id: userId, item_id: row.item_id, product: row.product, analysis_key: analysisKey, evidence_observation_id: authority.id, raw_observation_id: row.id, details: { evidence_state: row.evidence_state, acquired_at: row.acquired_at, source_kind: "plaid_raw_product_observations" } });
     }
   }
 
+  // Core products have dedicated raw mirrors and therefore cannot safely use
+  // the generic raw_observation_id foreign key. Their consumption is exposed
+  // as authority-bound core consumption instead of inventing a synthetic raw row.
+  const coreConsumption = authorities.filter((a) => CORE_PRODUCTS.has(a.product)).flatMap((a) => (CONSUMPTION[a.product] ?? []).map((analysisKey) => ({ item_id: a.item_id, product: a.product, analysis_key: analysisKey, evidence_observation_id: a.id, source_kind: a.product === "transactions" ? "plaid_raw_transactions" : "plaid_raw_balances" })));
+
   if (consumptionRows.length) {
-    const { error: consumptionError } = await supabaseAdmin
-      .from("iris_product_consumption")
+    const { error: consumptionError } = await supabaseAdmin.from("iris_product_consumption")
       .upsert(consumptionRows, { onConflict: "user_id,item_id,product,analysis_key,raw_observation_id", ignoreDuplicates: true });
     if (consumptionError) throw consumptionError;
   }
 
-  const observedProducts = [...new Set(observed.map((r) => r.product))];
   const byProduct = Object.fromEntries(summaries.map((s) => [s.product, s]));
   return {
     observed_products: observedProducts,
     summaries,
     by_product: byProduct,
-    consumed_products: [...new Set(consumptionRows.map((r) => r.product))],
-    consumed_analyses: [...new Set(consumptionRows.map((r) => r.analysis_key))],
+    consumed_products: [...new Set([...consumptionRows.map((r) => r.product), ...coreConsumption.map((r) => r.product)])],
+    consumed_analyses: [...new Set([...consumptionRows.map((r) => r.analysis_key), ...coreConsumption.map((r) => r.analysis_key)])],
+    core_consumption: coreConsumption,
     selection: chooseCombinations(observedProducts, intent),
-    evidence_rule: "Only current Plaid raw observations with evidence_state=observed and matching current product observation authority are eligible for consumption.",
+    evidence_rule: "Only current Plaid product observations with lifecycle_state=observed and evidence_state=observed are selectable; each product must retain a real provider-source mirror appropriate to that product.",
   };
 }
