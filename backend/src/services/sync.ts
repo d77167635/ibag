@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { recomputeRoundupsForAccount } from "./roundup.js";
 import { resolveMerchant, resolveSubdomain } from "./classify.js";
 import { classifyTransactionWithEvidence } from "../intelligence/classification.js";
-import { detectRecurringSeries } from "./intelligence.js";
+import { detectRecurringSeriesEvidenceBounded } from "./recurringEvidence.js";
 import { syncLiabilitiesForItem } from "../intelligence/liabilities.js";
 
 const updateSyncRun = async (id: string, patch: Record<string, unknown>) => {
@@ -137,7 +137,7 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
     const liabilityResult = await syncLiabilitiesForItem(userId, itemDbId, accessToken);
     if (liabilityResult.observed) await markProductObserved(userId, itemDbId, "liabilities", "plaid.liabilities");
     for (const accountId of accountMap.values()) await recomputeRoundupsForAccount(userId, accountId, accessToken);
-    await detectRecurringSeries(userId);
+    await detectRecurringSeriesEvidenceBounded(userId);
     await updateSyncRun(runId, { state: "intelligence_refresh" });
     const now = new Date().toISOString();
     const { error: itemError } = await supabaseAdmin.from("plaid_items").update({ last_synced_at: now, status: "active" }).eq("id", itemDbId).eq("user_id", userId);
