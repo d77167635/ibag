@@ -30,6 +30,7 @@ export const api = {
   getIrisCatalog: () => authedFetch("/iris/catalog"),
   saveIrisCatalogSelection: (capabilityIds: string[]) => authedFetch("/iris/catalog/selection", { method: "PUT", body: JSON.stringify({ capability_ids: capabilityIds }) }),
   askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
+  runDecisionLab: (request: { question?: string; amount?: number; horizon_days?: number } = {}) => authedFetch("/iris/decision-lab", { method: "POST", body: JSON.stringify(request) }),
   resync: () => authedFetch("/link/resync", { method: "POST" }),
   getHierarchy: () => authedFetch("/dashboard/hierarchy"),
   getRoundups: () => authedFetch("/dashboard/roundups"),
