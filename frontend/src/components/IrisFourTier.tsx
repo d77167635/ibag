@@ -77,11 +77,11 @@ const details: Record<string, [string, string]> = {
 };
 
 const button: CSSProperties = {
-  border: "1px solid rgba(255,255,255,.12)",
-  borderRadius: 12,
-  background: "rgba(255,255,255,.035)",
-  color: "inherit",
-  padding: 15,
+  border: "1px solid rgba(255,255,255,.11)",
+  borderRadius: 14,
+  background: "#171c26",
+  color: "#eef2f8",
+  padding: 16,
   textAlign: "left",
   cursor: "pointer",
 };
@@ -89,7 +89,7 @@ const button: CSSProperties = {
 const grid: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))",
-  gap: 10,
+  gap: 12,
 };
 
 function tierOf(page: string) {
@@ -108,11 +108,11 @@ function Nav({ page, go }: { page: string; go?: (page: string) => void }) {
           type="button"
           key={tier.id}
           onClick={() => go?.(tier.id)}
-          style={{ ...button, minWidth: 145, padding: "10px 13px", background: active === tier.id ? "rgba(255,255,255,.10)" : "rgba(255,255,255,.025)" }}
+          style={{ ...button, minWidth: 0, padding: "12px 14px", background: active === tier.id ? "linear-gradient(135deg,#3b315f,#57477e)" : "#171c26", borderColor: active === tier.id ? "#75629f" : "rgba(255,255,255,.11)" }}
         >
-          <small>TIER {tier.n}</small>
+          <small style={{ color: "#aeb7c8", fontWeight: 700 }}>TIER {tier.n}</small>
           <br />
-          <b>{tier.name}</b>
+          <b style={{ color: "#ffffff", fontSize: 14 }}>{tier.name}</b>
         </button>
       ))}
     </nav>
@@ -124,11 +124,11 @@ function Cards({ items, tier, go }: { items: Item[]; tier: string; go?: (page: s
     <div style={grid}>
       {items.map(([id, name, description]) => (
         <button type="button" key={id} onClick={() => go?.(id)} style={button}>
-          <small>{tier}</small>
+          <small style={{ color: "#9ba8bc", fontWeight: 700, letterSpacing: ".08em" }}>{tier}</small>
           <br />
-          <strong>{name}</strong>
-          <p style={{ margin: "7px 0 8px", opacity: 0.72, fontSize: 12 }}>{description}</p>
-          <small>Inspect capability →</small>
+          <strong style={{ display: "block", marginTop: 3, color: "#ffffff", fontSize: 15, lineHeight: 1.3 }}>{name}</strong>
+          <p style={{ margin: "8px 0 10px", color: "#b8c1d0", fontSize: 13, lineHeight: 1.5 }}>{description}</p>
+          <small style={{ color: "#8e9bb0", fontWeight: 650 }}>Inspect capability →</small>
         </button>
       ))}
     </div>
@@ -139,31 +139,28 @@ function Detail({ page, go }: { page: string; go?: (page: string) => void }) {
   const detail = details[page];
   if (!detail) return null;
 
-  const label = page
-    .slice(5)
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+  const label = page.slice(5).replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 
   return (
-    <section className="iis-panel">
-      <button type="button" onClick={() => go?.(tierOf(page))} style={{ ...button, padding: "9px 12px", marginBottom: 18 }}>
+    <section className="iis-panel" style={{ background: "#111722", color: "#eef2f8", borderColor: "#2a3445" }}>
+      <button type="button" onClick={() => go?.(tierOf(page))} style={{ ...button, padding: "9px 12px", marginBottom: 18, background: "#1b2230" }}>
         ← Back to tier
       </button>
-      <span>CAPABILITY INSPECTOR</span>
-      <h2>{label}</h2>
-      <p className="iis-note">An Iris-created capability. Evidence remains separate from calculation and inference.</p>
+      <span style={{ color: "#a98ee5", fontWeight: 800, letterSpacing: ".12em", fontSize: 10 }}>CAPABILITY INSPECTOR</span>
+      <h2 style={{ color: "#ffffff", marginTop: 7 }}>{label}</h2>
+      <p className="iis-note" style={{ color: "#b8c1d0" }}>An Iris-created capability. Evidence remains separate from calculation and inference.</p>
       <div style={grid}>
-        <article className="iis-card">
-          <strong>What it does</strong>
-          <p>{detail[0]}</p>
+        <article className="iis-card" style={{ background: "#171e2a", border: "1px solid #2a3445", borderRadius: 14, padding: 16, color: "#eef2f8" }}>
+          <strong style={{ color: "#ffffff" }}>What it does</strong>
+          <p style={{ color: "#b8c1d0", lineHeight: 1.55 }}>{detail[0]}</p>
         </article>
-        <article className="iis-card">
-          <strong>Evidence contract</strong>
-          <p>{detail[1]}</p>
+        <article className="iis-card" style={{ background: "#171e2a", border: "1px solid #2a3445", borderRadius: 14, padding: 16, color: "#eef2f8" }}>
+          <strong style={{ color: "#ffffff" }}>Evidence contract</strong>
+          <p style={{ color: "#b8c1d0", lineHeight: 1.55 }}>{detail[1]}</p>
         </article>
-        <article className="iis-card">
-          <strong>Boundary</strong>
-          <p>Missing evidence remains missing. Simulation does not mutate provider or account state.</p>
+        <article className="iis-card" style={{ background: "#171e2a", border: "1px solid #2a3445", borderRadius: 14, padding: 16, color: "#eef2f8" }}>
+          <strong style={{ color: "#ffffff" }}>Boundary</strong>
+          <p style={{ color: "#b8c1d0", lineHeight: 1.55 }}>Missing evidence remains missing. Simulation does not mutate provider or account state.</p>
         </article>
       </div>
     </section>
@@ -173,14 +170,7 @@ function Detail({ page, go }: { page: string; go?: (page: string) => void }) {
 export function IrisFourTier({ page, go, intel }: Props) {
   const isDetail = Boolean(details[page]);
   const active = tierOf(page);
-  const title =
-    active === "iris"
-      ? "Iris Command"
-      : active === "iris/intelligence"
-        ? "Iris Intelligence"
-        : active === "iris/reasoning"
-          ? "Iris Reasoning"
-          : "Iris Maximum Intelligence";
+  const title = active === "iris" ? "Iris Command" : active === "iris/intelligence" ? "Iris Intelligence" : active === "iris/reasoning" ? "Iris Reasoning" : "Iris Maximum Intelligence";
 
   const metrics = [
     { name: "Liquid position", value: intel?.net_worth?.liquid_assets, state: "OBSERVED" },
@@ -191,33 +181,40 @@ export function IrisFourTier({ page, go, intel }: Props) {
   const activeTier = tiers.find((tier) => tier.id === active);
 
   return (
-    <div className="iis-screen" style={{ maxWidth: 1280, width: "100%", margin: "0 auto", minWidth: 0 }}>
+    <div className="iis-screen" style={{ maxWidth: 1280, width: "100%", margin: "0 auto", minWidth: 0, color: "#eef2f8" }}>
       <style>{`
-        .iis-screen, .iis-screen * { min-width: 0; }
-        .iis-tier-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 4px 0 16px; }
-        .iis-tier-nav button { width: 100%; min-width: 0 !important; overflow: hidden; }
-        .iis-tier-nav b, .iis-tier-nav small { overflow-wrap: anywhere; }
-        .iis-screen .iis-hero, .iis-screen .iis-panel { width: 100%; min-width: 0; overflow: hidden; }
-        .iis-screen .iis-hero p, .iis-screen .iis-note, .iis-screen .iis-card p { overflow-wrap: anywhere; }
-        .iis-screen .iis-metric-grid { min-width: 0; }
-        @media (max-width: 720px) {
-          .iis-tier-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; padding-bottom: 12px; }
-          .iis-tier-nav button { padding: 10px 10px !important; border-radius: 10px; }
-          .iis-screen { padding-left: 0 !important; padding-right: 0 !important; }
-          .iis-screen .iis-hero { padding: 18px 16px !important; }
-          .iis-screen .iis-panel { padding: 16px !important; }
-          .iis-screen .iis-metric-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
-          .iis-screen .iis-metric { min-width: 0; padding: 14px !important; }
-          .iis-screen .iis-metric strong { font-size: 22px !important; overflow-wrap: anywhere; }
-          .iis-screen .iis-card { min-width: 0; }
+        .iis-screen, .iis-screen * { min-width:0; box-sizing:border-box; }
+        .iis-screen { color:#eef2f8 !important; }
+        .iis-screen .iis-tier-nav { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; padding:4px 0 16px; }
+        .iis-screen .iis-tier-nav button { width:100%; min-width:0 !important; overflow:hidden; box-shadow:0 5px 18px rgba(0,0,0,.16); }
+        .iis-screen .iis-hero { width:100%; min-width:0; overflow:hidden; padding:28px 26px !important; border:1px solid #2a3445 !important; border-radius:18px !important; background:linear-gradient(135deg,#121927 0%,#20283a 55%,#2a2340 100%) !important; color:#eef2f8 !important; box-shadow:0 14px 36px rgba(0,0,0,.18) !important; }
+        .iis-screen .iis-hero > span { color:#a98ee5 !important; font-weight:800; letter-spacing:.13em; font-size:10px; }
+        .iis-screen .iis-hero h1 { color:#ffffff !important; margin:9px 0 10px !important; letter-spacing:-.04em; }
+        .iis-screen .iis-hero p { color:#bdc7d6 !important; max-width:720px; line-height:1.55; }
+        .iis-screen .iis-panel { width:100%; min-width:0; overflow:hidden; margin-top:12px; padding:22px !important; border:1px solid #2a3445 !important; border-radius:16px !important; background:#111722 !important; color:#eef2f8 !important; box-shadow:0 10px 28px rgba(0,0,0,.15) !important; }
+        .iis-screen .iis-panel > span { color:#a98ee5 !important; font-size:10px; font-weight:800; letter-spacing:.13em; }
+        .iis-screen .iis-panel h2 { color:#ffffff !important; margin:8px 0 7px !important; }
+        .iis-screen .iis-note { color:#aeb9ca !important; line-height:1.55 !important; }
+        .iis-screen .iis-card { background:#171e2a !important; border:1px solid #2a3445 !important; color:#eef2f8 !important; box-shadow:0 6px 18px rgba(0,0,0,.12); }
+        .iis-screen .iis-metric-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:12px; }
+        .iis-screen .iis-metric { min-width:0; padding:18px; border:1px solid #2a3445; border-radius:14px; background:#171e2a; box-shadow:0 7px 20px rgba(0,0,0,.14); }
+        .iis-screen .iis-metric span { color:#9ba8bc !important; font-size:11px; font-weight:700; letter-spacing:.07em; }
+        .iis-screen .iis-metric strong { display:block; margin:9px 0 4px; color:#ffffff !important; font-size:27px; letter-spacing:-.03em; }
+        .iis-screen .iis-metric small { color:#8fd0b3 !important; font-size:10px; font-weight:800; letter-spacing:.08em; }
+        .iis-screen .iis-panel button:hover,.iis-screen .iis-tier-nav button:hover { filter:brightness(1.12); transform:translateY(-1px); }
+        .iis-screen button { transition:filter .15s ease,transform .15s ease,border-color .15s ease; }
+        @media (max-width:720px) {
+          .iis-screen .iis-tier-nav { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:7px; }
+          .iis-screen .iis-hero { padding:20px 16px !important; border-radius:15px !important; }
+          .iis-screen .iis-panel { padding:16px !important; border-radius:14px !important; }
+          .iis-screen .iis-metric-grid { grid-template-columns:1fr !important; }
+          .iis-screen .iis-card { min-width:0; }
         }
-        @media (max-width: 420px) {
-          .iis-tier-nav { gap: 6px; }
-          .iis-tier-nav button { font-size: 12px; }
-          .iis-screen .iis-hero h1 { font-size: 30px !important; line-height: 1.05; }
-          .iis-screen .iis-hero p { font-size: 13px !important; }
-          .iis-screen .iis-panel h2 { font-size: 22px !important; }
-          .iis-screen .iis-card { padding: 13px !important; }
+        @media (max-width:420px) {
+          .iis-screen .iis-tier-nav { gap:6px; }
+          .iis-screen .iis-tier-nav button { padding:10px !important; }
+          .iis-screen .iis-hero h1 { font-size:30px !important; line-height:1.05; }
+          .iis-screen .iis-hero p { font-size:13px !important; }
         }
       `}</style>
       <Nav page={page} go={go} />
@@ -241,11 +238,7 @@ export function IrisFourTier({ page, go, intel }: Props) {
             {metrics.map((metric) => (
               <div className="iis-metric" key={metric.name}>
                 <span>{metric.name}</span>
-                <strong>
-                  {typeof metric.value === "number"
-                    ? `$${metric.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    : "—"}
-                </strong>
+                <strong>{typeof metric.value === "number" ? `$${metric.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</strong>
                 <small>{metric.state}</small>
               </div>
             ))}
