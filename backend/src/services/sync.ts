@@ -13,12 +13,13 @@ const updateSyncRun = async (id: string, patch: Record<string, unknown>) => {
   if (error) throw error;
 };
 
-async function productObservation(userId: string, itemId: string, product: string, state: string, flags: { billed: boolean; available: boolean; authorized: boolean; requested: boolean; providerAdded: boolean }, source: string) {
+async function productObservation(userId: string, itemId: string, product: string, state: string, flags: { billed: boolean; available: boolean; authorized: boolean; requested: boolean; providerAdded: boolean }, source: string, evidenceState: "observed" | "limited" | "insufficient_evidence" = state === "observed" ? "observed" : "insufficient_evidence") {
   const { error } = await supabaseAdmin.rpc("record_plaid_product_observation", {
     p_user_id: userId, p_item_id: itemId, p_product: product, p_lifecycle_state: state,
     p_billed: flags.billed, p_available: flags.available, p_authorized: flags.authorized,
     p_requested: flags.requested, p_provider_added: flags.providerAdded,
-    p_provenance: { source, observation: "live", provider: "plaid" },
+    p_provenance: { source, observation: evidenceState === "observed" ? "live" : "provider_metadata_only", provider: "plaid" },
+    p_evidence_state: evidenceState,
   });
   if (error) throw error;
 }
@@ -47,7 +48,7 @@ async function markProductObserved(userId: string, itemId: string, product: stri
   await productObservation(userId, itemId, product, "observed", {
     billed: data.billed, available: data.available, authorized: data.authorized,
     requested: data.requested, providerAdded: data.provider_added,
-  }, source);
+  }, source, "observed");
 }
 
 async function normalizeTransaction(userId: string, accountId: string, tx: any) {
@@ -60,10 +61,7 @@ async function normalizeTransaction(userId: string, accountId: string, tx: any) 
     rawMerchant ? resolveMerchant(rawMerchant) : Promise.resolve(null),
     resolveSubdomain(tx.personal_finance_category?.detailed ?? null),
   ]);
-  const classification = classifyTransactionWithEvidence({
-    amount: tx.amount, plaid_category_primary: tx.personal_finance_category?.primary ?? null,
-    plaid_category_detailed: tx.personal_finance_category?.detailed ?? null,
-  });
+  const classification = classifyTransactionWithEvidence({ amount: tx.amount, plaid_category_primary: tx.personal_finance_category?.primary ?? null, plaid_category_detailed: tx.personal_finance_category?.detailed ?? null });
   const { error } = await supabaseAdmin.from("transactions").upsert({
     user_id: userId, account_id: accountId, raw_transaction_id: rawRow.id, plaid_transaction_id: tx.transaction_id,
     amount: tx.amount, iso_currency_code: tx.iso_currency_code ?? "USD", merchant_name: tx.merchant_name ?? tx.name ?? null,
@@ -92,18 +90,11 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
     const accountMap = new Map<string, string>();
     await updateSyncRun(runId, { state: "receiving" });
     for (const acct of accountsResp.data.accounts) {
-      const { data: row, error: accountError } = await supabaseAdmin.from("plaid_accounts").upsert({
-        user_id: userId, item_id: itemDbId, plaid_account_id: acct.account_id, name: acct.name, official_name: acct.official_name,
-        mask: acct.mask, type: acct.type, subtype: acct.subtype, current_balance: acct.balances.current,
-        available_balance: acct.balances.available, credit_limit: acct.balances.limit, balance_updated_at: new Date().toISOString(),
-      }, { onConflict: "plaid_account_id" }).select().single();
+      const { data: row, error: accountError } = await supabaseAdmin.from("plaid_accounts").upsert({ user_id: userId, item_id: itemDbId, plaid_account_id: acct.account_id, name: acct.name, official_name: acct.official_name, mask: acct.mask, type: acct.type, subtype: acct.subtype, current_balance: acct.balances.current, available_balance: acct.balances.available, credit_limit: acct.balances.limit, balance_updated_at: new Date().toISOString() }, { onConflict: "plaid_account_id" }).select().single();
       if (accountError) throw accountError;
       accountMap.set(acct.account_id, row.id);
       const now = new Date().toISOString();
-      const { error: balanceError } = await supabaseAdmin.from("plaid_raw_balances").insert({
-        user_id: userId, account_id: row.id, raw_response: acct, provider_object_id: acct.account_id,
-        effective_at: now, acquired_at: now, evidence_state: "observed", provenance: { source: "plaid.accountsGet", item_id: itemDbId },
-      });
+      const { error: balanceError } = await supabaseAdmin.from("plaid_raw_balances").insert({ user_id: userId, account_id: row.id, raw_response: acct, provider_object_id: acct.account_id, effective_at: now, acquired_at: now, evidence_state: "observed", provenance: { source: "plaid.accountsGet", item_id: itemDbId } });
       if (balanceError) throw balanceError;
     }
     await markProductObserved(userId, itemDbId, "balance", "plaid.accountsGet");
@@ -113,24 +104,9 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       await updateSyncRun(runId, { state: "provider_fetching", cursor });
       const response = await plaidClient.transactionsSync({ access_token: accessToken, cursor });
       await updateSyncRun(runId, { state: "validating" });
-      for (const tx of response.data.added ?? []) {
-        const accountId = accountMap.get(tx.account_id);
-        if (!accountId) throw new Error(`Plaid transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`);
-        await normalizeTransaction(userId, accountId, tx); added++;
-      }
-      for (const tx of response.data.modified ?? []) {
-        const accountId = accountMap.get(tx.account_id);
-        if (!accountId) throw new Error(`Plaid modified transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`);
-        await normalizeTransaction(userId, accountId, tx); modified++;
-      }
-      for (const tx of response.data.removed ?? []) {
-        if (!tx.transaction_id) continue;
-        const { error: rawError } = await supabaseAdmin.rpc("retire_plaid_transaction_observation", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id });
-        if (rawError) throw rawError;
-        const { error: normalizedError } = await supabaseAdmin.rpc("retire_normalized_transaction", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id, p_reason: "provider_removed" });
-        if (normalizedError) throw normalizedError;
-        removed++;
-      }
+      for (const tx of response.data.added ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); added++; }
+      for (const tx of response.data.modified ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid modified transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); modified++; }
+      for (const tx of response.data.removed ?? []) { if (!tx.transaction_id) continue; const { error: rawError } = await supabaseAdmin.rpc("retire_plaid_transaction_observation", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id }); if (rawError) throw rawError; const { error: normalizedError } = await supabaseAdmin.rpc("retire_normalized_transaction", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id, p_reason: "provider_removed" }); if (normalizedError) throw normalizedError; removed++; }
       cursor = response.data.next_cursor; hasMore = response.data.has_more; pages++;
       await updateSyncRun(runId, { state: "committing", cursor, pages_processed: pages, added_count: added, modified_count: modified, removed_count: removed, last_checkpoint_at: new Date().toISOString() });
     }
