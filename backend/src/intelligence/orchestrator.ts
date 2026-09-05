@@ -24,6 +24,7 @@ import { buildIrisCompositionEngine } from "./compositionEngine.js";
 import { assessSourceFidelity } from "./sourceFidelity.js";
 import { buildIntelligenceGraph } from "./intelligenceGraph.js";
 import { buildInvestigationEngine } from "./investigationEngine.js";
+import { buildHigherOrderSynthesis } from "./higherOrderSynthesis.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -126,11 +127,22 @@ export async function computeFullIntelligence(userId: string) {
       reason: sourceFidelity.ready_for_higher_order_intelligence ? null : "Source completeness, provider lineage, or evidence certification must pass before Iris presents higher-order compositions as evaluable.",
     },
   };
+  const higherOrderSynthesis = buildHigherOrderSynthesis({
+    liquidAssets: balances.liquidAssets,
+    safeToSpend: cashFlowSafety.safeToSpend,
+    cashFlowNet: cashFlow.net,
+    revolvingDebt: balances.revolvingDebt,
+    creditUtilization: balances.creditUtilization,
+    forwardProjected: typeof forwardProjection.projectedLiquidPosition === "number" ? forwardProjection.projectedLiquidPosition : null,
+    roundupProjected: roundupProjection.projectedAmount ?? roundupProjection.projectedTotal ?? null,
+    anomalies: anomalies.length,
+    crossDomainFindings: rawComposition.cross_domain_findings,
+  });
   const intelligenceGate = {
     ...sourceFidelity,
     higher_order_conclusions_enabled: sourceFidelity.ready_for_higher_order_intelligence,
     limitation: sourceFidelity.ready_for_higher_order_intelligence ? null : "Higher-order Iris compositions remain evidence-bounded until source completeness and lineage are certified.",
   };
   recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
-  return { ...baseResult, integrity, source_fidelity: sourceFidelity, intelligence_gate: intelligenceGate, evidence_graph: evidenceGraph, intelligence_graph: intelligenceGraph, investigations, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition };
+  return { ...baseResult, integrity, source_fidelity: sourceFidelity, intelligence_gate: intelligenceGate, evidence_graph: evidenceGraph, intelligence_graph: intelligenceGraph, investigations, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition, higher_order_synthesis: higherOrderSynthesis };
 }
