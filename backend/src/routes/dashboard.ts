@@ -3,7 +3,6 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
 import { getPlaidAccessToken } from "../services/tokenStore.js";
-import { plaidClient } from "../plaid/client.js";
 import { computeFullIntelligence } from "../intelligence/orchestrator.js";
 import { computeCanonicalScenario } from "../intelligence/canonicalScenario.js";
 import { evaluateIntelligenceValidation } from "../intelligence/validationEngine.js";
@@ -76,21 +75,42 @@ dashboardRouter.get("/dashboard/intelligence/validation", requireAuth, async (re
 });
 
 dashboardRouter.get("/dashboard/intelligence/governance", requireAuth, async (req: AuthedRequest, res) => {
-  try { const validation = await evaluateIntelligenceValidation(req.userId!); res.json(assessModelGovernance(validation.observations)); } catch (err) { console.error("dashboard/intelligence/governance error:", err); res.status(500).json({ error: "Failed to evaluate intelligence model governance" }); }
+  try { const validation = await evaluateIntelligenceValidation(req.userId!); res.json(assessModelGovernance(validation.observations)); } catch (err) { console.error("dashboard/intelligence/governance error:", err); res.status(500).json({ error: "Failed to evaluate intelligence governance" }); }
 });
 
 const PLAID_STANDARD_PRODUCTS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
+
+type ProductObservationRow = { item_id: string; product: string; lifecycle_state: string; evidence_state: string; is_current: boolean; acquired_at: string | null };
+
+function dashboardProductStatus(row: ProductObservationRow | undefined): "observed" | "authorized" | "available" | "not_observed" {
+  if (!row) return "not_observed";
+  if (row.lifecycle_state === "observed" && row.evidence_state === "observed") return "observed";
+  if (row.lifecycle_state === "authorized") return "authorized";
+  if (row.lifecycle_state === "available") return "available";
+  return "not_observed";
+}
 
 dashboardRouter.get("/dashboard/plaid", requireAuth, async (req: AuthedRequest, res) => {
   const userId = req.userId!;
   const { data: items, error } = await supabaseAdmin.from("plaid_items").select("id, user_id, plaid_item_id, institution_name, status, last_synced_at").eq("user_id", userId);
   if (error) return res.status(500).json({ error: error.message });
-  const observations = items?.length ? (await supabaseAdmin.from("plaid_product_observations").select("item_id, product, lifecycle_state, evidence_state, is_current, acquired_at").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true)).data ?? [] : [];
-  const observed = new Set(observations.filter((o: any) => o.lifecycle_state === "observed" && o.evidence_state === "observed").map((o: any) => `${o.item_id}:${o.product}`));
-  const itemSummaries = (items ?? []).map((item: any) => ({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, products: PLAID_STANDARD_PRODUCTS.map((product) => ({ product, status: observed.has(`${item.id}:${product}`) ? "observed" : "not_observed" })) }));
+  const observations = items?.length ? ((await supabaseAdmin.from("plaid_product_observations").select("item_id, product, lifecycle_state, evidence_state, is_current, acquired_at").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true)).data ?? []) as ProductObservationRow[] : [];
+  const byItemProduct = new Map(observations.map((o) => [`${o.item_id}:${o.product}`, o]));
+  const itemSummaries = (items ?? []).map((item: any) => ({
+    institution_name: item.institution_name,
+    status: item.status,
+    last_synced_at: item.last_synced_at,
+    products: PLAID_STANDARD_PRODUCTS.map((product) => {
+      const row = byItemProduct.get(`${item.id}:${product}`);
+      return { product, status: dashboardProductStatus(row), evidence_state: row?.evidence_state ?? "insufficient_evidence", acquired_at: row?.acquired_at ?? null };
+    }),
+  }));
   const products = PLAID_STANDARD_PRODUCTS.map((product) => {
-    const count = items?.filter((item: any) => observed.has(`${item.id}:${product}`)).length ?? 0;
-    return { product, status: count > 0 ? "observed" : items?.length ? "not_observed" : "not_connected", observed_item_count: count, item_count: items?.length ?? 0 };
+    const rows = items?.map((item: any) => byItemProduct.get(`${item.id}:${product}`)).filter(Boolean) as ProductObservationRow[] | undefined;
+    const observedCount = rows?.filter((row) => dashboardProductStatus(row) === "observed").length ?? 0;
+    const authorizedCount = rows?.filter((row) => dashboardProductStatus(row) === "authorized").length ?? 0;
+    const availableCount = rows?.filter((row) => dashboardProductStatus(row) === "available").length ?? 0;
+    return { product, status: observedCount > 0 ? "observed" : authorizedCount > 0 ? "authorized" : availableCount > 0 ? "available" : items?.length ? "not_observed" : "not_connected", observed_item_count: observedCount, authorized_item_count: authorizedCount, available_item_count: availableCount, item_count: items?.length ?? 0 };
   });
   res.json({ items: itemSummaries, products, evidence_rule: "Only current lifecycle_state=observed and evidence_state=observed counts as observed. Availability, consent, authorization, billing, and itemGet product metadata never count as provider evidence." });
 });
