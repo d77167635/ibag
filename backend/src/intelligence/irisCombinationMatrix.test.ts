@@ -69,7 +69,7 @@ test("every declared combination requires all products on one Item", () => {
     assert.ok(ready, `combination ${combo.key} should be ready when complete`);
     assert.equal(ready?.selected_for_request, true);
     const split = new Map<string, Set<string>>();
-    combo.products.forEach((product, index) => split.set(`item-${index}`, new Set([product]));
+    combo.products.forEach((product, index) => split.set(`item-${index}`, new Set([product])));
     const blocked = selector(split, "unknown").ready_combinations.find((c) => c.key === combo.key);
     assert.equal(blocked, undefined, `combination ${combo.key} must not combine across Items`);
     assert.equal(selector(split, "unknown").selected_item_id, null);
