@@ -27,6 +27,7 @@ export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: Unce
   const liquid = node(graph, "liquid_assets");
   const safe = node(graph, "safe_to_spend");
   const debt = node(graph, "revolving_debt");
+  const utilization = node(graph, "credit_utilization");
   const debtCost = node(graph, "debt_cost");
   const trajectory = node(graph, "trajectory");
   const anomalies = node(graph, "anomalies");
@@ -34,6 +35,7 @@ export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: Unce
   const cashValue = numericValue(cash);
   const safeValue = numericValue(safe);
   const debtValue = numericValue(debt);
+  const utilizationValue = numericValue(utilization);
   const anomalyCount = numericValue(anomalies);
 
   const liquidity: FinancialState = safeValue !== null
@@ -42,9 +44,18 @@ export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: Unce
 
   const cashFlow: FinancialState = cashValue !== null ? (cashValue < 0 ? "cash_flow_pressure" : "stable") : "insufficient_evidence";
 
-  const debtState: FinancialState = debtValue !== null
-    ? (debtValue > 0 ? "debt_pressure" : "stable")
-    : debtCost?.state === "insufficient_evidence" ? "insufficient_evidence" : "insufficient_evidence";
+  // Debt balance alone establishes debt existence, not pressure. Pressure is
+  // classified only when a real utilization signal is available. A positive
+  // balance without that context remains explicitly unresolved.
+  const debtState: FinancialState = debtValue === null
+    ? "insufficient_evidence"
+    : debtValue === 0
+      ? "stable"
+      : utilizationValue === null
+        ? "insufficient_evidence"
+        : utilizationValue >= 0.30
+          ? "debt_pressure"
+          : "stable";
 
   const spending: FinancialState = anomalies
     ? (anomalies.state === "insufficient_evidence" ? "insufficient_evidence" : anomalyCount !== null && anomalyCount > 0 ? "spending_pressure" : "stable")
@@ -74,7 +85,14 @@ export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: Unce
   }
   if (cash?.state === "calculated" && cashValue !== null && cashValue < 0) transitions.push({ from: "stable", to: "cash_flow_pressure", trigger_nodes: ["cash_flow_net"], evidence_state: cash.state });
   if (safe?.state === "calculated" && safeValue !== null && safeValue < 0) transitions.push({ from: "stable", to: "liquidity_pressure", trigger_nodes: ["safe_to_spend"], evidence_state: safe.state });
-  if (debt?.state === "observed" && debtValue !== null && debtValue > 0) transitions.push({ from: "stable", to: "debt_pressure", trigger_nodes: ["revolving_debt"], evidence_state: debt.state });
+  if (debt?.state === "observed" && debtValue !== null && debtValue > 0 && utilizationValue !== null && utilizationValue >= 0.30) transitions.push({ from: "stable", to: "debt_pressure", trigger_nodes: ["revolving_debt", "credit_utilization"], evidence_state: utilization?.state ?? debt.state });
+
+  const limitations = [...new Set([
+    ...uncertainty.known_unknowns,
+    ...uncertainty.blocked_conclusions,
+    ...(debtValue !== null && debtValue > 0 && utilizationValue === null ? ["Revolving debt exists, but utilization evidence is unavailable; Iris does not label the balance itself as debt pressure."] : []),
+    ...(debtCost?.state === "insufficient_evidence" ? ["Debt-cost pressure could not be established from available liability evidence."] : []),
+  ])];
 
   return {
     architecture_version: "IRIS_FINANCIAL_STATE_V1",
@@ -84,6 +102,6 @@ export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: Unce
     dimensions,
     drivers,
     transitions,
-    limitations: [...new Set([...uncertainty.known_unknowns, ...uncertainty.blocked_conclusions])],
+    limitations,
   };
 }
