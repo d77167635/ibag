@@ -126,8 +126,8 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
     }
     await markProductObserved(userId, itemDbId, "transactions", "plaid.transactionsSync");
     await updateSyncRun(runId, { state: "reconciling" });
-    await syncLiabilitiesForItem(userId, accessToken);
-    await markProductObserved(userId, itemDbId, "liabilities", "plaid.liabilities");
+    const liabilityResult = await syncLiabilitiesForItem(userId, itemDbId, accessToken);
+    if (liabilityResult.observed) await markProductObserved(userId, itemDbId, "liabilities", "plaid.liabilities");
     for (const accountId of accountMap.values()) await recomputeRoundupsForAccount(userId, accountId, accessToken);
     await detectRecurringSeries(userId);
     await updateSyncRun(runId, { state: "intelligence_refresh" });
