@@ -11,7 +11,10 @@ export type CanonicalTransaction = {
   classification_evidence: string;
   plaid_category_primary: string | null;
   plaid_category_detailed: string | null;
+  merchant_id: string | null;
+  merchant_name: string | null;
   subdomain: { key: string; label: string } | null;
+  domain: { key: string; label: string } | null;
 };
 
 const ECONOMIC_INFLOW = new Set(["income", "refund"]);
@@ -20,7 +23,7 @@ const ECONOMIC_OUTFLOW = new Set(["purchase", "debt_payment", "fee"]);
 export async function getCanonicalTransactions(userId: string, since?: string): Promise<CanonicalTransaction[]> {
   let query = supabaseAdmin
     .from("transactions")
-    .select("id, amount, posted_date, transaction_class, classification_evidence, plaid_category_primary, plaid_category_detailed, subdomains(key, label)")
+    .select("id, amount, posted_date, transaction_class, classification_evidence, plaid_category_primary, plaid_category_detailed, merchant_id, merchant_name, merchants(canonical_name), subdomains(key, label, domains(key, label))")
     .eq("user_id", userId)
     .eq("is_active", true)
     .eq("pending", false)
@@ -36,7 +39,10 @@ export async function getCanonicalTransactions(userId: string, since?: string): 
     classification_evidence: row.classification_evidence,
     plaid_category_primary: row.plaid_category_primary ?? null,
     plaid_category_detailed: row.plaid_category_detailed ?? null,
+    merchant_id: row.merchant_id ?? null,
+    merchant_name: row.merchant_name ?? row.merchants?.canonical_name ?? null,
     subdomain: row.subdomains ? { key: row.subdomains.key, label: row.subdomains.label } : null,
+    domain: row.subdomains?.domains ? { key: row.subdomains.domains.key, label: row.subdomains.domains.label } : null,
   }));
 }
 
@@ -100,6 +106,33 @@ export function computeSpendingByDomainFromTransactions(transactions: CanonicalT
     label: v.label,
     amount: v.current,
     changePct: v.prior > 0 ? ((v.current - v.prior) / v.prior) * 100 : null,
+  })).sort((a, b) => b.amount - a.amount);
+}
+
+export function computeCanonicalSpendingHierarchy(transactions: CanonicalTransaction[], windowDays = 30) {
+  const windowStart = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+  const spending = transactions.filter(tx => isEconomicOutflow(tx) && tx.posted_date >= windowStart);
+  type DomainAcc = { key: string; label: string; amount: number; subdomains: Map<string, { label: string; amount: number }> };
+  const byDomain = new Map<string, DomainAcc>();
+  for (const tx of spending) {
+    const domainKey = tx.domain?.key ?? "uncategorized";
+    const domainLabel = tx.domain?.label ?? "Uncategorized";
+    const subKey = tx.subdomain?.key ?? "uncategorized";
+    const subLabel = tx.subdomain?.label ?? "Uncategorized";
+    const entry = byDomain.get(domainKey) ?? { key: domainKey, label: domainLabel, amount: 0, subdomains: new Map() };
+    entry.amount += tx.amount;
+    const sub = entry.subdomains.get(subKey) ?? { label: subLabel, amount: 0 };
+    sub.amount += tx.amount;
+    entry.subdomains.set(subKey, sub);
+    byDomain.set(domainKey, entry);
+  }
+  const total = spending.reduce((sum, tx) => sum + tx.amount, 0);
+  return Array.from(byDomain.values()).map(d => ({
+    key: d.key,
+    label: d.label,
+    amount: d.amount,
+    pctOfTotal: total > 0 ? (d.amount / total) * 100 : 0,
+    subdomains: Array.from(d.subdomains.entries()).map(([key, v]) => ({ key, label: v.label, amount: v.amount })).sort((a, b) => b.amount - a.amount),
   })).sort((a, b) => b.amount - a.amount);
 }
 
