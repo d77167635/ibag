@@ -106,7 +106,7 @@ export async function verifyProviderLineage(supabase: SupabaseClient, userId: st
     supabase.from("plaid_accounts").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true),
   ]);
-  const { data: transactionRows, error: transactionError } = await supabase.from("transactions").select("id, account_id, plaid_accounts!inner(item_id, user_id)").eq("user_id", userId).eq("is_active", true);
+  const { data: transactionRows, error: transactionError } = await supabase.from("transactions").select("id, account_id, plaid_accounts!transactions_account_user_fk(item_id, user_id)").eq("user_id", userId).eq("is_active", true);
   if (transactionError) throw transactionError;
   const { count: observedProductDomains, error: productError } = await supabase.from("plaid_product_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("evidence_state", "observed").eq("lifecycle_state", "observed");
   if (productError) throw productError;
