@@ -37,6 +37,35 @@ async function endpointFor(product: string, accessToken: string) {
   }
 }
 
+async function persistRawObservation(userId: string, itemId: string, product: string, payload: unknown, source: string) {
+  // There must be exactly one current raw evidence snapshot per user/item/product.
+  // Historical observations remain queryable but cannot accidentally outrank the newest evidence.
+  const { error: retireError } = await supabaseAdmin
+    .from("plaid_raw_product_observations")
+    .update({ is_current: false })
+    .eq("user_id", userId)
+    .eq("item_id", itemId)
+    .eq("product", product)
+    .eq("is_current", true);
+  if (retireError) throw retireError;
+
+  const now = new Date().toISOString();
+  const { data, error } = await supabaseAdmin.from("plaid_raw_product_observations").insert({
+    user_id: userId,
+    item_id: itemId,
+    product,
+    raw_response: payload,
+    provider_object_id: itemId,
+    acquired_at: now,
+    effective_at: now,
+    evidence_state: "observed",
+    provenance: { source, observation: "live", provider: "plaid", item_id: itemId, response_received: true },
+    is_current: true,
+  }).select("id").single();
+  if (error) throw error;
+  return data.id as string;
+}
+
 async function markObserved(userId: string, itemId: string, product: string) {
   const { data, error } = await supabaseAdmin.from("plaid_product_observations")
     .select("billed,available,authorized,requested,provider_added")
@@ -67,13 +96,7 @@ export async function observeActivatedTrialProducts(userId: string, itemId: stri
       const response = await endpoint();
       const payload = response?.data;
       if (!payload || typeof payload !== "object") throw new Error(`Plaid returned no ${product} response payload`);
-      const { error } = await supabaseAdmin.from("plaid_raw_product_observations").insert({
-        user_id: userId, item_id: itemId, product, raw_response: payload,
-        provider_object_id: itemId, acquired_at: new Date().toISOString(), effective_at: new Date().toISOString(),
-        evidence_state: "observed", provenance: { source: `plaid.${product}`, observation: "live", provider: "plaid", item_id: itemId, response_received: true },
-        is_current: true,
-      });
-      if (error) throw error;
+      await persistRawObservation(userId, itemId, product, payload, `plaid.${product}`);
       await markObserved(userId, itemId, product);
       results.push({ product, observed: true });
     } catch (error) {
