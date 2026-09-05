@@ -1,0 +1,38 @@
+.auth-visual-iris{position:relative;overflow:hidden;isolation:isolate;background:radial-gradient(circle at 52% 48%,rgba(74,118,153,.2),transparent 30%),linear-gradient(135deg,#071018 0%,#0b1520 48%,#05090d 100%)}
+.iris-presentation-grid{position:absolute;inset:-20%;opacity:.22;background-image:linear-gradient(rgba(130,190,220,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(130,190,220,.12) 1px,transparent 1px);background-size:48px 48px;transform:perspective(700px) rotateX(62deg) translateY(20%);transform-origin:center;animation:iris-grid-drift 18s linear infinite}
+.iris-presentation-glow{position:absolute;border-radius:999px;filter:blur(60px);pointer-events:none;opacity:.34}
+.iris-presentation-glow-a{width:34vw;height:34vw;left:28%;top:22%;background:#39789b;animation:iris-glow-a 9s ease-in-out infinite alternate}
+.iris-presentation-glow-b{width:24vw;height:24vw;right:-5%;bottom:2%;background:#7b5e91;animation:iris-glow-b 12s ease-in-out infinite alternate}
+.iris-intelligence-rings{position:absolute;left:50%;top:48%;width:min(54vw,620px);aspect-ratio:1;transform:translate(-50%,-50%);pointer-events:none;opacity:.32}
+.iris-intelligence-rings span{position:absolute;inset:0;border:1px solid rgba(180,224,244,.3);border-radius:50%;animation:iris-ring 14s linear infinite}
+.iris-intelligence-rings span:nth-child(2){inset:11%;animation-duration:11s;animation-direction:reverse}
+.iris-intelligence-rings span:nth-child(3){inset:23%;animation-duration:8s}
+.iris-intelligence-rings span:nth-child(4){inset:35%;animation-duration:6s;animation-direction:reverse}
+.iris-data-orbit{position:absolute;left:50%;top:48%;width:min(70vw,800px);height:min(70vw,800px);transform:translate(-50%,-50%);pointer-events:none;z-index:0;animation:iris-orbit 26s linear infinite}
+.iris-data-orbit-b{animation-duration:34s;animation-direction:reverse}
+.iris-data-orbit b{position:absolute;padding:6px 9px;border:1px solid rgba(190,225,242,.18);border-radius:999px;background:rgba(6,13,19,.48);backdrop-filter:blur(8px);color:rgba(212,235,247,.6);font:600 8px/1 Inter,system-ui,sans-serif;letter-spacing:.18em}
+.iris-data-orbit b:nth-child(1){left:50%;top:0;transform:translateX(-50%)}
+.iris-data-orbit b:nth-child(2){right:4%;top:50%;transform:translateY(-50%)}
+.iris-data-orbit b:nth-child(3){left:4%;top:50%;transform:translateY(-50%)}
+.iris-data-orbit-b b:nth-child(1){top:auto;bottom:4%;left:50%}
+.iris-data-orbit-b b:nth-child(2){right:auto;left:4%;top:24%}
+.iris-data-orbit-b b:nth-child(3){left:auto;right:4%;top:76%}
+.auth-visual-iris .auth-visual-top,.auth-visual-iris .auth-visual-center,.auth-visual-iris .auth-visual-bottom{z-index:3}
+.auth-visual-iris .auth-iris-core{position:relative;display:grid;place-items:center;width:92px;height:92px;margin:0 auto 24px;border:1px solid rgba(220,242,252,.3);border-radius:50%;background:rgba(8,17,25,.58);box-shadow:0 0 70px rgba(90,180,220,.22),inset 0 0 35px rgba(170,220,242,.08);animation:iris-core-pulse 4s ease-in-out infinite}
+.auth-visual-iris .auth-iris-core:before,.auth-visual-iris .auth-iris-core:after{content:"";position:absolute;inset:-10px;border:1px solid rgba(150,213,239,.16);border-radius:50%;animation:iris-core-ring 5s linear infinite}
+.auth-visual-iris .auth-iris-core:after{inset:-20px;animation-duration:9s;animation-direction:reverse}
+.auth-visual-iris .auth-kicker{letter-spacing:.24em;color:#a8cfe0}
+.auth-visual-iris .auth-visual-copy{color:#9aaebb}
+.iris-presentation-stream{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:28px;color:#91b9cc;font:600 8px/1 Inter,system-ui,sans-serif;letter-spacing:.18em}
+.iris-presentation-stream i{width:3px;height:3px;border-radius:50%;background:#91b9cc;opacity:.65;animation:iris-stream-pulse 1.8s ease-in-out infinite}
+.auth-mobile-brand svg{flex:none}
+@keyframes iris-grid-drift{from{transform:perspective(700px) rotateX(62deg) translateY(20%)}to{transform:perspective(700px) rotateX(62deg) translateY(24%)}}
+@keyframes iris-glow-a{from{transform:translate(-4%,-2%) scale(.9)}to{transform:translate(7%,5%) scale(1.08)}}
+@keyframes iris-glow-b{from{transform:translate(4%,5%) scale(.9)}to{transform:translate(-10%,-8%) scale(1.1)}}
+@keyframes iris-ring{to{transform:rotate(360deg)}}
+@keyframes iris-orbit{to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes iris-core-pulse{0%,100%{transform:scale(.98)}50%{transform:scale(1.04)}}
+@keyframes iris-core-ring{to{transform:rotate(360deg)}}
+@keyframes iris-stream-pulse{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
+@media(max-width:900px){.auth-screen-v2{display:block}.auth-visual-iris{min-height:46vh}.auth-visual-iris .auth-visual-center h1{font-size:clamp(34px,8vw,54px)}.iris-intelligence-rings{width:95vw}.iris-data-orbit{width:115vw;height:115vw}.iris-presentation-stream{gap:6px;font-size:7px}.auth-visual-iris .auth-visual-bottom{grid-template-columns:repeat(3,1fr)}}
+@media(prefers-reduced-motion:reduce){.iris-presentation-grid,.iris-presentation-glow,.iris-intelligence-rings span,.iris-data-orbit,.auth-visual-iris .auth-iris-core,.auth-visual-iris .auth-iris-core:before,.auth-visual-iris .auth-iris-core:after,.iris-presentation-stream i{animation:none}}
