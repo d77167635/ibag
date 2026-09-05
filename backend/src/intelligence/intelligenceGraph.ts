@@ -61,7 +61,10 @@ type CanonicalLike = {
   transaction_class?: string | null;
 };
 
-type AtlasLike = { definitions: IrisAnalysisDefinition[] };
+type AtlasDefinition = IrisAnalysisDefinition & {
+  evidence_ready?: boolean;
+};
+type AtlasLike = { definitions: AtlasDefinition[] };
 type Keyed = { kind: IntelligenceGraphNodeKind; value: string };
 
 function nodeId(kind: IntelligenceGraphNodeKind, value: string) {
@@ -137,15 +140,16 @@ export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasL
   }
 
   for (const definition of atlas.definitions) {
+    const evidenceReady = definition.evidence_ready === true;
     const analysis = addNode(nodes, { kind: "analysis", value: definition.id }, Math.max(1, definition.inputs.length), false);
     analysisNodes.set(definition.id, analysis);
 
     for (const input of definition.inputs) {
-      const state = addNode(nodes, { kind: "state", value: input }, 1, definition.evidence_ready);
+      const state = addNode(nodes, { kind: "state", value: input }, 1, evidenceReady);
       addEdge(edges, state, analysis, "depends_on");
     }
 
-    const output = addNode(nodes, { kind: "state", value: definition.output }, 1, definition.evidence_ready);
+    const output = addNode(nodes, { kind: "state", value: definition.output }, 1, evidenceReady);
     addEdge(edges, analysis, output, "supports");
     const existingOutputs = outputNodes.get(definition.output) ?? [];
     existingOutputs.push(definition.id);
