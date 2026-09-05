@@ -43,9 +43,6 @@ function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], inte
     },
   };
 
-  // A financial answer may not run merely because a downstream metric happens
-  // to exist. Its required Plaid product evidence must be certified, current,
-  // provider-backed, and compatible on the same Item first.
   if (PRODUCT_GATED_INTENTS.has(intent) && productSelection && productSelection.evidence_ready === false) {
     const blocked = (productSelection.blocked_combinations ?? []).slice(0, 4).map((x: any) => `${x.key}${x.missing_products?.length ? ` (missing: ${x.missing_products.join(", ")})` : ""}`).join("; ");
     return {
@@ -74,8 +71,13 @@ function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], inte
     }
     case "debt": {
       const d = metrics.debt_health;
-      if (!d) return { ...base, evidence_state: "insufficient_evidence", answer: "I don't have sufficient liability evidence to assess your debt position yet." };
-      return { ...base, answer: `Iris currently observes revolving debt of ${money(d.revolving_debt)}${d.credit_utilization == null ? ". Credit utilization is not sufficiently evidenced." : ` with calculated utilization of ${(d.credit_utilization * 100).toFixed(0)}%.`}` };
+      const cost = intel?.layer_debt_cost;
+      if (!d) return { ...base, evidence_state: "insufficient_evidence", answer: "I don't have sufficient liability, balance, and transaction evidence to assess your debt position yet." };
+      const utilization = d.credit_utilization == null ? "Credit utilization is not sufficiently evidenced." : `calculated utilization is ${(d.credit_utilization * 100).toFixed(0)}%`;
+      const trend = d.change_pct_30d == null ? "A reliable 30-day debt trend is not available." : `revolving debt is ${d.change_pct_30d >= 0 ? "up" : "down"} ${Math.abs(d.change_pct_30d).toFixed(0)}% over the comparison window`;
+      const apr = cost?.weightedAvgApr == null ? "No balance-weighted APR is currently available from observed liability evidence." : `the balance-weighted APR is ${Number(cost.weightedAvgApr).toFixed(2)}%`;
+      const interest = cost?.estimatedMonthlyInterestCost == null ? "Monthly interest cost cannot be calculated from the currently observed liability fields." : `the simple estimated monthly interest cost is ${money(Number(cost.estimatedMonthlyInterestCost))}`;
+      return { ...base, answer: `Iris currently observes revolving debt of ${money(d.revolving_debt)}; ${utilization}. ${trend}. From the certified Plaid liability evidence, ${apr}; ${interest}. These are calculated views from current evidence, not a payoff guarantee.` };
     }
     case "roundups": {
       const r = metrics.roundup_projection;
@@ -102,7 +104,6 @@ irisRouter.post("/iris/ask", requireAuth, async (req: AuthedRequest, res) => {
   const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
   if (!question) return res.status(400).json({ error: "Question is required" });
   if (question.length > 2000) return res.status(400).json({ error: "Question is too long" });
-
   try {
     const userId = req.userId!;
     const suppliedContext: IrisQuestionContext = req.body?.context && typeof req.body.context === "object" ? req.body.context : {};
