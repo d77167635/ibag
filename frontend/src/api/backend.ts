@@ -23,6 +23,7 @@ function getCanonicalIntelligence() {
 }
 
 export const api = {
+  get: (path: string) => authedFetch(path),
   createLinkToken: () => authedFetch("/link/token", { method: "POST" }),
   createUpgradeLinkToken: (itemId: string, stage: "consent" | "assets" | "statements") => authedFetch("/link/upgrade-token", { method: "POST", body: JSON.stringify({ item_id: itemId, stage }) }),
   exchangePublicToken: (publicToken: string) => authedFetch("/link/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken }) }),
