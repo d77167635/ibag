@@ -1,6 +1,4 @@
 import { supabaseAdmin } from "../config/supabase.js";
-import { getPlaidAccessToken } from "./tokenStore.js";
-import { plaidClient } from "../plaid/client.js";
 
 const CAPABILITIES: Record<string, string[]> = {
   transactions: ["spending", "cash_flow", "behavior", "patterns", "roundups", "forecasting"],
@@ -35,56 +33,57 @@ function rank(product: string) {
 }
 
 export async function selectPlaidProducts(userId: string) {
-  const { data: items, error } = await supabaseAdmin
+  const { data: items, error: itemError } = await supabaseAdmin
     .from("plaid_items")
-    .select("id, user_id, institution_name, status, last_synced_at, plaid_access_token")
+    .select("id, user_id, institution_name, status, last_synced_at")
     .eq("user_id", userId);
-  if (error) throw error;
+  if (itemError) throw itemError;
+
+  const { data: observations, error: observationError } = await supabaseAdmin
+    .from("plaid_product_observations")
+    .select("item_id, product, lifecycle_state, evidence_state, observed_at, acquired_at")
+    .eq("user_id", userId)
+    .eq("provider", "plaid")
+    .eq("is_current", true);
+  if (observationError) throw observationError;
+
+  const observedByItem = new Map<string, any[]>();
+  for (const row of observations ?? []) {
+    if (row.lifecycle_state !== "observed" || row.evidence_state !== "observed") continue;
+    const list = observedByItem.get(row.item_id) ?? [];
+    list.push(row);
+    observedByItem.set(row.item_id, list);
+  }
 
   const aggregate = new Map<string, { score: number; status: string; itemCount: number; capabilities: string[] }>();
   const itemResults: any[] = [];
 
   for (const item of items ?? []) {
-    try {
-      const token = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
-      const response = await plaidClient.itemGet({ access_token: token });
-      const raw = response.data.item as any;
-      const products = new Set<string>([
-        ...(raw.products ?? []), ...(raw.billed_products ?? []),
-        ...(raw.available_products ?? []), ...(raw.consented_products ?? []),
-      ]);
-      const ranked = [...products].map((product) => {
-        const r = rank(product);
-        const status = (raw.billed_products ?? []).includes(product) ? "active"
-          : (raw.consented_products ?? []).includes(product) ? "consented"
-          : (raw.available_products ?? []).includes(product) ? "available" : "present";
-        return { product, status, ...r };
-      }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score || a.product.localeCompare(b.product));
+    const observed = observedByItem.get(item.id) ?? [];
+    const ranked = observed.map((row) => ({ product: row.product, status: "observed", observed_at: row.observed_at ?? row.acquired_at, ...rank(row.product) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.product.localeCompare(b.product));
 
-      for (const candidate of ranked) {
-        const old = aggregate.get(candidate.product);
-        aggregate.set(candidate.product, {
-          score: Math.max(old?.score ?? 0, candidate.score),
-          status: candidate.status,
-          itemCount: (old?.itemCount ?? 0) + 1,
-          capabilities: [...new Set([...(old?.capabilities ?? []), ...candidate.capabilities])],
-        });
-      }
-      itemResults.push({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, selected: ranked.slice(0, 12) });
-    } catch (err) {
-      console.error(`Iris Plaid product selection failed for ${item.id}:`, err);
-      itemResults.push({ institution_name: item.institution_name, status: "selection_unavailable", last_synced_at: item.last_synced_at, selected: [] });
+    for (const candidate of ranked) {
+      const old = aggregate.get(candidate.product);
+      aggregate.set(candidate.product, {
+        score: Math.max(old?.score ?? 0, candidate.score),
+        status: "observed",
+        itemCount: (old?.itemCount ?? 0) + 1,
+        capabilities: [...new Set([...(old?.capabilities ?? []), ...candidate.capabilities])],
+      });
     }
+    itemResults.push({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, selected: ranked.slice(0, 12) });
   }
 
   return {
-    strategy: "iris_evidence_weighted_product_selection_v1",
+    strategy: "iris_evidence_weighted_product_selection_v2",
     selected: [...aggregate.entries()].map(([product, value]) => ({ product, ...value })).sort((a, b) => b.score - a.score || a.product.localeCompare(b.product)),
     items: itemResults,
     principles: [
-      "Rank products by the incremental Financial Life State capabilities they can unlock.",
-      "Use only product evidence actually present, consented, or available for an Item.",
-      "Never treat an unavailable product as observed.",
+      "Rank products by the incremental Financial Life State capabilities unlocked by certified provider observations.",
+      "Only current Plaid product observations with lifecycle_state=observed and evidence_state=observed can enter Iris evidence selection.",
+      "Available, consented, authorized, billed, requested, or provider-metadata states never receive intelligence authority.",
       "Never silently request consent or activate a product.",
     ],
   };
