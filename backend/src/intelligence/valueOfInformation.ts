@@ -1,4 +1,4 @@
-import type { InvestigationEngineResult } from "./investigationEngine.js";
+import type { IrisInvestigation } from "./investigationEngine.js";
 import type { DecisionRobustness } from "./decisionRobustness.js";
 
 export type InformationValueStatus = "high" | "medium" | "low" | "blocked";
@@ -26,20 +26,18 @@ export interface ValueOfInformationResult {
   limitations: string[];
 }
 
-/**
- * Ranks missing evidence by its potential analytical leverage.
- * This is a deterministic prioritization heuristic, not a probability,
- * expected monetary value, or claim that the evidence will exist.
- */
+type InvestigationResult = { investigations: IrisInvestigation[] };
+
+/** Deterministic evidence-priority analysis. It does not manufacture evidence or claim probabilities. */
 export function buildValueOfInformation(
-  investigations: InvestigationEngineResult,
+  investigations: InvestigationResult,
   robustness: DecisionRobustness,
 ): ValueOfInformationResult {
   const candidates: InformationValueCandidate[] = [];
 
-  for (const investigation of investigations.investigations ?? []) {
-    const missing = investigation.missing_evidence ?? [];
-    const status = investigation.status === "ready" ? "low" : "medium";
+  for (const investigation of investigations.investigations) {
+    if (investigation.status === "ready") continue;
+    const missing = investigation.evidence_required;
     for (const gap of missing.slice(0, 4)) {
       const decisionImpact = robustness.status === "sensitive" ? 0.9 : robustness.status === "robust" ? 0.35 : 0.2;
       const uncertaintyReduction = missing.length ? Math.max(0.1, 1 / missing.length) : 0;
@@ -56,7 +54,7 @@ export function buildValueOfInformation(
         reversibility,
         evidence_quality: evidenceQuality,
         information_value: informationValue,
-        status: informationValue >= 0.45 ? "high" : informationValue >= 0.2 ? status : "low",
+        status: informationValue >= 0.45 ? "high" : informationValue >= 0.2 ? "medium" : "low",
         limitation: "Information value is a deterministic prioritization heuristic; it is not probability, causal effect, or guaranteed information gain.",
       });
     }
@@ -64,6 +62,7 @@ export function buildValueOfInformation(
 
   for (const assumption of robustness.highest_leverage_assumptions.slice(0, 6)) {
     const sensitive = robustness.status === "sensitive";
+    const informationValue = Number(((sensitive ? 1 : 0.45) * (sensitive ? 0.8 : 0.35) * (sensitive ? 0.9 : 0.6) * 0.8).toFixed(3));
     candidates.push({
       id: `voi:robustness:${assumption}`,
       question: `What evidence could validate or falsify the assumption: ${assumption}?`,
@@ -73,7 +72,7 @@ export function buildValueOfInformation(
       uncertainty_reduction: sensitive ? 0.8 : 0.35,
       reversibility: sensitive ? 0.9 : 0.6,
       evidence_quality: 0.8,
-      information_value: Number(((sensitive ? 1 : 0.45) * (sensitive ? 0.8 : 0.35) * (sensitive ? 0.9 : 0.6) * 0.8).toFixed(3)),
+      information_value: informationValue,
       status: sensitive ? "high" : "medium",
       limitation: "The engine identifies leverage in a modeled assumption; it does not assert that validating evidence is available from the provider.",
     });
@@ -82,7 +81,6 @@ export function buildValueOfInformation(
   candidates.sort((a, b) => b.information_value - a.information_value);
   const bounded = candidates.slice(0, 24);
   const top = bounded[0] ?? null;
-
   return {
     architecture_version: "IRIS_VALUE_OF_INFORMATION_V1",
     status: top?.status ?? "blocked",
@@ -93,7 +91,7 @@ export function buildValueOfInformation(
       "No provider evidence is manufactured when a candidate is missing.",
       "Information value is not a probability or expected monetary value.",
       "The ranking does not imply that a provider exposes the requested evidence.",
-      "Candidate priority must remain subordinate to source fidelity, authorization, and evidence certification.",
+      "Candidate priority remains subordinate to source fidelity, authorization, and evidence certification.",
     ],
   };
 }
