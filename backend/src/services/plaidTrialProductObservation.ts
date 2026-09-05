@@ -1,14 +1,12 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { plaidClient } from "../plaid/client.js";
 
-const ENDPOINTS: Record<string, () => Promise<any>> = {};
-
 function endpointFor(product: string, accessToken: string) {
   const args = { access_token: accessToken };
   switch (product) {
     case "auth": return () => (plaidClient as any).authGet(args);
     case "identity": return () => (plaidClient as any).identityGet(args);
-    case "assets": return () => (plaidClient as any).assetReportGet ? null : (plaidClient as any).assetsGet(args);
+    case "assets": return () => (plaidClient as any).assetsGet(args);
     case "investments": return () => (plaidClient as any).investmentsHoldingsGet(args);
     case "statements": return () => (plaidClient as any).statementsGet(args);
     default: return null;
