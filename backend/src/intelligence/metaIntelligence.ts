@@ -8,18 +8,16 @@ export type MetaIntelligence = {
   lifecycle: ["Evidence", "Analysis", "Reasoning", "Simulation", "Decision", "Validation", "Learning", "Adaptation"];
   generation: { source: "Iris evidence, atlas readiness, lineage, uncertainty, investigations, and composition metadata"; financial_values_created: false; fake_mock_or_seeded_data: false; execution_capability: false };
 };
-
 type AtlasDefinition = { id: string; family?: string; name?: string; inputs?: string[]; evidence_ready?: boolean; missing_inputs?: string[] };
 type Input = {
   atlas?: { definitions?: AtlasDefinition[] };
   sourceFidelity?: { status?: string; ready_for_higher_order_intelligence?: boolean };
-  integrity?: { valid?: boolean; errors?: string[] };
+  integrity?: { status?: string; limitations?: string[] };
   uncertainty?: unknown;
-  investigations?: Array<{ status?: string }>;
+  investigations?: { investigations?: Array<{ status?: string }> };
   composition?: { counts?: { possible_combinations?: number; evaluable_combinations?: number; evidence_ready_combinations?: number } };
 };
 function label(score: number): MetaIntelligence["quality"]["label"] { if (score >= 0.85) return "strong"; if (score >= 0.65) return "moderate"; if (score >= 0.35) return "limited"; return "insufficient"; }
-
 /** Measures Iris's reasoning capacity from current evidence and identifies evidence gaps with the greatest analytical leverage. */
 export function buildMetaIntelligence(input: Input): MetaIntelligence {
   const definitions = input.atlas?.definitions ?? [];
@@ -30,21 +28,16 @@ export function buildMetaIntelligence(input: Input): MetaIntelligence {
     if (definition.evidence_ready === true) continue;
     for (const missing of definition.missing_inputs ?? []) missingMap.set(missing, [...(missingMap.get(missing) ?? []), definition.id]);
   }
-  const bottlenecks = [...missingMap.entries()]
-    .map(([inputKey, analysisIds]) => ({ input: inputKey, analysis_ids: [...new Set(analysisIds)], analyses_blocked: new Set(analysisIds).size }))
-    .sort((a, b) => b.analyses_blocked - a.analyses_blocked || a.input.localeCompare(b.input))
-    .slice(0, 12)
-    .map(x => {
+  const bottlenecks = [...missingMap.entries()].map(([inputKey, analysisIds]) => ({ input: inputKey, analysis_ids: [...new Set(analysisIds)], analyses_blocked: new Set(analysisIds).size }))
+    .sort((a, b) => b.analyses_blocked - a.analyses_blocked || a.input.localeCompare(b.input)).slice(0, 12).map(x => {
       const leverage: MetaIntelligence["bottlenecks"][number]["leverage"] = x.analyses_blocked >= 8 ? "very_high" : x.analyses_blocked >= 5 ? "high" : x.analyses_blocked >= 3 ? "medium" : "low";
       return { ...x, leverage, statement: `${x.input} is the highest-leverage missing evidence input in ${x.analyses_blocked} currently limited analysis definition${x.analyses_blocked === 1 ? "" : "s"}.` };
     });
   const higherOrderReady = input.sourceFidelity?.ready_for_higher_order_intelligence === true;
-  const integrityPass = input.integrity?.valid !== false;
-  const investigationLimited = (input.investigations ?? []).some(x => x.status === "evidence_limited");
+  const integrityPass = input.integrity?.status !== "fail";
+  const investigationLimited = (input.investigations?.investigations ?? []).some(x => x.status === "evidence_limited");
   const composition = input.composition?.counts ?? {};
-  const possible = Number(composition.possible_combinations ?? 0);
-  const evaluable = Number(composition.evaluable_combinations ?? 0);
-  const evidenceReadyCombinations = Number(composition.evidence_ready_combinations ?? 0);
+  const possible = Number(composition.possible_combinations ?? 0), evaluable = Number(composition.evaluable_combinations ?? 0), evidenceReadyCombinations = Number(composition.evidence_ready_combinations ?? 0);
   const analyticalCoverage = definitions.length ? Math.min(1, (ready + (higherOrderReady ? 0.5 : 0)) / (definitions.length + 0.5)) : 0;
   const score = Math.max(0, Math.min(1, evidenceCoverage * 0.55 + (higherOrderReady ? 0.2 : 0) + (integrityPass ? 0.15 : 0) + (evaluable > 0 ? 0.1 : 0)));
   const nextSteps = bottlenecks.slice(0, 5).map(b => `Acquire or certify ${b.input} evidence through the existing provider/canonical pipeline; this can unlock up to ${b.analyses_blocked} analysis${b.analyses_blocked === 1 ? "" : "es"}.`);
