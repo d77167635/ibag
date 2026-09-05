@@ -1,36 +1,48 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type EvidenceNodeKind = "provider" | "calculation" | "intelligence" | "inference" | "limitation";
+export type EvidenceState = "observed" | "calculated" | "inferred" | "limited" | "insufficient_evidence";
+export type EvidenceRelation = "supports" | "derived_from" | "constrains" | "compares_with" | "limits";
 
 export interface EvidenceNode {
   id: string;
   kind: EvidenceNodeKind;
   label: string;
-  state: "observed" | "calculated" | "inferred" | "limited" | "insufficient_evidence";
+  state: EvidenceState;
   source: string;
   value?: unknown;
+  freshness?: string;
+  provider_domain?: string;
 }
 
 export interface EvidenceEdge {
   from: string;
   to: string;
-  relation: "supports" | "derived_from" | "constrains" | "compares_with" | "limits";
+  relation: EvidenceRelation;
 }
 
 export interface EvidenceGraph {
-  architecture_version: "IRIS_EVIDENCE_GRAPH_V1";
+  architecture_version: "IRIS_EVIDENCE_GRAPH_V2";
   nodes: EvidenceNode[];
   edges: EvidenceEdge[];
   roots: string[];
   limitations: string[];
 }
 
-function addMetricNode(nodes: EvidenceNode[], id: string, label: string, value: unknown, state: EvidenceNode["state"], source: string) {
+function addMetricNode(
+  nodes: EvidenceNode[],
+  id: string,
+  label: string,
+  value: unknown,
+  state: EvidenceState,
+  source: string,
+  providerDomain?: string,
+) {
   const kind: EvidenceNodeKind = state === "observed" ? "provider" : state === "inferred" ? "inference" : "calculation";
-  nodes.push({ id, kind, label, value, state, source });
+  nodes.push({ id, kind, label, value, state, source, provider_domain: providerDomain });
 }
 
-/** Builds a deterministic relationship graph from real provider evidence and canonical Iris intelligence. */
+/** Builds a deterministic dependency graph from real provider evidence and canonical Iris intelligence. */
 export function buildEvidenceGraph(intel: any): EvidenceGraph {
   const nodes: EvidenceNode[] = [];
   const edges: EvidenceEdge[] = [];
@@ -38,35 +50,45 @@ export function buildEvidenceGraph(intel: any): EvidenceGraph {
     ? intel.layer_max_intelligence.evidence_coverage.limitations.map((value: unknown) => String(value))
     : [];
 
-  const add = (id: string, label: string, value: unknown, state: EvidenceNode["state"], source: string) => addMetricNode(nodes, id, label, value, state, source);
+  const add = (id: string, label: string, value: unknown, state: EvidenceState, source: string, providerDomain?: string) =>
+    addMetricNode(nodes, id, label, value, state, source, providerDomain);
+  const has = (id: string) => nodes.some((node) => node.id === id);
+  const link = (from: string, to: string, relation: EvidenceRelation) => {
+    if (has(from) && has(to) && !edges.some((edge) => edge.from === from && edge.to === to && edge.relation === relation)) {
+      edges.push({ from, to, relation });
+    }
+  };
 
   const metrics = intel?.layer_metrics ?? {};
-  if (metrics.net_worth?.liquid_assets != null) add("liquid_assets", "Liquid assets", metrics.net_worth.liquid_assets, "observed", "Plaid account balances");
-  if (metrics.cash_flow?.net != null) add("cash_flow_net", "Net cash flow", metrics.cash_flow.net, "calculated", "Iris cash-flow calculation");
+  if (metrics.net_worth?.liquid_assets != null) add("liquid_assets", "Liquid assets", metrics.net_worth.liquid_assets, "observed", "Plaid account balances", "balance");
+  if (metrics.cash_flow?.net != null) add("cash_flow_net", "Net cash flow", metrics.cash_flow.net, "calculated", "Iris cash-flow calculation", "transactions");
   if (metrics.cash_flow_safety?.safeToSpend != null) add("safe_to_spend", "Safe to spend", metrics.cash_flow_safety.safeToSpend, "calculated", "Iris liquidity calculation");
-  if (metrics.roundup_projection) add("roundup_projection", "Round-Up projection", metrics.roundup_projection.projectedAmount ?? metrics.roundup_projection.projected, "calculated", "Iris Round-Up calculation");
+  if (metrics.roundup_projection) add("roundup_projection", "Round-Up projection", metrics.roundup_projection.projectedAmount ?? metrics.roundup_projection.projected, "calculated", "Iris Round-Up calculation", "transactions");
   if (metrics.forward_projection) add("forward_projection", "Forward projection", metrics.forward_projection, "inferred", "Iris forward analysis");
-  if (Array.isArray(metrics.anomalies)) add("anomalies", "Anomaly findings", metrics.anomalies.length, metrics.anomalies.length ? "inferred" : "calculated", "Iris anomaly analysis");
+  if (Array.isArray(metrics.anomalies)) add("anomalies", "Anomaly findings", metrics.anomalies.length, metrics.anomalies.length ? "inferred" : "calculated", "Iris anomaly analysis", "transactions");
   if (intel?.layer_temporal?.trajectory) add("trajectory", "Financial trajectory", intel.layer_temporal.trajectory, "inferred", "Iris temporal analysis");
-  if (intel?.layer_behavioral?.categoryDrift) add("category_drift", "Category behavior drift", intel.layer_behavioral.categoryDrift, "inferred", "Iris behavioral analysis");
-  if (intel?.layer_debt_cost) add("debt_cost", "Debt cost intelligence", intel.layer_debt_cost, "calculated", "Iris liability analysis");
+  if (intel?.layer_behavioral?.categoryDrift) add("category_drift", "Category behavior drift", intel.layer_behavioral.categoryDrift, "inferred", "Iris behavioral analysis", "transactions");
+  if (intel?.layer_debt_cost) add("debt_cost", "Debt cost intelligence", intel.layer_debt_cost, "calculated", "Iris liability analysis", "liabilities");
 
-  if (nodes.some((n) => n.id === "liquid_assets") && nodes.some((n) => n.id === "safe_to_spend")) edges.push({ from: "liquid_assets", to: "safe_to_spend", relation: "supports" });
-  if (nodes.some((n) => n.id === "cash_flow_net") && nodes.some((n) => n.id === "safe_to_spend")) edges.push({ from: "cash_flow_net", to: "safe_to_spend", relation: "supports" });
-  if (nodes.some((n) => n.id === "cash_flow_net") && nodes.some((n) => n.id === "trajectory")) edges.push({ from: "cash_flow_net", to: "trajectory", relation: "derived_from" });
-  if (nodes.some((n) => n.id === "cash_flow_net") && nodes.some((n) => n.id === "forward_projection")) edges.push({ from: "cash_flow_net", to: "forward_projection", relation: "derived_from" });
-  if (nodes.some((n) => n.id === "roundup_projection") && nodes.some((n) => n.id === "forward_projection")) edges.push({ from: "roundup_projection", to: "forward_projection", relation: "supports" });
-  if (nodes.some((n) => n.id === "debt_cost") && nodes.some((n) => n.id === "safe_to_spend")) edges.push({ from: "debt_cost", to: "safe_to_spend", relation: "constrains" });
-  if (limitations.length) {
-    limitations.forEach((text: string, index: number) => {
-      const id = `limitation_${index + 1}`;
-      nodes.push({ id, kind: "limitation", label: text, state: "limited", source: "Iris evidence coverage" });
-      if (nodes.some((n) => n.id === "forward_projection")) edges.push({ from: id, to: "forward_projection", relation: "limits" });
-    });
-  }
+  link("liquid_assets", "safe_to_spend", "supports");
+  link("cash_flow_net", "safe_to_spend", "supports");
+  link("cash_flow_net", "trajectory", "derived_from");
+  link("cash_flow_net", "forward_projection", "derived_from");
+  link("trajectory", "forward_projection", "supports");
+  link("roundup_projection", "forward_projection", "supports");
+  link("debt_cost", "safe_to_spend", "constrains");
+  link("anomalies", "forward_projection", "limits");
+  link("category_drift", "forward_projection", "supports");
+
+  limitations.forEach((text: string, index: number) => {
+    const id = `limitation_${index + 1}`;
+    nodes.push({ id, kind: "limitation", label: text, state: "limited", source: "Iris evidence coverage" });
+    link(id, "forward_projection", "limits");
+    link(id, "safe_to_spend", "limits");
+  });
 
   return {
-    architecture_version: "IRIS_EVIDENCE_GRAPH_V1",
+    architecture_version: "IRIS_EVIDENCE_GRAPH_V2",
     nodes,
     edges,
     roots: nodes.filter((node) => !edges.some((edge) => edge.to === node.id)).map((node) => node.id),
@@ -74,11 +96,52 @@ export function buildEvidenceGraph(intel: any): EvidenceGraph {
   };
 }
 
-/** Verifies that provider observations remain source nodes and are never rewritten by Iris. */
-export async function verifyProviderLineage(supabase: SupabaseClient, userId: string): Promise<{ observedAccounts: number; observedTransactions: number }> {
+/** Verifies the provider lineage chain instead of treating row counts as sufficient evidence. */
+export async function verifyProviderLineage(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{
+  observedAccounts: number;
+  observedTransactions: number;
+  transactionsWithAccount: number;
+  transactionsWithItem: number;
+  observedProductDomains: number;
+  lineageComplete: boolean;
+}> {
   const [{ count: observedAccounts }, { count: observedTransactions }] = await Promise.all([
     supabase.from("plaid_accounts").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true),
   ]);
-  return { observedAccounts: observedAccounts ?? 0, observedTransactions: observedTransactions ?? 0 };
+
+  const { data: transactionRows, error: transactionError } = await supabase
+    .from("transactions")
+    .select("id, account_id, plaid_accounts!inner(item_id, user_id)")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+  if (transactionError) throw transactionError;
+
+  const { count: observedProductDomains, error: productError } = await supabase
+    .from("plaid_product_observations")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("provider", "plaid")
+    .eq("is_current", true)
+    .eq("evidence_state", "observed");
+  if (productError) throw productError;
+
+  const rows = transactionRows ?? [];
+  const transactionsWithAccount = rows.filter((row: any) => Boolean(row.account_id)).length;
+  const transactionsWithItem = rows.filter((row: any) => Boolean(row.plaid_accounts?.item_id) && row.plaid_accounts?.user_id === userId).length;
+  const lineageComplete =
+    (observedTransactions ?? 0) === transactionsWithAccount &&
+    transactionsWithAccount === transactionsWithItem;
+
+  return {
+    observedAccounts: observedAccounts ?? 0,
+    observedTransactions: observedTransactions ?? 0,
+    transactionsWithAccount,
+    transactionsWithItem,
+    observedProductDomains: observedProductDomains ?? 0,
+    lineageComplete,
+  };
 }
