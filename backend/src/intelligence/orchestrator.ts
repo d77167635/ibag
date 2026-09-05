@@ -3,11 +3,11 @@ import {
   computeCashFlowSafety,
   computeBalanceHistory,
   computeDebtTrend,
-  detectAnomalies,
   computeForwardProjection,
   computeSpendingHierarchy,
 } from "../services/intelligence.js";
 import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions } from "./transactionSemantics.js";
+import { computeCanonicalAnomalies } from "./anomalies.js";
 import { validateCanonicalIntelligenceInput } from "./integrity.js";
 import { getFeatureFlags } from "../services/features.js";
 import { supabaseAdmin } from "../config/supabase.js";
@@ -47,7 +47,7 @@ export async function computeFullIntelligence(userId: string) {
     debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage,
   ] = await Promise.all([
     computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId),
-    detectAnomalies(userId), computeForwardProjection(userId), computeSpendingHierarchy(userId), computeDebtCostIntelligence(userId),
+    computeCanonicalAnomalies(userId), computeForwardProjection(userId), computeSpendingHierarchy(userId), computeDebtCostIntelligence(userId),
     computeCategoryDrift(userId), computeMultiWindowFlow(userId), computeFinancialReasoning(userId), getFeatureFlags(userId),
     supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
     verifyProviderLineage(supabaseAdmin, userId),
