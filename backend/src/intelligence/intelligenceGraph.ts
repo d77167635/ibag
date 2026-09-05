@@ -91,10 +91,10 @@ function addEdge(map: Map<string, IntelligenceGraphEdge>, from: string, to: stri
  * Builds Iris's relational intelligence substrate from canonical provider-backed
  * observations and the analytical dependency registry.
  *
- * V2 makes the semantic relationships explicit: analyses support their declared
- * outputs, analyses depend on their input states, and compatible analytical
- * families are connected for comparison/investigation. No relationship is
- * presented as provider fact; graph edges are derived metadata over evidence.
+ * V2 makes semantic relationships explicit. Synthetic analytical state nodes are
+ * marked observed only when the corresponding atlas definition is evidence-ready;
+ * this prevents investigations from being permanently reported as ready merely
+ * because a capability exists in the catalog.
  */
 export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasLike): IntelligenceGraph {
   const nodes = new Map<string, IntelligenceGraphNode>();
@@ -141,18 +141,17 @@ export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasL
     analysisNodes.set(definition.id, analysis);
 
     for (const input of definition.inputs) {
-      const state = addNode(nodes, { kind: "state", value: input }, 1, false);
+      const state = addNode(nodes, { kind: "state", value: input }, 1, definition.evidence_ready);
       addEdge(edges, state, analysis, "depends_on");
     }
 
-    const output = addNode(nodes, { kind: "state", value: definition.output }, 1, false);
+    const output = addNode(nodes, { kind: "state", value: definition.output }, 1, definition.evidence_ready);
     addEdge(edges, analysis, output, "supports");
     const existingOutputs = outputNodes.get(definition.output) ?? [];
     existingOutputs.push(definition.id);
     outputNodes.set(definition.output, existingOutputs);
   }
 
-  // Analyses producing the same state are alternative/comparable analytical paths.
   for (const definitions of outputNodes.values()) {
     for (let i = 0; i < definitions.length; i += 1) {
       for (let j = i + 1; j < definitions.length; j += 1) {
@@ -163,7 +162,6 @@ export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasL
     }
   }
 
-  // Causal, decision and synthesis analyses investigate their declared inputs.
   for (const definition of atlas.definitions) {
     const analysis = analysisNodes.get(definition.id);
     if (!analysis) continue;
@@ -174,15 +172,9 @@ export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasL
     }
   }
 
-  const relationalContexts = [...edges.values()].filter(edge =>
-    ["contains", "belongs_to", "classified_as"].includes(edge.relation)
-  ).length;
-  const analysisDependencies = [...edges.values()].filter(edge =>
-    ["depends_on", "supports", "compares_with"].includes(edge.relation)
-  ).length;
-  const investigationPaths = [...edges.values()].filter(edge =>
-    edge.relation === "investigates"
-  ).length;
+  const relationalContexts = [...edges.values()].filter(edge => ["contains", "belongs_to", "classified_as"].includes(edge.relation)).length;
+  const analysisDependencies = [...edges.values()].filter(edge => ["depends_on", "supports", "compares_with"].includes(edge.relation)).length;
+  const investigationPaths = [...edges.values()].filter(edge => edge.relation === "investigates").length;
 
   return {
     architecture_version: "IRIS_INTELLIGENCE_GRAPH_V2",
