@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { supabase } from "../api/supabase";
 import { IrisMark } from "./IrisMark";
 
@@ -35,7 +35,7 @@ export function Auth({ recovery = false, onRecoveryComplete }: { recovery?: bool
     setConfirmPassword("");
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setNotice(null);
@@ -54,9 +54,9 @@ export function Auth({ recovery = false, onRecoveryComplete }: { recovery?: bool
       const { error: updateError } = await supabase.auth.updateUser({ password });
       setLoading(false);
       if (updateError) { setError(friendlyError(updateError.message)); return; }
-      window.sessionStorage.setItem("ibag.authenticated", "1");
+      window.sessionStorage.setItem("iris.authenticated", "1");
       onRecoveryComplete?.();
-      setNotice("Password updated. Your iBag session is now secured with the new password.");
+      setNotice("Password updated. Your Iris session is now secured with the new password.");
       return;
     }
 
@@ -88,43 +88,56 @@ export function Auth({ recovery = false, onRecoveryComplete }: { recovery?: bool
     if (mode === "sign_up" && !result.data.session) setNotice("Check your inbox — confirm your email to finish creating your account.");
   }
 
-  const heading = mode === "sign_in" ? "Welcome back" : mode === "sign_up" ? "Create your iBag account" : recovery ? "Choose a new password" : "Reset your password";
+  const heading = mode === "sign_in" ? "Welcome back" : mode === "sign_up" ? "Enter the Iris environment" : recovery ? "Choose a new password" : "Reset your password";
   const subheading = mode === "sign_in"
     ? "Sign in to your financial intelligence environment."
     : mode === "sign_up"
-    ? "One account for Iris intelligence and your Plaid data control plane."
+    ? "One account for Iris intelligence, your financial evidence, and your connected data control plane."
     : recovery
-    ? "Your recovery link is active. Set a new password to continue into iBag."
+    ? "Your recovery link is active. Set a new password to continue into Iris."
     : "Enter the email on your account and we'll send a reset link.";
 
   return (
     <main className="auth-screen auth-screen-v2">
-      <section className="auth-visual" aria-label="iBag financial intelligence">
+      <section className="auth-visual auth-visual-iris" aria-label="Iris financial intelligence presentation">
+        <div className="iris-presentation-grid" aria-hidden="true" />
+        <div className="iris-presentation-glow iris-presentation-glow-a" aria-hidden="true" />
+        <div className="iris-presentation-glow iris-presentation-glow-b" aria-hidden="true" />
+        <div className="iris-intelligence-rings" aria-hidden="true">
+          <span /><span /><span /><span />
+        </div>
+        <div className="iris-data-orbit iris-data-orbit-a" aria-hidden="true"><b>STATE</b><b>CASH FLOW</b><b>BEHAVIOR</b></div>
+        <div className="iris-data-orbit iris-data-orbit-b" aria-hidden="true"><b>FORECAST</b><b>CAUSE</b><b>DECISION</b></div>
         <div className="auth-visual-top">
-          <div className="auth-logo"><span className="auth-logo-mark">i</span><span>iBag</span></div>
-          <span className="auth-live"><i />SECURE ACCESS</span>
+          <div className="auth-logo"><span className="auth-logo-mark"><IrisMark size={24} color="currentColor" /></span><span>Iris</span></div>
+          <span className="auth-live"><i />INTELLIGENCE ONLINE</span>
         </div>
 
         <div className="auth-visual-center">
-          <div className="auth-orbit auth-orbit-a" />
-          <div className="auth-orbit auth-orbit-b" />
-          <div className="auth-iris-core"><IrisMark size={44} color="#eef8ff" /></div>
-          <p className="auth-kicker">FINANCIAL INTELLIGENCE</p>
+          <div className="auth-iris-core"><IrisMark size={58} color="#eef8ff" /></div>
+          <p className="auth-kicker">IRIS · FINANCIAL INTELLIGENCE</p>
           <h1>See what your money<br />is actually doing.</h1>
-          <p className="auth-visual-copy">iBag turns authorized financial evidence into an environment where Iris can explain what is happening, why it matters, and what the evidence supports next.</p>
+          <p className="auth-visual-copy">Iris connects authorized financial evidence into a living intelligence environment — revealing relationships across cash flow, spending, behavior, debt, time, forecasts, decisions, and consequences.</p>
+          <div className="iris-presentation-stream" aria-hidden="true">
+            <span>OBSERVE</span><i />
+            <span>RELATE</span><i />
+            <span>REASON</span><i />
+            <span>SIMULATE</span><i />
+            <span>EMPOWER</span>
+          </div>
         </div>
 
         <div className="auth-visual-bottom">
           <div><strong>IRIS</strong><span>Intelligence environment</span></div>
-          <div><strong>PLAID</strong><span>Data control plane</span></div>
-          <div><strong>READ-ONLY</strong><span>Phase 1 · no money movement</span></div>
+          <div><strong>PLAID</strong><span>Read-only source observations</span></div>
+          <div><strong>iBAG</strong><span>Savings &amp; round-up destination</span></div>
         </div>
       </section>
 
       <section className="auth-panel auth-panel-v2">
         <div className="auth-card auth-card-v2">
-          <div className="auth-mobile-brand"><span className="auth-logo-mark">i</span><strong>iBag</strong><span>·</span><IrisMark size={18} color="currentColor" /><span>Iris</span></div>
-          <div className="auth-eyebrow">{recovery ? "ACCOUNT RECOVERY" : mode === "reset" ? "ACCOUNT RECOVERY" : "SECURE ACCESS"}</div>
+          <div className="auth-mobile-brand"><IrisMark size={20} color="currentColor" /><strong>Iris</strong><span>·</span><span>Financial Intelligence</span></div>
+          <div className="auth-eyebrow">{recovery ? "ACCOUNT RECOVERY" : mode === "reset" ? "ACCOUNT RECOVERY" : "SECURE IRIS ACCESS"}</div>
           <h2 className="auth-heading">{heading}</h2>
           <p className="auth-subheading">{subheading}</p>
 
@@ -154,17 +167,17 @@ export function Auth({ recovery = false, onRecoveryComplete }: { recovery?: bool
             </div>}
 
             <button type="submit" className="btn-primary auth-submit" disabled={loading}>
-              {loading ? "Please wait…" : recovery ? "Update password" : mode === "sign_in" ? "Enter iBag" : mode === "sign_up" ? "Create account" : "Send reset link"}
+              {loading ? "Please wait…" : recovery ? "Update password" : mode === "sign_in" ? "Enter Iris" : mode === "sign_up" ? "Create Iris account" : "Send reset link"}
             </button>
           </form>
 
           {!recovery && <div className="auth-switch-row">
-            {mode === "sign_in" && <>New to iBag? <button type="button" className="btn-link" onClick={() => switchMode("sign_up")}>Create an account</button></>}
+            {mode === "sign_in" && <>New to Iris? <button type="button" className="btn-link" onClick={() => switchMode("sign_up")}>Create an account</button></>}
             {mode === "sign_up" && <>Already have an account? <button type="button" className="btn-link" onClick={() => switchMode("sign_in")}>Sign in</button></>}
             {mode === "reset" && <button type="button" className="btn-link" onClick={() => switchMode("sign_in")}>Back to sign in</button>}
           </div>}
 
-          <p className="auth-privacy">Your financial intelligence is built from authorized provider data. Phase 1 is read-only and does not move money.</p>
+          <p className="auth-privacy">Iris uses authorized provider observations as evidence. Phase 1 is read-only: no bank or card money movement occurs.</p>
         </div>
       </section>
     </main>
