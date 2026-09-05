@@ -26,10 +26,7 @@ import { assessSourceFidelity } from "./sourceFidelity.js";
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
   const canonical90Start = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
-  const [canonical, sourceFidelity] = await Promise.all([
-    getCanonicalTransactions(userId, canonical90Start),
-    assessSourceFidelity(userId),
-  ]);
+  const [canonical, sourceFidelity] = await Promise.all([getCanonicalTransactions(userId, canonical90Start), assessSourceFidelity(userId)]);
   const integrity = validateCanonicalIntelligenceInput(canonical);
   const current30Start = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
   const current30 = canonical.filter(tx => tx.posted_date >= current30Start);
@@ -109,7 +106,21 @@ export async function computeFullIntelligence(userId: string) {
     provider_lineage: providerLineage,
   });
 
-  const composition = buildIrisCompositionEngine(canonical, intelligenceAtlas, 48);
+  const rawComposition = buildIrisCompositionEngine(canonical, intelligenceAtlas, 48);
+  const composition = {
+    ...rawComposition,
+    counts: {
+      ...rawComposition.counts,
+      evidence_ready_combinations: sourceFidelity.ready_for_higher_order_intelligence ? rawComposition.counts.evidence_ready_combinations : 0,
+      evaluable_combinations: sourceFidelity.ready_for_higher_order_intelligence ? rawComposition.counts.possible_combinations : 0,
+    },
+    preview: sourceFidelity.ready_for_higher_order_intelligence ? rawComposition.preview : [],
+    evidence_gate: {
+      status: sourceFidelity.status,
+      ready_for_higher_order_intelligence: sourceFidelity.ready_for_higher_order_intelligence,
+      reason: sourceFidelity.ready_for_higher_order_intelligence ? null : "Source completeness, provider lineage, or evidence certification must pass before Iris presents higher-order compositions as evaluable.",
+    },
+  };
   const intelligenceGate = {
     ...sourceFidelity,
     higher_order_conclusions_enabled: sourceFidelity.ready_for_higher_order_intelligence,
