@@ -6,6 +6,8 @@ import { resolveIrisContext, type IrisQuestionContext } from "../intelligence/ir
 import { evidenceSummary, planIrisEvidence } from "../intelligence/irisEvidence.js";
 import { buildReasoningTrace } from "../intelligence/reasoningTrace.js";
 import { verifyProviderLineage } from "../intelligence/evidenceGraph.js";
+import { retrieveProviderEvidence } from "../intelligence/providerEvidence.js";
+import { answerProviderQuestion } from "../intelligence/providerQuestion.js";
 
 export const irisRouter = Router();
 
@@ -14,7 +16,7 @@ function money(value: unknown): string {
   return `${value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], intel: any, accountCount: number, evidencePlan: ReturnType<typeof planIrisEvidence>) {
+function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], intel: any, accountCount: number, evidencePlan: ReturnType<typeof planIrisEvidence>, providerAnswer?: string | null) {
   const metrics = intel?.layer_metrics ?? {};
   const limitations = evidencePlan.limitations;
   const evidence = intel?.layer_max_intelligence?.provenance ?? [];
@@ -53,7 +55,7 @@ function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], inte
       return { ...base, answer: `Iris currently has ${anomalies.length} surfaced anomaly finding${anomalies.length === 1 ? "" : "s"}. The highest-priority findings should be investigated against their underlying transactions rather than treated as proven fraud or causation.` };
     }
     case "provider_data":
-      return { ...base, evidence_state: "limited", answer: "Provider facts remain read-only source information. Iris can explain or analyze information supplied by Plaid, but it does not rewrite provider facts. The current provider surface should be used to inspect the source record itself." };
+      return { ...base, evidence_state: providerAnswer ? "observed" : "limited", answer: providerAnswer ?? "Provider facts remain read-only source information. Iris can explain or analyze information supplied by Plaid, but it does not rewrite provider facts. I retrieved the current provider evidence snapshot, but the question needs a narrower source query to answer without guessing." };
     case "explanation":
       return { ...base, answer: `${evidenceSummary(evidencePlan)} Iris separates provider observations from Iris calculations and inferences. A specific explanation should trace the relevant observation, calculation, time window, evidence state, provenance, and limitations.` };
     case "overview":
@@ -72,20 +74,23 @@ irisRouter.post("/iris/ask", requireAuth, async (req: AuthedRequest, res) => {
     const userId = req.userId!;
     const suppliedContext: IrisQuestionContext = req.body?.context && typeof req.body.context === "object" ? req.body.context : {};
     const resolved = resolveIrisContext(question, suppliedContext);
-    const [{ data: accounts, error: accountError }, intelligence, providerLineage] = await Promise.all([
+    const [{ data: accounts, error: accountError }, intelligence, providerLineage, providerEvidence] = await Promise.all([
       supabaseAdmin.from("plaid_accounts").select("id").eq("user_id", userId),
       computeFullIntelligence(userId),
       verifyProviderLineage(supabaseAdmin, userId),
+      retrieveProviderEvidence(supabaseAdmin, userId, suppliedContext),
     ]);
     if (accountError) return res.status(500).json({ error: accountError.message });
     const evidencePlan = planIrisEvidence(resolved.intent, intelligence);
     const reasoningTrace = buildReasoningTrace(resolved.intent, intelligence.evidence_graph);
-    const answer = answerFor(resolved.intent, intelligence, accounts?.length ?? 0, evidencePlan);
+    const providerAnswer = answerProviderQuestion(question, providerEvidence);
+    const answer = answerFor(resolved.intent, intelligence, accounts?.length ?? 0, evidencePlan, providerAnswer);
     res.json({
       question: resolved.normalizedQuestion,
       context: resolved.context,
       generated_at: new Date().toISOString(),
       provider_lineage: providerLineage,
+      provider_evidence: providerEvidence,
       reasoning_trace: reasoningTrace,
       ...answer,
     });
