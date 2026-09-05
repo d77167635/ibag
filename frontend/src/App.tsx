@@ -17,12 +17,7 @@ function readWorkspace() {
   if (hash === "workspace/plaid") return { workspace: "plaid", irisPage: "iris" };
   if (hash.startsWith("workspace/iris/")) return { workspace: "iris", irisPage: hash.slice("workspace/".length) || "iris" };
   if (hash === "workspace/iris") return { workspace: "iris", irisPage: "iris" };
-
-  // Legacy Iris hashes are deliberately promoted into the canonical deep-Iris
-  // workspace. This prevents the old IrisApplication renderer from ever
-  // becoming a competing Iris experience while preserving old bookmarks.
   if (hash === "iris" || hash.startsWith("iris/")) return { workspace: "iris", irisPage: hash || "iris" };
-
   return { workspace: "ibag", irisPage: "iris" };
 }
 
@@ -61,9 +56,11 @@ export default function App() {
 
   if (!checkedAuth) return null;
   if (!session) return <Auth />;
+
   const accountControl = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Sign out of iBag" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
-  const workspaceSwitch = <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher"><button className={workspace === "ibag" ? "active" : ""} onClick={() => navigate("ibag")}>iBag</button><button className={workspace === "plaid" ? "active" : ""} onClick={() => navigate("plaid")}>Plaid</button></div>;
-  if (workspace === "plaid") return <><PlaidControlPlane />{workspaceSwitch}{accountControl}</>;
-  if (workspace === "iris") return <><IrisIntelligenceWorkspace page={irisPage} go={(page) => navigate("iris", page)} />{workspaceSwitch}{accountControl}</>;
-  return <>{workspaceSwitch}<IrisApplication /><IrisAssistant />{accountControl}</>;
+  const workspaceSwitch = <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher"><button type="button" className={workspace === "ibag" ? "active" : ""} onClick={() => navigate("ibag")}>iBag</button><button type="button" className={workspace === "plaid" ? "active" : ""} onClick={() => navigate("plaid")}>Plaid</button></div>;
+
+  if (workspace === "plaid") return <div className="app-workspace app-workspace-plaid"><PlaidControlPlane />{workspaceSwitch}{accountControl}</div>;
+  if (workspace === "iris") return <div className="app-workspace app-workspace-iris"><IrisIntelligenceWorkspace page={irisPage} go={(page) => navigate("iris", page)} />{workspaceSwitch}{accountControl}</div>;
+  return <div className="app-workspace app-workspace-ibag">{workspaceSwitch}<IrisApplication /><IrisAssistant />{accountControl}</div>;
 }
