@@ -24,15 +24,17 @@ export interface FinancialStateModel {
 }
 
 function node(graph: EvidenceGraph, id: string) { return graph.nodes.find((item) => item.id === id); }
-function classifyPresent(n: EvidenceNode | undefined, positive: boolean): FinancialState {
-  if (!n) return "insufficient_evidence";
-  if (n.state === "insufficient_evidence") return "insufficient_evidence";
-  if (n.state === "limited") return "mixed";
-  if (n.state === "inferred" && !positive) return "deteriorating";
-  return positive ? "stable" : "spending_pressure";
+
+function numericValue(n: EvidenceNode | undefined): number | null {
+  if (!n || typeof n.value !== "number" || !Number.isFinite(n.value)) return null;
+  return n.value;
 }
 
-/** Converts existing evidence into a typed financial state without inventing provider facts. */
+function evidenceAllowsState(n: EvidenceNode | undefined) {
+  return Boolean(n) && n!.state !== "insufficient_evidence";
+}
+
+/** Converts canonical evidence into a typed financial state without inventing provider facts. */
 export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: UncertaintyAssessment): FinancialStateModel {
   const cash = node(graph, "cash_flow_net");
   const liquid = node(graph, "liquid_assets");
@@ -41,28 +43,69 @@ export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: Unce
   const trajectory = node(graph, "trajectory");
   const anomalies = node(graph, "anomalies");
 
-  const spending: FinancialState = !anomalies ? "insufficient_evidence" : anomalies.state === "inferred" && Number(anomalies.value) > 0 ? "spending_pressure" : "stable";
-  const trajectoryState: FinancialState = !trajectory ? "insufficient_evidence" : trajectory.state === "inferred" ? "mixed" : "stable";
-  const dimensions = {
-    liquidity: classifyPresent(safe ?? liquid, Boolean(safe && safe.value != null)),
-    cash_flow: classifyPresent(cash, Boolean(cash && Number(cash.value) >= 0)),
-    debt: debt ? (debt.state === "limited" ? "mixed" : "stable") as FinancialState : "insufficient_evidence" as FinancialState,
-    spending,
-    trajectory: trajectoryState,
-  };
+  const cashValue = numericValue(cash);
+  const safeValue = numericValue(safe);
+  const debtValue = numericValue(debt);
+  const anomalyCount = numericValue(anomalies);
 
-  const active = Object.values(dimensions).filter((state, index, arr) => state !== "stable" && arr.indexOf(state) === index) as FinancialState[];
+  const liquidity: FinancialState = safeValue !== null
+    ? (safeValue < 0 ? "liquidity_pressure" : "stable")
+    : evidenceAllowsState(liquid) ? "stable" : "insufficient_evidence";
+
+  const cashFlow: FinancialState = cashValue !== null
+    ? (cashValue < 0 ? "cash_flow_pressure" : "stable")
+    : "insufficient_evidence";
+
+  const debtState: FinancialState = debt
+    ? (debt.state === "limited" || debt.state === "insufficient_evidence" ? "insufficient_evidence" : debtValue !== null && debtValue > 0 ? "debt_pressure" : "stable")
+    : "insufficient_evidence";
+
+  const spending: FinancialState = anomalies
+    ? (anomalies.state === "insufficient_evidence" ? "insufficient_evidence" : anomalyCount !== null && anomalyCount > 0 ? "spending_pressure" : "stable")
+    : "insufficient_evidence";
+
+  const trajectoryState: FinancialState = !trajectory
+    ? "insufficient_evidence"
+    : trajectory.state === "insufficient_evidence" || trajectory.state === "limited"
+      ? "insufficient_evidence"
+      : trajectory.state === "inferred"
+        ? (typeof trajectory.value === "object" && trajectory.value !== null && "direction" in trajectory.value && (trajectory.value as any).direction === "decelerating" ? "improving" : "deteriorating")
+        : "stable";
+
+  const dimensions = { liquidity, cash_flow: cashFlow, debt: debtState, spending, trajectory: trajectoryState };
+  const nonStable = Object.values(dimensions).filter((state) => state !== "stable" && state !== "insufficient_evidence") as FinancialState[];
   const hasInsufficient = Object.values(dimensions).includes("insufficient_evidence");
-  const primary: FinancialState = hasInsufficient && active.length === 0 ? "insufficient_evidence" : active.length === 1 ? active[0] : active.length > 1 ? "mixed" : "stable";
-  const drivers = graph.nodes.filter((n) => ["cash_flow_net", "safe_to_spend", "liquid_assets", "debt_cost", "trajectory", "anomalies"].includes(n.id)).map((n) => ({ node_id: n.id, label: n.label, state: n.state, role: n.id === "debt_cost" || n.id === "safe_to_spend" ? "constraint" as const : n.state === "inferred" ? "signal" as const : "driver" as const }));
+  const uniqueActive = [...new Set(nonStable)];
+  const primary: FinancialState = uniqueActive.length > 1
+    ? "mixed"
+    : uniqueActive.length === 1
+      ? uniqueActive[0]
+      : hasInsufficient
+        ? "insufficient_evidence"
+        : "stable";
+
+  const drivers = graph.nodes
+    .filter((n) => ["cash_flow_net", "safe_to_spend", "liquid_assets", "debt_cost", "trajectory", "anomalies"].includes(n.id))
+    .map((n) => ({
+      node_id: n.id,
+      label: n.label,
+      state: n.state,
+      role: n.id === "debt_cost" || n.id === "safe_to_spend" ? "constraint" as const : n.state === "inferred" ? "signal" as const : "driver" as const,
+    }));
+
   const transitions: FinancialStateModel["transitions"] = [];
-  if (trajectory?.state === "inferred") transitions.push({ from: "stable", to: "mixed", trigger_nodes: ["trajectory"], evidence_state: trajectory.state });
-  if (cash?.state === "calculated" && Number(cash.value) < 0) transitions.push({ from: "stable", to: "cash_flow_pressure", trigger_nodes: ["cash_flow_net"], evidence_state: cash.state });
+  if (trajectory?.state === "inferred" && typeof trajectory.value === "object" && trajectory.value !== null && "direction" in trajectory.value) {
+    const direction = (trajectory.value as any).direction;
+    if (direction === "accelerating") transitions.push({ from: "stable", to: "deteriorating", trigger_nodes: ["trajectory"], evidence_state: trajectory.state });
+    if (direction === "decelerating") transitions.push({ from: "stable", to: "improving", trigger_nodes: ["trajectory"], evidence_state: trajectory.state });
+  }
+  if (cash?.state === "calculated" && cashValue !== null && cashValue < 0) transitions.push({ from: "stable", to: "cash_flow_pressure", trigger_nodes: ["cash_flow_net"], evidence_state: cash.state });
+  if (safe?.state === "calculated" && safeValue !== null && safeValue < 0) transitions.push({ from: "stable", to: "liquidity_pressure", trigger_nodes: ["safe_to_spend"], evidence_state: safe.state });
 
   return {
     architecture_version: "IRIS_FINANCIAL_STATE_V1",
     primary_state: primary,
-    active_states: active.length ? active : [primary],
+    active_states: uniqueActive.length ? uniqueActive : [primary],
     state_strength: Number(uncertainty.evidence_strength.toFixed(3)),
     dimensions,
     drivers,
