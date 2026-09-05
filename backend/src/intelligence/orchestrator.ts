@@ -17,7 +17,7 @@ import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
 import { computeFinancialReasoning } from "./relational.js";
 import { buildNarrative, recordExplainabilityTrace } from "./decision.js";
 import { buildMaximumIntelligence } from "./maxIntelligence.js";
-import { buildEvidenceGraph } from "./evidenceGraph.js";
+import { buildEvidenceGraph, verifyProviderLineage } from "./evidenceGraph.js";
 import { assessUncertainty } from "./uncertainty.js";
 import { buildFinancialStateModel } from "./financialState.js";
 import { buildCausalAnalysis } from "./causal.js";
@@ -44,12 +44,13 @@ export async function computeFullIntelligence(userId: string) {
 
   const [
     balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, spendingHierarchy,
-    debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult,
+    debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage,
   ] = await Promise.all([
     computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId),
     detectAnomalies(userId), computeForwardProjection(userId), computeSpendingHierarchy(userId), computeDebtCostIntelligence(userId),
     computeCategoryDrift(userId), computeMultiWindowFlow(userId), computeFinancialReasoning(userId), getFeatureFlags(userId),
     supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
+    verifyProviderLineage(supabaseAdmin, userId),
   ]);
 
   const declaredGoals = (declaredGoalsResult.data ?? []) as DeclaredIrisGoal[];
@@ -69,7 +70,18 @@ export async function computeFullIntelligence(userId: string) {
     forward_projection: forwardProjection,
     anomalies,
   };
-  const baseResult = { narrative, generated_at: new Date().toISOString(), feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence };
+  const baseResult = {
+    narrative,
+    generated_at: new Date().toISOString(),
+    feature_flags: featureFlags,
+    layer_metrics: layerMetrics,
+    layer_debt_cost: debtCost,
+    layer_temporal: { windows: multiWindowFlow, trajectory },
+    layer_behavioral: { categoryDrift },
+    layer_reasoning: reasoning,
+    layer_max_intelligence: maximumIntelligence,
+    provider_lineage: providerLineage,
+  };
   const evidenceGraph = buildEvidenceGraph(baseResult);
   const uncertainty = assessUncertainty(evidenceGraph);
   const financialState = buildFinancialStateModel(evidenceGraph, uncertainty);
