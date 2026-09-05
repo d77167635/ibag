@@ -21,11 +21,15 @@ import { buildOptimizationIntelligence } from "./optimization.js";
 import { buildGoalIntelligence, type DeclaredIrisGoal } from "./goals.js";
 import { buildIrisAnalysisAtlas } from "./analysisAtlas.js";
 import { buildIrisCompositionEngine } from "./compositionEngine.js";
+import { assessSourceFidelity } from "./sourceFidelity.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
   const canonical90Start = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
-  const canonical = await getCanonicalTransactions(userId, canonical90Start);
+  const [canonical, sourceFidelity] = await Promise.all([
+    getCanonicalTransactions(userId, canonical90Start),
+    assessSourceFidelity(userId),
+  ]);
   const integrity = validateCanonicalIntelligenceInput(canonical);
   const current30Start = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
   const current30 = canonical.filter(tx => tx.posted_date >= current30Start);
@@ -76,9 +80,6 @@ export async function computeFullIntelligence(userId: string) {
   const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimizationBase, declaredGoals);
   goals.limitations = [...new Set([...goals.limitations, ...goalDataLimitations])];
 
-  // Iris owns the semantic/intelligence hierarchy. This atlas does not create
-  // financial facts; it enumerates evidence-gated analytical compositions that
-  // can operate on the canonical observations already produced above.
   const intelligenceAtlas = buildIrisAnalysisAtlas({
     narrative,
     net_worth: layerMetrics.net_worth,
@@ -109,6 +110,11 @@ export async function computeFullIntelligence(userId: string) {
   });
 
   const composition = buildIrisCompositionEngine(canonical, intelligenceAtlas, 48);
+  const intelligenceGate = {
+    ...sourceFidelity,
+    higher_order_conclusions_enabled: sourceFidelity.ready_for_higher_order_intelligence,
+    limitation: sourceFidelity.ready_for_higher_order_intelligence ? null : "Higher-order Iris compositions remain evidence-bounded until source completeness and lineage are certified.",
+  };
   recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
-  return { ...baseResult, integrity, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition };
+  return { ...baseResult, integrity, source_fidelity: sourceFidelity, intelligence_gate: intelligenceGate, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition };
 }
