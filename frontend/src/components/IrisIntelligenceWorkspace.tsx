@@ -21,6 +21,11 @@ export function IrisIntelligenceWorkspace({ page = "iris", go }: { page?: string
     return () => { alive = false; };
   }, []);
 
+  const openPlaid = () => {
+    window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#workspace/plaid`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  };
+
   if (error) return <div className="iis-screen"><div className="iis-empty"><strong>Iris intelligence is unavailable.</strong><p>{error}</p></div></div>;
 
   if (hasConnectedData === false) {
@@ -31,7 +36,7 @@ export function IrisIntelligenceWorkspace({ page = "iris", go }: { page?: string
           <strong>Your intelligence workspace is ready.</strong>
           <p>Iris has no financial observations for this account yet. Connect a real financial institution through the Plaid control plane and Iris will begin building evidence from the authorized data.</p>
           <p>No financial data is invented, copied from another account, seeded, or simulated.</p>
-          <button type="button" onClick={() => go?.("../plaid")}>Open Plaid control plane →</button>
+          <button type="button" onClick={openPlaid}>Open Plaid control plane →</button>
         </div>
       </div>
     );
