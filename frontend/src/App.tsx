@@ -7,7 +7,9 @@ import { IrisAssistant } from "./components/IrisAssistant";
 import { PlaidControlPlane } from "./components/PlaidControlPlane";
 import "./iris-command-deck.css";
 
-const signOutStyle: React.CSSProperties = { position: "fixed", right: 28, bottom: 18, zIndex: 120, border: "1px solid rgba(255,255,255,.11)", borderRadius: 9, padding: "7px 10px", background: "rgba(7,9,14,.88)", color: "#9aa4b8", font: "700 8px/1 Inter,system-ui,sans-serif", letterSpacing: ".08em", cursor: "pointer" };
+const accountControlStyle: React.CSSProperties = { position: "fixed", right: 20, bottom: 18, zIndex: 120, display: "flex", alignItems: "center", gap: 9, padding: "7px 9px 7px 11px", border: "1px solid rgba(255,255,255,.11)", borderRadius: 10, background: "rgba(7,9,14,.92)", boxShadow: "0 10px 30px rgba(0,0,0,.28)" };
+const accountEmailStyle: React.CSSProperties = { maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#778198", font: "600 8px/1 Inter,system-ui,sans-serif" };
+const signOutStyle: React.CSSProperties = { border: "1px solid rgba(255,255,255,.12)", borderRadius: 7, padding: "6px 9px", background: "rgba(255,255,255,.035)", color: "#c5ccda", font: "700 8px/1 Inter,system-ui,sans-serif", letterSpacing: ".06em", cursor: "pointer" };
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -27,12 +29,15 @@ export default function App() {
     if (signingOut) return;
     setSigningOut(true);
     const { error } = await supabase.auth.signOut({ scope: "local" });
-    if (error) setSigningOut(false);
+    if (error) { setSigningOut(false); return; }
+    window.history.replaceState(null, "", "/");
+    setPath("/");
   };
 
   if (!checkedAuth) return null;
   if (!session) return <Auth />;
-  const control = <button aria-label="Sign out of iBag" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button>;
-  if (path === "/plaid" || path === "/plaid/") return <><PlaidControlPlane />{control}</>;
-  return <><div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher"><a className="active" href="/">iBag</a><a href="/plaid">Plaid</a></div><IrisApplication /><IrisAssistant />{control}</>;
+  const accountControl = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Sign out of iBag" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
+  const workspaceSwitch = <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher"><a className={path === "/plaid" || path === "/plaid/" ? "" : "active"} href="/">iBag</a><a className={path === "/plaid" || path === "/plaid/" ? "active" : ""} href="/plaid">Plaid</a></div>;
+  if (path === "/plaid" || path === "/plaid/") return <><PlaidControlPlane />{workspaceSwitch}{accountControl}</>;
+  return <>{workspaceSwitch}<IrisApplication /><IrisAssistant />{accountControl}</>;
 }
