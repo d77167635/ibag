@@ -25,13 +25,6 @@ function isRecoveryUrl() {
   return params.get("type") === "recovery" || hash.get("type") === "recovery" || params.has("code");
 }
 
-const AUTHENTICATED_KEY = "ibag.authenticated";
-
-function clearAuthMarker() {
-  window.sessionStorage.removeItem(AUTHENTICATED_KEY);
-  window.sessionStorage.removeItem("iris.authenticated");
-}
-
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checkedAuth, setCheckedAuth] = useState(false);
@@ -43,28 +36,18 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    const authEntered = window.sessionStorage.getItem(AUTHENTICATED_KEY) === "1" || window.sessionStorage.getItem("iris.authenticated") === "1";
     const recoveryUrl = isRecoveryUrl();
 
-    supabase.auth.getSession().then(async ({ data }) => {
+    supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      if (data.session && !authEntered && !recoveryUrl) {
-        await supabase.auth.signOut({ scope: "local" });
-        if (!active) return;
-        clearAuthMarker();
-        setSession(null);
-      } else {
-        setSession(data.session);
-        if (recoveryUrl && data.session) setRecovery(true);
-      }
+      setSession(data.session);
+      if (recoveryUrl && data.session) setRecovery(true);
       setCheckedAuth(true);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!active) return;
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
-      if (newSession && event !== "PASSWORD_RECOVERY") window.sessionStorage.setItem(AUTHENTICATED_KEY, "1");
-      else if (!newSession) clearAuthMarker();
       setSession(newSession);
     });
 
@@ -88,14 +71,14 @@ export default function App() {
     setSigningOut(true);
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) { setSigningOut(false); return; }
-    clearAuthMarker();
-    window.history.replaceState(null, "", "/");
-    setRecovery(false);
-    setWorkspace("iris"); setIrisPage("iris");
+    // Full navigation prevents browser history from restoring a protected
+    // workspace after an explicit sign-out. Supabase local session storage is
+    // cleared by signOut(scope=local), so a later visit requires authentication.
+    window.location.replace("/");
   };
 
   if (!checkedAuth) return null;
-  if (recovery && session) return <Auth recovery onRecoveryComplete={() => { clearAuthMarker(); window.sessionStorage.setItem(AUTHENTICATED_KEY, "1"); setRecovery(false); }} />;
+  if (recovery && session) return <Auth recovery onRecoveryComplete={() => { setRecovery(false); }} />;
   if (!session) return <Auth />;
 
   const accountControl = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Sign out of Iris" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
