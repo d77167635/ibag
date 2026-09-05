@@ -11,6 +11,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checkedAuth, setCheckedAuth] = useState(false);
   const [path, setPath] = useState(() => window.location.pathname);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -26,9 +27,23 @@ export default function App() {
     };
   }, []);
 
+  const signOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) setSigningOut(false);
+  };
+
   if (!checkedAuth) return null;
   if (!session) return <Auth />;
-  if (path === "/plaid" || path === "/plaid/") return <PlaidControlPlane />;
+  if (path === "/plaid" || path === "/plaid/") {
+    return (
+      <>
+        <PlaidControlPlane />
+        <button className="ia-global-signout" onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button>
+      </>
+    );
+  }
   return (
     <>
       <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher">
@@ -37,6 +52,7 @@ export default function App() {
       </div>
       <IrisApplication />
       <IrisAssistant />
+      <button className="ia-global-signout" onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button>
     </>
   );
 }
