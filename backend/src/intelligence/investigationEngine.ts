@@ -36,8 +36,8 @@ export function buildInvestigationEngine(
     if (!["causal", "decisions", "synthesis", "behavior", "spending", "cash_flow", "forecast"].includes(family)) continue;
     const analysisIds = familyDefinitions.map(definition => definition.id);
     const inputs = [...new Set(familyDefinitions.flatMap(definition => definition.inputs))];
-    const ready = familyDefinitions.every(definition => definition.evidence_ready);
     for (const entity of entityNodes) {
+      const ready = entity.observed && familyDefinitions.length > 0;
       investigations.push({
         id: `investigation:${family}:${entity.id}`,
         question: `What is happening with ${entity.label}, why might it be happening, and what should be investigated next?`,
@@ -45,10 +45,10 @@ export function buildInvestigationEngine(
         analysis_ids: analysisIds,
         entity_context: [entity.id],
         evidence_required: inputs,
-        status: ready && entity.observed ? "ready" : "evidence_limited",
-        rationale: ready && entity.observed
-          ? `The ${family} analysis set and the ${entity.kind} are backed by the current Iris evidence graph.`
-          : `Iris identified a potentially useful ${family} investigation, but one or more required evidence paths are not certified.`,
+        status: ready ? "ready" : "evidence_limited",
+        rationale: ready
+          ? `The ${family} analysis set and the ${entity.kind} are available within the current Iris evidence graph.`
+          : `Iris identified a potentially useful ${family} investigation, but the entity is not backed by an observed evidence node.`,
       });
     }
   }
