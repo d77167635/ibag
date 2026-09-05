@@ -28,8 +28,13 @@ export async function assessSourceFidelity(userId: string) {
 
   const itemIds = new Set(itemRows.map((r: any) => r.id));
   const accountIds = new Set(accountRows.map((r: any) => r.id));
-  const providerAccountKeys = new Set<string>(), duplicateProviderKeys = new Set<string>();
-  for (const row of accountRows as any[]) { const key = `${row.item_id}:${row.plaid_account_id}`; if (providerAccountKeys.has(key)) duplicateProviderKeys.add(key); providerAccountKeys.add(key); }
+  const providerAccountKeys = new Set<string>();
+  const duplicateProviderKeys = new Set<string>();
+  for (const row of accountRows as any[]) {
+    const key = `${row.item_id}:${row.plaid_account_id}`;
+    if (providerAccountKeys.has(key)) duplicateProviderKeys.add(key);
+    providerAccountKeys.add(key);
+  }
   const orphanAccounts = accountRows.filter((r: any) => !itemIds.has(r.item_id));
   orphanAccounts.length ? fail("account_item_lineage", "Account → Item lineage", `${orphanAccounts.length} account(s) reference an item outside this user's observed Item set.`, orphanAccounts.length, 0) : pass("account_item_lineage", "Account → Item lineage", "Every account belongs to a user-owned Plaid Item.", 0, 0);
   duplicateProviderKeys.size ? fail("account_provider_identity", "Provider account identity", `${duplicateProviderKeys.size} duplicate provider account identity value(s) exist within an Item.`, duplicateProviderKeys.size, 0) : pass("account_provider_identity", "Provider account identity", "Provider account identities are unique within each Item.", 0, 0);
@@ -55,13 +60,15 @@ export async function assessSourceFidelity(userId: string) {
   const neverCompleted = itemRows.filter((item: any) => { const run = latestRunByItem.get(item.id); return !run || !["completed", "validated"].includes(run.state); });
   neverCompleted.length ? fail("item_sync_certification", "Item synchronization certification", `${neverCompleted.length} connected Item(s) have no completed/validated latest sync run.`, neverCompleted.length, 0) : pass("item_sync_certification", "Item synchronization certification", "Every connected Item has a completed/validated latest sync run.", 0, 0);
 
-  // Canonical product certification is per Item and requires both the observed
-  // provider state and corresponding current raw evidence. No Item may borrow
-  // a domain from another Item.
   const observedByItemProduct = new Set(productRows.filter((r: any) => ["observed", "validated", "fresh"].includes(r.lifecycle_state) && ["observed", "calculated"].includes(r.evidence_state ?? "observed")).map((r: any) => `${r.item_id}:${r.product}`));
   const rawByItemProduct = new Set(rawProductRows.filter((r: any) => ["observed", "calculated"].includes(r.evidence_state ?? "observed")).map((r: any) => `${r.item_id}:${r.product}`));
-  const completeItems = itemRows.filter((item: any) => CANONICAL_PRODUCTS.every(product => observedByItemProduct.has(`${item.id}:${product}`) && (product === "transactions" ? rawTxRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "" ) && accountRows.some((a: any) => a.id === r.account_id && a.item_id === item.id)) : product === "balance" ? rawBalanceRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "") && accountRows.some((a: any) => a.id === r.account_id && a.item_id === item.id)) : product === "liabilities" ? rawLiabilityRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "") && accountRows.some((a: any) => a.id === r.account_id && a.item_id === item.id)) : rawByItemProduct.has(`${item.id}:${product}`))));
-  const missingByItem = itemRows.map((item: any) => ({ item: item.id, missing_observed: CANONICAL_PRODUCTS.filter(product => !observedByItemProduct.has(`${item.id}:${product}`)), missing_raw: CANONICAL_PRODUCTS.filter(product => !((product === "transactions" ? rawTxRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "") && accountRows.some((a: any) => a.id === r.account_id && a.item_id === item.id)) : product === "balance" ? rawBalanceRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "") && accountRows.some((a: any) => a.id === r.account_id && a.item_id === item.id)) : product === "liabilities" ? rawLiabilityRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "") && accountRows.some((a: any) => a.id === r.account_id && a.item_id === item.id)) : rawByItemProduct.has(`${item.id}:${product}`)))}));
+  const hasRawFor = (itemId: string, product: string) => {
+    if (product === "transactions") return rawTxRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "") && accountRows.some((a: any) => a.id === r.account_id && a.item_id === itemId));
+    if (product === "balance") return rawBalanceRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "") && accountRows.some((a: any) => a.id === r.account_id && a.item_id === itemId));
+    if (product === "liabilities") return rawLiabilityRows.some((r: any) => r.is_current && ["observed", "calculated"].includes(r.evidence_state ?? "") && accountRows.some((a: any) => a.id === r.account_id && a.item_id === itemId));
+    return rawByItemProduct.has(`${itemId}:${product}`);
+  };
+  const completeItems = itemRows.filter((item: any) => CANONICAL_PRODUCTS.every(product => observedByItemProduct.has(`${item.id}:${product}`) && hasRawFor(item.id, product)));
   const eightDomainReady = completeItems.length > 0;
   if (eightDomainReady) pass("canonical_eight_domain_certification", "Eight-domain provider certification", `${completeItems.length} Item(s) contain all eight canonical Plaid domains with current observed state and raw evidence on the same Item.`, completeItems.length, ">=1");
   else fail("canonical_eight_domain_certification", "Eight-domain provider certification", "No single Item currently has all eight canonical Plaid domains with current observed state and raw evidence.", completeItems.length, ">=1");
@@ -85,7 +92,7 @@ export async function assessSourceFidelity(userId: string) {
     counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilityRows.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
     reconciliation: { canonical_active_transactions: txRows.filter((r: any) => r.is_active).length, raw_current_transactions: rawTxRows.filter((r: any) => r.is_current).length, added: currentRuns.reduce((n: number, r: any) => n + Number(r.added_count ?? 0), 0), modified: currentRuns.reduce((n: number, r: any) => n + Number(r.modified_count ?? 0), 0), removed: currentRuns.reduce((n: number, r: any) => n + Number(r.removed_count ?? 0), 0) },
     eight_domain_items: completeItems.map((i: any) => i.id),
-    missing_by_item: missingByItem,
+    missing_by_item: itemRows.map((item: any) => ({ item: item.id, missing_observed: CANONICAL_PRODUCTS.filter(product => !observedByItemProduct.has(`${item.id}:${product}`)), missing_raw: CANONICAL_PRODUCTS.filter(product => !hasRawFor(item.id, product)) })),
     generated_at: new Date().toISOString(),
     principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified evidence boundary.",
   };
