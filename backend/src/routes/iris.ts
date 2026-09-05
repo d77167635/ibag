@@ -8,6 +8,7 @@ import { buildReasoningTrace } from "../intelligence/reasoningTrace.js";
 import { verifyProviderLineage } from "../intelligence/evidenceGraph.js";
 import { retrieveProviderEvidence } from "../intelligence/providerEvidence.js";
 import { answerProviderQuestion } from "../intelligence/providerQuestion.js";
+import { buildTrialProductIntelligence } from "../intelligence/trialProductIntelligence.js";
 
 export const irisRouter = Router();
 
@@ -74,11 +75,12 @@ irisRouter.post("/iris/ask", requireAuth, async (req: AuthedRequest, res) => {
     const userId = req.userId!;
     const suppliedContext: IrisQuestionContext = req.body?.context && typeof req.body.context === "object" ? req.body.context : {};
     const resolved = resolveIrisContext(question, suppliedContext);
-    const [{ data: accounts, error: accountError }, intelligence, providerLineage, providerEvidence] = await Promise.all([
+    const [{ data: accounts, error: accountError }, intelligence, providerLineage, providerEvidence, trialProductIntelligence] = await Promise.all([
       supabaseAdmin.from("plaid_accounts").select("id").eq("user_id", userId),
       computeFullIntelligence(userId),
       verifyProviderLineage(supabaseAdmin, userId),
       retrieveProviderEvidence(supabaseAdmin, userId, suppliedContext),
+      buildTrialProductIntelligence(userId),
     ]);
     if (accountError) return res.status(500).json({ error: accountError.message });
     const evidencePlan = planIrisEvidence(resolved.intent, intelligence);
@@ -91,6 +93,7 @@ irisRouter.post("/iris/ask", requireAuth, async (req: AuthedRequest, res) => {
       generated_at: new Date().toISOString(),
       provider_lineage: providerLineage,
       provider_evidence: providerEvidence,
+      trial_product_intelligence: trialProductIntelligence,
       reasoning_trace: reasoningTrace,
       ...answer,
     });
