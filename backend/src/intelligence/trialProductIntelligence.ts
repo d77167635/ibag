@@ -43,7 +43,14 @@ function summarize(product:string,payload:any){
   case "assets":{const a=arrayAt(payload,["report","items"],["report","accounts"],["items"],["accounts"]);return{asset_records:a.length,asset_value_observed:numericSum(a,["value","current_value","balance"])};}
   case "liabilities":{const l=[...arrayAt(payload,["liabilities","credit"],["credit"]),...arrayAt(payload,["liabilities","student"],["student"]),...arrayAt(payload,["liabilities","mortgage"],["mortgage"])];return{liability_records:l.length,liability_balance_observed:numericSum(l,["last_statement_balance","current_balance","balance"])};}
   case "investments":{const h=arrayAt(payload,["holdings"],["investment_holdings"]),s=arrayAt(payload,["securities"]);return{holding_records:h.length,security_records:s.length,holding_value_observed:numericSum(h,["institution_value","market_value","quantity"])};}
-  case "statements":{const s=arrayAt(payload,["statements"],["items"]);return{statement_records:s.length,statement_response_received:true};}
+  case "statements":{
+   const direct=arrayAt(payload,["statements"],["items"]);
+   const accounts=arrayAt(payload,["accounts"]);
+   const nested=accounts.flatMap((a:any)=>Array.isArray(a?.statements)?a.statements:[]);
+   const statements=direct.length?nested.length?direct.concat(nested):direct:nested;
+   const unique=statements.filter((s:any,i:number,arr:any[])=>{const id=s?.statement_id??s?.id??s?.statement_date??JSON.stringify(s);return arr.findIndex((x:any)=>(x?.statement_id??x?.id??x?.statement_date??JSON.stringify(x))===id)===i;});
+   return{statement_records:unique.length,statement_accounts:accounts.length,statement_response_received:true};
+  }
   default:return{response_received:true};
  }
 }
@@ -83,9 +90,6 @@ export async function buildTrialProductIntelligence(userId:string,intent:IrisPro
    for(const authority of authoritiesForProduct){
      const specialized=sourceRowsByProduct[product]?.filter(r=>r.item_id===authority.item_id)??[];
      const rawProduct=rawObserved.find(r=>r.product===product&&r.item_id===authority.item_id);
-     // Account-scoped raw mirrors are authoritative for transactions, balances, and liabilities.
-     // Generic product mirrors remain available for provenance/display but can never replace the
-     // concrete account-scoped source in a consumption proof.
      const authoritativeSpecialized=["transactions","balance","liabilities"].includes(product);
      if(authoritativeSpecialized && !specialized.length)continue;
      if(!authoritativeSpecialized && !rawProduct)continue;
@@ -98,5 +102,5 @@ export async function buildTrialProductIntelligence(userId:string,intent:IrisPro
  }
  if(consumptionRows.length){const{error}=await supabaseAdmin.from("iris_product_consumption").upsert(consumptionRows,{onConflict:"user_id,item_id,product,analysis_key,dedupe_observation_id",ignoreDuplicates:true});if(error)throw error;}
  const consumedProducts=[...new Set(consumptionRows.map(r=>r.product))],consumedAnalyses=[...new Set(consumptionRows.map(r=>r.analysis_key))],coreConsumption=consumptionRows.filter(r=>CORE_PRODUCTS.has(r.product)).map(r=>({item_id:r.item_id,product:r.product,analysis_key:r.analysis_key,evidence_observation_id:r.evidence_observation_id,raw_observation_id:r.raw_observation_id,source_kind:r.details.source_kind,source_observation_ids:r.details.source_observation_ids}));
- return{observed_products:observedProducts,observed_by_item:Object.fromEntries([...observedByItem.entries()].map(([item,products])=>[item,[...products]])),consumed_products:consumedProducts,consumed_analyses:consumedAnalyses,core_consumption:coreConsumption,consumption_contract:{declared_combinations:COMBINATION_LIBRARY.map(c=>({key:c.key,products:[...c.products],analyses:[...c.analyses]})),actual_request_path_analyses:[...new Set(Object.values(actualConsumption).flat())],note:"Declared combinations are capabilities, not execution proof. Only analyses with concrete request-path consumption records are marked consumed."},selection,evidence_rule:"Only current Plaid product observations with lifecycle_state=observed and evidence_state=observed are selectable. Transactions, balances, and liabilities are certified through account-to-Item lineage because their specialized raw mirrors are account-scoped. Other Trial domains require their current raw provider observation mirror. Products from different Items are never combined implicitly. Selection chooses one eligible same-Item evidence set, preferring the richest observed Item and then deterministic Item id. Consumption is recorded only for an evidence-ready request path and includes concrete provider-source observation identifiers used by that path."};
+ return{observed_products:observedProducts,observed_by_item:Object.fromEntries([...observedByItem.entries()].map(([item,products])=>[item,[...products]])),consumed_products:consumedProducts,consumed_analyses:consumedAnalyses,core_consumption:coreConsumption,provider_summaries:summaries,consumption_contract:{declared_combinations:COMBINATION_LIBRARY.map(c=>({key:c.key,products:[...c.products],analyses:[...c.analyses]})),actual_request_path_analyses:[...new Set(Object.values(actualConsumption).flat())],note:"Declared combinations are capabilities, not execution proof. Only analyses with concrete request-path consumption records are marked consumed."},selection,evidence_rule:"Only current Plaid product observations with lifecycle_state=observed and evidence_state=observed are selectable. Transactions, balances, and liabilities are certified through account-to-Item lineage because their specialized raw mirrors are account-scoped. Other Trial domains require their current raw provider observation mirror. Products from different Items are never combined implicitly. Selection chooses one eligible same-Item evidence set, preferring the richest observed Item and then deterministic Item id. Consumption is recorded only for an evidence-ready request path and includes concrete provider-source observation identifiers used by that path."};
 }
