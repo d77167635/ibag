@@ -6,6 +6,7 @@ import { getPlaidAccessToken } from "../services/tokenStore.js";
 import { plaidClient } from "../plaid/client.js";
 import { computeFullIntelligence } from "../intelligence/orchestrator.js";
 import { computeCanonicalScenario } from "../intelligence/canonicalScenario.js";
+import { evaluateIntelligenceValidation } from "../intelligence/validationEngine.js";
 
 export const dashboardRouter = Router();
 
@@ -67,45 +68,25 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
     const full = await computeFullIntelligence(req.userId!);
     const metrics = full.layer_metrics;
     res.json({
-      narrative: full.narrative,
-      generated_at: full.generated_at,
-      net_worth: metrics.net_worth,
-      debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost },
-      cash_flow_safety: metrics.cash_flow_safety,
-      roundup_projection: metrics.roundup_projection,
-      cash_flow: metrics.cash_flow,
-      spending_by_domain: metrics.spending_by_domain,
-      balance_history: metrics.balance_history,
-      forward_projection: metrics.forward_projection,
-      anomalies: metrics.anomalies,
-      spending_hierarchy: full.layer_metrics.spending_hierarchy,
-      category_drift: full.layer_behavioral.categoryDrift,
-      reasoning: full.layer_reasoning,
-      temporal: full.layer_temporal,
-      maximum_intelligence: full.layer_max_intelligence,
-      feature_flags: full.feature_flags,
-      provider_lineage: full.provider_lineage,
-      integrity: full.integrity,
-      source_fidelity: full.source_fidelity,
-      intelligence_gate: full.intelligence_gate,
-      evidence_graph: full.evidence_graph,
-      intelligence_graph: full.intelligence_graph,
-      investigations: full.investigations,
-      uncertainty: full.uncertainty,
-      financial_state: full.financial_state,
-      causal_analysis: full.causal_analysis,
-      decision_graph: full.decision_graph,
-      decision_intelligence: full.decision_intelligence,
-      consequence_model: full.consequence_model,
-      optimization_intelligence: full.optimization_intelligence,
-      goal_intelligence: full.goal_intelligence,
-      intelligence_atlas: full.intelligence_atlas,
-      intelligence_composition: full.intelligence_composition,
+      narrative: full.narrative, generated_at: full.generated_at, net_worth: metrics.net_worth,
+      debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost }, cash_flow_safety: metrics.cash_flow_safety,
+      roundup_projection: metrics.roundup_projection, cash_flow: metrics.cash_flow, spending_by_domain: metrics.spending_by_domain,
+      balance_history: metrics.balance_history, forward_projection: metrics.forward_projection, anomalies: metrics.anomalies,
+      spending_hierarchy: full.layer_metrics.spending_hierarchy, category_drift: full.layer_behavioral.categoryDrift, reasoning: full.layer_reasoning,
+      temporal: full.layer_temporal, maximum_intelligence: full.layer_max_intelligence, feature_flags: full.feature_flags,
+      provider_lineage: full.provider_lineage, integrity: full.integrity, source_fidelity: full.source_fidelity, intelligence_gate: full.intelligence_gate,
+      evidence_boundary: full.evidence_boundary, evidence_graph: full.evidence_graph, intelligence_graph: full.intelligence_graph,
+      investigations: full.investigations, uncertainty: full.uncertainty, financial_state: full.financial_state, causal_analysis: full.causal_analysis,
+      decision_graph: full.decision_graph, decision_intelligence: full.decision_intelligence, consequence_model: full.consequence_model,
+      optimization_intelligence: full.optimization_intelligence, goal_intelligence: full.goal_intelligence, intelligence_atlas: full.intelligence_atlas,
+      intelligence_composition: full.intelligence_composition, higher_order_synthesis: full.higher_order_synthesis, meta_intelligence: full.meta_intelligence,
     });
-  } catch (err) {
-    console.error("dashboard/intelligence error:", err);
-    res.status(500).json({ error: "Failed to compute intelligence metrics" });
-  }
+  } catch (err) { console.error("dashboard/intelligence error:", err); res.status(500).json({ error: "Failed to compute intelligence metrics" }); }
+});
+
+dashboardRouter.get("/dashboard/intelligence/validation", requireAuth, async (req: AuthedRequest, res) => {
+  try { res.json(await evaluateIntelligenceValidation(req.userId!)); }
+  catch (err) { console.error("dashboard/intelligence/validation error:", err); res.status(500).json({ error: "Failed to evaluate intelligence validation" }); }
 });
 
 const PLAID_STANDARD_PRODUCTS = ["transactions", "auth", "balance", "identity", "investments", "liabilities", "transfer", "signal"] as const;
@@ -121,17 +102,10 @@ dashboardRouter.get("/dashboard/plaid", requireAuth, async (req: AuthedRequest, 
     try {
       const accessToken = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
       const itemResp = await plaidClient.itemGet({ access_token: accessToken });
-      const billed = new Set(itemResp.data.item.billed_products ?? []);
-      const available = new Set(itemResp.data.item.available_products ?? []);
-      for (const product of PLAID_STANDARD_PRODUCTS) {
-        if (billed.has(product as any)) productStatus.set(product, "active");
-        else if (available.has(product as any) && productStatus.get(product) !== "active") productStatus.set(product, "available");
-      }
+      const billed = new Set(itemResp.data.item.billed_products ?? []), available = new Set(itemResp.data.item.available_products ?? []);
+      for (const product of PLAID_STANDARD_PRODUCTS) { if (billed.has(product as any)) productStatus.set(product, "active"); else if (available.has(product as any) && productStatus.get(product) !== "active") productStatus.set(product, "available"); }
       itemSummaries.push({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, billed_products: [...billed], available_products: [...available] });
-    } catch (err) {
-      console.error(`itemGet failed for item ${item.id}:`, err);
-      itemSummaries.push({ institution_name: item.institution_name, status: "error_fetching_product_status", last_synced_at: item.last_synced_at, billed_products: [], available_products: [] });
-    }
+    } catch (err) { console.error(`itemGet failed for item ${item.id}:`, err); itemSummaries.push({ institution_name: item.institution_name, status: "error_fetching_product_status", last_synced_at: item.last_synced_at, billed_products: [], available_products: [] }); }
   }
   res.json({ items: itemSummaries, products: PLAID_STANDARD_PRODUCTS.map((p) => ({ product: p, status: productStatus.get(p) })) });
 });
