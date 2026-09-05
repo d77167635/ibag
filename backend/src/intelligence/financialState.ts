@@ -53,7 +53,7 @@ export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: Unce
   const direction = directionOf(trajectory);
   const trajectoryState: FinancialState = !trajectory || trajectory.state === "insufficient_evidence" || trajectory.state === "limited"
     ? "insufficient_evidence"
-    : trajectory.state === "inferred"
+    : (trajectory.state === "inferred" || trajectory.state === "calculated")
       ? direction === "decelerating" ? "improving" : direction === "accelerating" ? "deteriorating" : "mixed"
       : "stable";
 
@@ -68,7 +68,7 @@ export function buildFinancialStateModel(graph: EvidenceGraph, uncertainty: Unce
     .map((n) => ({ node_id: n.id, label: n.label, state: n.state, role: n.id === "debt_cost" || n.id === "safe_to_spend" || n.id === "revolving_debt" ? "constraint" as const : n.state === "inferred" ? "signal" as const : "driver" as const }));
 
   const transitions: FinancialStateModel["transitions"] = [];
-  if (trajectory?.state === "inferred") {
+  if (trajectory && ["inferred", "calculated"].includes(trajectory.state)) {
     if (direction === "accelerating") transitions.push({ from: "stable", to: "deteriorating", trigger_nodes: ["trajectory"], evidence_state: trajectory.state });
     if (direction === "decelerating") transitions.push({ from: "stable", to: "improving", trigger_nodes: ["trajectory"], evidence_state: trajectory.state });
   }
