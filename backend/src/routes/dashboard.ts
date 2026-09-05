@@ -94,6 +94,7 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       optimization_intelligence: full.optimization_intelligence,
       goal_intelligence: full.goal_intelligence,
       intelligence_atlas: full.intelligence_atlas,
+      intelligence_composition: full.intelligence_composition,
     });
   } catch (err) {
     console.error("dashboard/intelligence error:", err);
