@@ -36,7 +36,7 @@ export async function buildProviderDomainIntelligence(userId: string) {
   const selectedItemId = [...byItem.entries()].filter(([, products]) => PRODUCTS.every(product => products.has(product))).map(([itemId]) => itemId).sort()[0] ?? null;
   const boundary = await getCertifiedEvidenceBoundary(userId);
   const selectedProducts = selectedItemId ? byItem.get(selectedItemId) ?? new Set<string>() : new Set<string>();
-  const result: any = { architecture_version: "IRIS_PROVIDER_DOMAIN_INTELLIGENCE_V2", evidence_boundary: boundary, selected_item_id: selectedItemId, evidence_ready: selectedItemId !== null && PRODUCTS.every(product => selectedProducts.has(product)), domains: {}, utilization: { products: [], analyses: [], source_observations: {}, same_item: true }, limitations: [] as string[] };
+  const result: any = { architecture_version: "IRIS_PROVIDER_DOMAIN_INTELLIGENCE_V3", evidence_boundary: boundary, selected_item_id: selectedItemId, evidence_ready: selectedItemId !== null && PRODUCTS.every(product => selectedProducts.has(product)), domains: {}, utilization: { products: [], analyses: [], source_observations: {}, same_item: true }, limitations: [] as string[] };
   if (!selectedItemId) { result.limitations.push("No single active Item currently contains all eight canonical Plaid evidence domains."); return result; }
 
   const source = (product: Product) => {
@@ -50,8 +50,7 @@ export async function buildProviderDomainIntelligence(userId: string) {
   const authPayload = authSource.generic[0]?.raw_response, identityPayload = identitySource.generic[0]?.raw_response, assetPayload = assetSource.generic[0]?.raw_response, investmentPayload = investmentSource.generic[0]?.raw_response, statementPayload = statementSource.generic[0]?.raw_response;
   const authAccounts = arrayAt(authPayload, ["accounts"]), identityRoot = identityPayload?.identity ?? identityPayload, identityAccounts = arrayAt(identityRoot, ["accounts"], ["owners"]);
   const assetItems = arrayAt(assetPayload, ["report", "items"], ["report", "accounts"], ["items"], ["accounts"]), investmentHoldings = arrayAt(investmentPayload, ["holdings"], ["investment_holdings"]), investmentSecurities = arrayAt(investmentPayload, ["securities"]);
-  const statementAccounts = arrayAt(statementPayload, ["accounts"]);
-  const statements = uniqueById(statementAccounts.flatMap((a: any) => Array.isArray(a?.statements) ? a.statements : []).concat(arrayAt(statementPayload, ["statements"], ["items"])));
+  const statementAccounts = arrayAt(statementPayload, ["accounts"]), statements = uniqueById(statementAccounts.flatMap((a: any) => Array.isArray(a?.statements) ? a.statements : []).concat(arrayAt(statementPayload, ["statements"], ["items"])));
   const liabilityPayloads = liabilitySource.specialized.map(r => r.raw_response).filter(Boolean);
   const liabilityRecords = liabilityPayloads.flatMap((payload: any) => [...arrayAt(payload, ["liabilities", "credit"], ["credit"]), ...arrayAt(payload, ["liabilities", "student"], ["student"]), ...arrayAt(payload, ["liabilities", "mortgage"], ["mortgage"]) ]);
 
@@ -80,10 +79,15 @@ export async function buildProviderDomainIntelligence(userId: string) {
     balance: { balance_records: balanceSource.specialized.length, currency: balanceCurrency.currency, currency_safe_for_aggregation: balanceCurrency.safe, liquid_balance_observed: liquidBalance, source_observation_ids: balanceSource.ids },
   };
 
-  const consumptionPlans: Array<{ product: Product; analyses: string[] }> = [
-    { product: "assets", analyses: ["asset_position"] }, { product: "investments", analyses: ["portfolio"] }, { product: "liabilities", analyses: ["debt_health"] },
-    { product: "balance", analyses: ["net_worth", "debt_health", "account_integrity"] }, { product: "transactions", analyses: ["net_worth", "debt_health", "statement_reconciliation", "history"] },
-    { product: "statements", analyses: ["statement_reconciliation", "history"] }, { product: "auth", analyses: ["account_integrity"] }, { product: "identity", analyses: ["identity_context", "account_integrity"] },
+  const consumptionPlans: Array<{ product: Product; analyses: string[]; combination_key: string }> = [
+    { product: "assets", analyses: ["asset_position"], combination_key: "asset_position" },
+    { product: "investments", analyses: ["portfolio"], combination_key: "portfolio_state" },
+    { product: "liabilities", analyses: ["debt_health"], combination_key: "debt_state" },
+    { product: "balance", analyses: ["net_worth", "debt_health", "account_integrity"], combination_key: "balance_state" },
+    { product: "transactions", analyses: ["history"], combination_key: "transaction_history" },
+    { product: "statements", analyses: ["statement_reconciliation", "history"], combination_key: "statement_history" },
+    { product: "auth", analyses: ["account_integrity"], combination_key: "account_integrity" },
+    { product: "identity", analyses: ["identity_context", "account_integrity"], combination_key: "account_integrity" },
   ];
   const consumptionRows: any[] = [];
   for (const plan of consumptionPlans) {
@@ -91,17 +95,11 @@ export async function buildProviderDomainIntelligence(userId: string) {
     if (!authority || (s.authoritativeSpecialized ? !s.specialized.length : !s.generic.length)) continue;
     const sourceIds = s.ids, rawObservationId = sourceIds[0] ?? null; if (!rawObservationId) continue;
     const sourceKind = s.authoritativeSpecialized ? plan.product === "transactions" ? "plaid_raw_transactions" : plan.product === "balance" ? "plaid_raw_balances" : "plaid_raw_liabilities" : "plaid_raw_product_observations";
-    for (const analysisKey of plan.analyses) consumptionRows.push({ user_id: userId, item_id: selectedItemId, product: plan.product, analysis_key: analysisKey, evidence_observation_id: authority.id, raw_observation_id: rawObservationId, details: { evidence_state: "observed", source_kind: sourceKind, source_observation_ids: sourceIds, selected_item_id: selectedItemId, combination_key: "full_financial_state", authoritative_source: true, actual_analysis_use: true, provider_units: "plaid_currency_units", currency: plan.product === "balance" ? balanceCurrency.currency : null } });
+    for (const analysisKey of plan.analyses) consumptionRows.push({ user_id: userId, item_id: selectedItemId, product: plan.product, analysis_key: analysisKey, evidence_observation_id: authority.id, raw_observation_id: rawObservationId, details: { evidence_state: "observed", source_kind: sourceKind, source_observation_ids: sourceIds, selected_item_id: selectedItemId, combination_key: plan.combination_key, authoritative_source: true, actual_analysis_use: true, provider_units: "plaid_currency_units", currency: plan.product === "balance" ? balanceCurrency.currency : null } });
   }
   if (consumptionRows.length) { const { error } = await supabaseAdmin.from("iris_product_consumption").upsert(consumptionRows, { onConflict: "user_id,item_id,product,analysis_key,dedupe_observation_id", ignoreDuplicates: true }); if (error) throw error; }
 
-  result.utilization = {
-    products: PRODUCTS.filter(product => { const s = source(product); return Boolean(s.authority && (s.authoritativeSpecialized ? s.specialized.length : s.generic.length)); }),
-    analyses: ["asset_position", "portfolio", "net_worth", "debt_health", "statement_reconciliation", "history", "account_integrity", "identity_context"],
-    source_observations: Object.fromEntries(PRODUCTS.map(product => [product, source(product).ids])),
-    same_item: true,
-    rule: "Only current observed provider evidence from the selected eight-product Item is used. Specialized account-scoped sources are authoritative for transactions, balance and liabilities. Assets report balances and investment holdings are excluded from net worth to prevent overlap with canonical account balances.",
-  };
+  result.utilization = { products: PRODUCTS.filter(product => { const s = source(product); return Boolean(s.authority && (s.authoritativeSpecialized ? s.specialized.length : s.generic.length)); }), analyses: [...new Set(consumptionPlans.flatMap(p => p.analyses))], source_observations: Object.fromEntries(PRODUCTS.map(product => [product, source(product).ids])), same_item: true, rule: "Only current observed provider evidence from the selected eight-product Item is used. Specialized account-scoped sources are authoritative for transactions, balance and liabilities. Assets report balances and investment holdings are excluded from net worth to prevent overlap with canonical account balances. Consumption records describe the exact domain analysis actually performed here; they do not certify higher-order combination execution." };
   result.derived = {
     net_worth: netWorth,
     net_worth_components: { liquid_assets: liquidBalance, investment_accounts: investmentAccountBalance, debt_accounts: debtAccountBalance, liabilities_product_balance: liabilityBalance, basis: "mutually_exclusive_plaid_account_balances", assets_report_excluded_from_net_worth: true, investment_holdings_excluded_from_net_worth: true },
