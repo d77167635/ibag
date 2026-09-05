@@ -54,7 +54,7 @@ async function markObserved(userId: string, itemId: string, product: string) {
   if (observationError) throw observationError;
 }
 
-export async function observeActivatedTrialProducts(userId: string, itemId: string, accessToken: string, activated: Set<string>) {
+export async function observeActivatedTrialProducts(userId: string, itemId: string, accessToken: string, activated: ReadonlySet<string>) {
   const results: Array<{ product: string; observed: boolean; error?: string }> = [];
   for (const product of ["auth", "identity", "assets", "investments", "statements"]) {
     if (!activated.has(product)) {
