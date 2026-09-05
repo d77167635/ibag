@@ -19,9 +19,16 @@ function readWorkspace() {
   return { workspace: "iris", irisPage: "iris" };
 }
 
+function isRecoveryUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  return params.get("type") === "recovery" || hash.get("type") === "recovery" || params.has("code");
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checkedAuth, setCheckedAuth] = useState(false);
+  const [recovery, setRecovery] = useState(isRecoveryUrl());
   const initial = readWorkspace();
   const [workspace, setWorkspace] = useState(initial.workspace);
   const [irisPage, setIrisPage] = useState(initial.irisPage);
@@ -30,23 +37,26 @@ export default function App() {
   useEffect(() => {
     let active = true;
     const authEntered = window.sessionStorage.getItem("ibag.authenticated") === "1";
+    const recoveryUrl = isRecoveryUrl();
 
     supabase.auth.getSession().then(async ({ data }) => {
       if (!active) return;
-      if (data.session && !authEntered) {
+      if (data.session && !authEntered && !recoveryUrl) {
         await supabase.auth.signOut({ scope: "local" });
         if (!active) return;
         setSession(null);
       } else {
         setSession(data.session);
+        if (recoveryUrl && data.session) setRecovery(true);
       }
       setCheckedAuth(true);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!active) return;
-      if (newSession) window.sessionStorage.setItem("ibag.authenticated", "1");
-      else window.sessionStorage.removeItem("ibag.authenticated");
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+      if (newSession && event !== "PASSWORD_RECOVERY") window.sessionStorage.setItem("ibag.authenticated", "1");
+      else if (!newSession) window.sessionStorage.removeItem("ibag.authenticated");
       setSession(newSession);
     });
 
@@ -70,10 +80,12 @@ export default function App() {
     if (error) { setSigningOut(false); return; }
     window.sessionStorage.removeItem("ibag.authenticated");
     window.history.replaceState(null, "", "/");
+    setRecovery(false);
     setWorkspace("iris"); setIrisPage("iris");
   };
 
   if (!checkedAuth) return null;
+  if (recovery && session) return <Auth recovery onRecoveryComplete={() => setRecovery(false)} />;
   if (!session) return <Auth />;
 
   const accountControl = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Sign out of iBag" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
