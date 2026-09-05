@@ -26,8 +26,12 @@ irisCatalogRouter.get("/iris/catalog", requireAuth, async (req: AuthedRequest, r
   try {
     const { data, error } = await supabaseAdmin.from("iris_user_intelligence_preferences").select("catalog_version, selected_capability_ids, standard_name, updated_at").eq("user_id", req.userId!).maybeSingle();
     if (error) throw error;
-    const stored = Array.isArray(data?.selected_capability_ids) ? data.selected_capability_ids.filter((id: unknown): id is string => typeof id === "string" && isKnown(id)) : [];
-    const selected = stored.length ? stored.slice(0, STANDARD_LIMIT) : [...STANDARD_IDS];
+    const hasStoredPreference = !!data;
+    const stored = hasStoredPreference && Array.isArray(data?.selected_capability_ids)
+      ? data.selected_capability_ids.filter((id: unknown): id is string => typeof id === "string" && isKnown(id))
+      : [];
+    // Absent means never customized. Present empty means explicitly disabled.
+    const selected = hasStoredPreference ? stored.slice(0, STANDARD_LIMIT) : [...STANDARD_IDS];
     res.json({
       catalog_version: IRIS_CATALOG_VERSION,
       hierarchy: "Iris > synthesis > intelligence catalog > analytical families > evidence-valid compositions > canonical evidence > Plaid source observations",
