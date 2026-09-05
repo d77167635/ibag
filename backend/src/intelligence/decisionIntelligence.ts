@@ -81,6 +81,23 @@ export function buildDecisionIntelligence(
     .map((n) => n.label);
 
   const options: DecisionOption[] = [];
+  const hasPressureRisk = reasoning.risks.some((r) => ["debt_acceleration", "category_spending_drift", "cash_flow_deterioration", "negative_safe_to_spend", "minimum_payment_exceeds_safe_to_spend"].includes(r.key));
+  if (hasPressureRisk || state.active_states.includes("debt_pressure") || state.active_states.includes("spending_pressure") || state.active_states.includes("cash_flow_pressure")) {
+    const pressureRisk = reasoning.risks.find((r) => ["debt_acceleration", "category_spending_drift", "cash_flow_deterioration", "negative_safe_to_spend", "minimum_payment_exceeds_safe_to_spend"].includes(r.key));
+    options.push({
+      id: "option:reduce-pressure",
+      kind: "reduce_pressure",
+      label: "Analyze the highest-impact pressure reduction",
+      rationale: pressureRisk?.statement ?? "Current financial-state evidence indicates pressure that warrants reduction analysis.",
+      expected_effects: ["Model how a reduction in the identified outflow pressure would affect economic cash flow.", "Reassess liquidity and debt-related constraints under the modeled scenario."],
+      risks: ["A modeled reduction is not proof that the user can or should reduce the corresponding spending or obligation.", "Reducing one pressure may conflict with another user goal."],
+      constraints,
+      reversibility: "high",
+      evidence_state: pressureRisk?.evidence ?? "calculated",
+      execution: "analysis_only",
+    });
+  }
+
   if (reasoning.risks.length) {
     options.push({
       id: "option:investigate-risk",
