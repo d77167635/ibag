@@ -57,7 +57,10 @@ linkRouter.post("/link/upgrade-token", requireAuth, async (req: AuthedRequest, r
       const available = new Set(itemState.data.item.available_products ?? []);
       const alreadyAdded = new Set(itemState.data.item.products ?? []);
       const consented = new Set(itemState.data.item.consented_products ?? []);
-      const candidates = ["auth", "identity", "investments", "liabilities"] as const;
+      // Liabilities is not a Plaid Link `Products` enum value; it is observed by
+      // calling the Liabilities endpoints after the Item's supported/consented
+      // data access is available. Only request actual additional-consent products.
+      const candidates = ["auth", "identity", "investments"] as const;
       const missingSupported = candidates.filter((product) =>
         !alreadyAdded.has(product) && !consented.has(product) && (available.has(product) || product === "auth" || product === "identity")
       ) as unknown as Products[];
