@@ -20,6 +20,7 @@ import { buildConsequenceModel } from "./consequence.js";
 import { buildOptimizationIntelligence } from "./optimization.js";
 import { buildGoalIntelligence, type DeclaredIrisGoal } from "./goals.js";
 import { buildIrisAnalysisAtlas } from "./analysisAtlas.js";
+import { buildIrisCompositionEngine } from "./compositionEngine.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -107,6 +108,7 @@ export async function computeFullIntelligence(userId: string) {
     provider_lineage: providerLineage,
   });
 
+  const composition = buildIrisCompositionEngine(canonical, intelligenceAtlas, 48);
   recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
-  return { ...baseResult, integrity, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas };
+  return { ...baseResult, integrity, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition };
 }
