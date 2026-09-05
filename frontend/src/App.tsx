@@ -60,14 +60,16 @@ export default function App() {
       setSession(newSession);
     });
 
-    const onHashChange = () => { const next = readWorkspace(); setWorkspace(next.workspace); setIrisPage(next.irisPage); };
-    window.addEventListener("hashchange", onHashChange);
-    return () => { active = false; listener.subscription.unsubscribe(); window.removeEventListener("hashchange", onHashChange); };
+    const syncFromUrl = () => { const next = readWorkspace(); setWorkspace(next.workspace); setIrisPage(next.irisPage); };
+    window.addEventListener("hashchange", syncFromUrl);
+    window.addEventListener("popstate", syncFromUrl);
+    return () => { active = false; listener.subscription.unsubscribe(); window.removeEventListener("hashchange", syncFromUrl); window.removeEventListener("popstate", syncFromUrl); };
   }, []);
 
   const navigate = (nextWorkspace: string, nextIrisPage = "iris") => {
     const hash = nextWorkspace === "plaid" ? "#workspace/plaid" : `#workspace/${nextIrisPage}`;
-    window.history.pushState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
+    const target = `${window.location.pathname}${window.location.search}${hash}`;
+    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== target) window.history.pushState({ workspace: nextWorkspace, irisPage: nextIrisPage }, "", target);
     setWorkspace(nextWorkspace);
     setIrisPage(nextIrisPage);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -88,8 +90,8 @@ export default function App() {
   if (recovery && session) return <Auth recovery onRecoveryComplete={() => setRecovery(false)} />;
   if (!session) return <Auth />;
 
-  const accountControl = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Sign out of iBag" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
-  const workspaceSwitch = <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher"><button type="button" className={workspace === "iris" ? "active" : ""} onClick={() => navigate("iris")}>Iris</button><button type="button" className={workspace === "plaid" ? "active" : ""} onClick={() => navigate("plaid")}>Plaid</button></div>;
+  const accountControl = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Sign out of Iris" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
+  const workspaceSwitch = <div className="ia-mode-switch" role="navigation" aria-label="Iris workspace switcher"><button type="button" className={workspace === "iris" ? "active" : ""} onClick={() => navigate("iris")}>Iris</button><button type="button" className={workspace === "plaid" ? "active" : ""} onClick={() => navigate("plaid")}>Plaid</button></div>;
 
   if (workspace === "plaid") return <div className="app-workspace app-workspace-plaid"><PlaidControlPlane />{workspaceSwitch}{accountControl}</div>;
   return <div className="app-workspace app-workspace-iris"><IrisIntelligenceWorkspace page={irisPage} go={(page) => navigate("iris", page)} />{workspaceSwitch}{accountControl}</div>;
