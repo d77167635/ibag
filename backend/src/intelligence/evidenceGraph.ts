@@ -13,6 +13,10 @@ export interface EvidenceNode {
   value?: unknown;
   freshness?: string;
   provider_domain?: string;
+  calculation_version?: string;
+  observation_window_days?: number;
+  upstream_node_ids?: string[];
+  generated_at?: string;
 }
 
 export interface EvidenceEdge {
@@ -39,7 +43,11 @@ function addMetricNode(
   providerDomain?: string,
 ) {
   const kind: EvidenceNodeKind = state === "observed" ? "provider" : state === "inferred" ? "inference" : "calculation";
-  nodes.push({ id, kind, label, value, state, source, provider_domain: providerDomain });
+  const node: EvidenceNode = { id, kind, label, value, state, source, provider_domain: providerDomain, generated_at: new Date().toISOString() };
+  if (state === "calculated") node.calculation_version = "IRIS_CANONICAL_INTELLIGENCE_V1";
+  if (id === "cash_flow_net" || id === "safe_to_spend" || id === "roundup_projection" || id === "category_drift") node.observation_window_days = 30;
+  if (id === "forward_projection" || id === "trajectory" || id === "anomalies") node.observation_window_days = 90;
+  nodes.push(node);
 }
 
 /** Builds a deterministic dependency graph from real provider evidence and canonical Iris intelligence. */
@@ -61,9 +69,15 @@ export function buildEvidenceGraph(intel: any): EvidenceGraph {
 
   const metrics = intel?.layer_metrics ?? {};
   if (metrics.net_worth?.liquid_assets != null) add("liquid_assets", "Liquid assets", metrics.net_worth.liquid_assets, "observed", "Plaid account balances", "balance");
-  if (metrics.cash_flow?.net != null) add("cash_flow_net", "Net cash flow", metrics.cash_flow.net, "calculated", "Iris cash-flow calculation", "transactions");
+  if (metrics.cash_flow?.net != null) add("cash_flow_net", "Net cash flow", metrics.cash_flow.net, "calculated", "Iris canonical economic cash-flow calculation", "transactions");
   if (metrics.cash_flow_safety?.safeToSpend != null) add("safe_to_spend", "Safe to spend", metrics.cash_flow_safety.safeToSpend, "calculated", "Iris liquidity calculation");
-  if (metrics.roundup_projection) add("roundup_projection", "Round-Up projection", metrics.roundup_projection.projectedAmount ?? metrics.roundup_projection.projected, "calculated", "Iris Round-Up calculation", "transactions");
+  if (metrics.roundup_projection) {
+    const node = metrics.roundup_projection;
+    add("roundup_projection", "Round-Up projection", node.projectedAmount ?? node.projected, "calculated", "Iris canonical Round-Up calculation", "transactions");
+    const created = nodes.find((n) => n.id === "roundup_projection");
+    if (created && node.calculation_version) created.calculation_version = String(node.calculation_version);
+    if (created && node.basisDays != null) created.observation_window_days = Number(node.basisDays);
+  }
   if (metrics.forward_projection) add("forward_projection", "Forward projection", metrics.forward_projection, "inferred", "Iris forward analysis");
   if (Array.isArray(metrics.anomalies)) add("anomalies", "Anomaly findings", metrics.anomalies.length, metrics.anomalies.length ? "inferred" : "calculated", "Iris anomaly analysis", "transactions");
   if (intel?.layer_temporal?.trajectory) add("trajectory", "Financial trajectory", intel.layer_temporal.trajectory, "inferred", "Iris temporal analysis");
@@ -80,12 +94,20 @@ export function buildEvidenceGraph(intel: any): EvidenceGraph {
   link("anomalies", "forward_projection", "limits");
   link("category_drift", "forward_projection", "supports");
 
+  for (const node of nodes) {
+    node.upstream_node_ids = edges.filter((edge) => edge.to === node.id).map((edge) => edge.from);
+  }
+
   limitations.forEach((text: string, index: number) => {
     const id = `limitation_${index + 1}`;
-    nodes.push({ id, kind: "limitation", label: text, state: "limited", source: "Iris evidence coverage" });
+    nodes.push({ id, kind: "limitation", label: text, state: "limited", source: "Iris evidence coverage", generated_at: new Date().toISOString(), upstream_node_ids: [] });
     link(id, "forward_projection", "limits");
     link(id, "safe_to_spend", "limits");
   });
+
+  for (const node of nodes) {
+    node.upstream_node_ids = edges.filter((edge) => edge.to === node.id).map((edge) => edge.from);
+  }
 
   return {
     architecture_version: "IRIS_EVIDENCE_GRAPH_V2",
@@ -120,10 +142,6 @@ export async function verifyProviderLineage(
     .eq("is_active", true);
   if (transactionError) throw transactionError;
 
-  // evidence_state alone is intentionally insufficient here: the product-observation
-  // history can record provider lifecycle availability/consent as an observation row.
-  // A product is treated as an actually observed domain only when lifecycle_state is
-  // explicitly `observed` as written by the domain sync path.
   const { count: observedProductDomains, error: productError } = await supabase
     .from("plaid_product_observations")
     .select("id", { count: "exact", head: true })
