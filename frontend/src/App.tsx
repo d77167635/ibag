@@ -58,7 +58,7 @@ export default function App() {
   if (!session) return <Auth />;
 
   const accountControl = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Sign out of iBag" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
-  const workspaceSwitch = <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher"><button type="button" className={workspace === "ibag" ? "active" : ""} onClick={() => navigate("ibag")}>iBag</button><button type="button" className={workspace === "plaid" ? "active" : ""} onClick={() => navigate("plaid")}>Plaid</button></div>;
+  const workspaceSwitch = <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher"><button type="button" className={workspace === "ibag" ? "active" : ""} onClick={() => navigate("ibag")}>iBag</button><button type="button" className={workspace === "iris" ? "active" : ""} onClick={() => navigate("iris")}>Iris</button><button type="button" className={workspace === "plaid" ? "active" : ""} onClick={() => navigate("plaid")}>Plaid</button></div>;
 
   if (workspace === "plaid") return <div className="app-workspace app-workspace-plaid"><PlaidControlPlane />{workspaceSwitch}{accountControl}</div>;
   if (workspace === "iris") return <div className="app-workspace app-workspace-iris"><IrisIntelligenceWorkspace page={irisPage} go={(page) => navigate("iris", page)} />{workspaceSwitch}{accountControl}</div>;
