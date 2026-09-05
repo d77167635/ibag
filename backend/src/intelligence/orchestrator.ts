@@ -22,6 +22,7 @@ import { buildGoalIntelligence, type DeclaredIrisGoal } from "./goals.js";
 import { buildIrisAnalysisAtlas } from "./analysisAtlas.js";
 import { buildIrisCompositionEngine } from "./compositionEngine.js";
 import { assessSourceFidelity } from "./sourceFidelity.js";
+import { buildIntelligenceGraph } from "./intelligenceGraph.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -106,6 +107,7 @@ export async function computeFullIntelligence(userId: string) {
     provider_lineage: providerLineage,
   });
 
+  const intelligenceGraph = buildIntelligenceGraph(canonical, intelligenceAtlas);
   const rawComposition = buildIrisCompositionEngine(canonical, intelligenceAtlas, 48);
   const composition = {
     ...rawComposition,
@@ -127,5 +129,5 @@ export async function computeFullIntelligence(userId: string) {
     limitation: sourceFidelity.ready_for_higher_order_intelligence ? null : "Higher-order Iris compositions remain evidence-bounded until source completeness and lineage are certified.",
   };
   recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
-  return { ...baseResult, integrity, source_fidelity: sourceFidelity, intelligence_gate: intelligenceGate, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition };
+  return { ...baseResult, integrity, source_fidelity: sourceFidelity, intelligence_gate: intelligenceGate, evidence_graph: evidenceGraph, intelligence_graph: intelligenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition };
 }
