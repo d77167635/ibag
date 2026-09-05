@@ -12,12 +12,53 @@ const stateLabel = (s?: string) => ({ observed: "OBSERVED", calculated: "CALCULA
 
 function State({ state = "calculated" }: { state?: string }) { return <span className={`iis-state ${state}`}>{stateLabel(state)}</span>; }
 function Metric({ label, value, state = "calculated", note }: { label: string; value: string; state?: string; note?: string }) { return <div className="iis-metric"><span>{label}</span><strong>{value}</strong><State state={state} />{note && <small>{note}</small>}</div>; }
-function Panel({ title, children }: { title: string; children: ReactNode }) { return <section className="iis-panel"><header><div><span>IRIS INTELLIGENCE</span><h2>{title}</h2></div></header>{children}</section>; }
+function Panel({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) { return <section className="iis-panel"><header><div><span>IRIS INTELLIGENCE</span><h2>{title}</h2></div>{action}</header>{children}</section>; }
 function Rows({ rows }: { rows: Row[] }) {
   const [open, setOpen] = useState<number | null>(null);
   return <div className="iis-rows">{rows.map((row, index) => <div key={`${row.label}-${index}`} className="iis-row"><button type="button" className="iis-row-main" onClick={() => setOpen(open === index ? null : index)}><span><b>{row.label}</b><small>{row.detail ?? "Select to inspect this intelligence node."}</small></span><strong>{text(row.value)}</strong><State state={row.state} /><span className="iis-row-chevron" aria-hidden="true">{open === index ? "⌃" : "⌄"}</span></button>{open === index && <div className="iis-row-detail"><pre>{JSON.stringify(row.value, null, 2)}</pre></div>}</div>)}</div>;
 }
-function Shell({ title, subtitle, children, go, back = true }: { title: string; subtitle: string; children: ReactNode; go?: (page: string) => void; back?: boolean }) { return <div className="iis-screen"><div className="iis-hero"><div className="iis-hero-top"><span>IRIS · INTELLIGENCE ENVIRONMENT</span>{back && go && <button type="button" className="iis-back" onClick={() => go("iris")}>← Iris Command</button>}</div><h1>{title}</h1><p>{subtitle}</p></div>{children}</div>; }
+
+const COMMANDS: Array<[string, string, string]> = [
+  ["iris", "Command", "Command center"],
+  ["iris/catalog", "Standard", "Choose active intelligence"],
+  ["iris/findings", "Findings", "Risks and opportunities"],
+  ["iris/timeline", "Timeline", "Financial history"],
+  ["iris/education", "Education", "Learn what Iris knows"],
+  ["iris/relationships", "Relationships", "Connected evidence"],
+  ["iris/causes", "Causes", "Causal hypotheses"],
+  ["iris/decisions", "Decisions", "Decision intelligence"],
+  ["iris/scenarios", "Scenarios", "Consequence lab"],
+  ["iris/optimization", "Optimize", "Tradeoffs and objectives"],
+  ["iris/goals", "Goals", "Goal intelligence"],
+  ["iris/evidence", "Evidence", "Evidence graph"],
+  ["iris/uncertainty", "Uncertainty", "Evidence strength"],
+  ["iris/reasoning", "Reasoning", "Reasoning trace"],
+  ["iris/forecast", "Forecast", "Forward intelligence"],
+  ["iris/behavior", "Behavior", "Behavior intelligence"],
+  ["iris/liquidity", "Liquidity", "Liquidity intelligence"],
+  ["iris/roundups", "Round-Ups", "Round-Up intelligence"],
+  ["iris/decision-lab", "Decision Lab", "Test a hypothetical"],
+];
+
+function openPlaid() {
+  const target = `${window.location.pathname}${window.location.search}#workspace/plaid`;
+  window.history.pushState({ workspace: "plaid" }, "", target);
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
+function CommandDeck({ page, go }: { page: string; go?: (page: string) => void }) {
+  return <nav className="iis-command-deck" aria-label="Iris command deck">
+    <div className="iis-command-deck-label"><span>IRIS COMMAND DECK</span><small>Navigate intelligence without leaving the environment</small></div>
+    <div className="iis-command-deck-actions">
+      {COMMANDS.map(([id, label, description]) => <button key={id} type="button" className={page === id ? "active" : ""} aria-current={page === id ? "page" : undefined} title={description} onClick={() => go?.(id)}>{label}</button>)}
+      <button type="button" className="external" onClick={openPlaid} title="Open the read-only Plaid control plane">Plaid</button>
+    </div>
+  </nav>;
+}
+
+function Shell({ title, subtitle, children, go, page, back = true }: { title: string; subtitle: string; children: ReactNode; go?: (page: string) => void; page: string; back?: boolean }) {
+  return <div className="iis-screen"><CommandDeck page={page} go={go} /><div className="iis-hero"><div className="iis-hero-top"><span>IRIS · INTELLIGENCE ENVIRONMENT</span>{back && go && <button type="button" className="iis-back" onClick={() => go("iris")}>← Iris Command</button>}</div><h1>{title}</h1><p>{subtitle}</p></div>{children}</div>;
+}
 
 const META: Record<string, [string, string]> = {
   iris: ["Iris Command", "The intelligence operating environment across your connected financial evidence."],
@@ -73,7 +114,7 @@ export function IrisIntelligenceScreens({ page, intel, go }: ScreenProps) {
   const metrics = { liquid: intel?.net_worth?.liquid_assets, safe: intel?.cash_flow_safety?.safeToSpend, net: intel?.cash_flow?.net, utilization: intel?.debt_health?.credit_utilization, roundup: intel?.roundup_projection?.projectedAmount ?? intel?.roundup_projection?.projected, anomalies: Array.isArray(intel?.anomalies) ? intel.anomalies.length : null };
   const meta = META[page] ?? META.iris;
 
-  if (page === "iris") return <Shell title={meta[0]} subtitle={meta[1]} go={go} back={false}><div className="iis-metric-grid"><Metric label="Liquid position" value={money(metrics.liquid)} state={metrics.liquid == null ? "insufficient_evidence" : "observed"} /><Metric label="Safe to spend" value={money(metrics.safe)} state={metrics.safe == null ? "insufficient_evidence" : "calculated"} /><Metric label="Net cash flow" value={money(metrics.net)} state={metrics.net == null ? "insufficient_evidence" : "calculated"} /><Metric label="Credit utilization" value={pct(metrics.utilization)} state={metrics.utilization == null ? "insufficient_evidence" : "calculated"} /><Metric label="Round-Up projection" value={money(metrics.roundup)} state={metrics.roundup == null ? "insufficient_evidence" : "calculated"} /><Metric label="Anomalies" value={number(metrics.anomalies)} state={metrics.anomalies == null ? "insufficient_evidence" : "inferred"} /></div><Panel title="Evidence boundary"><p className="iis-note">Iris distinguishes observed provider evidence from calculations and inference. Missing evidence remains missing; simulations never become financial facts.</p></Panel></Shell>;
+  if (page === "iris") return <Shell page={page} title={meta[0]} subtitle={meta[1]} go={go} back={false}><div className="iis-metric-grid"><Metric label="Liquid position" value={money(metrics.liquid)} state={metrics.liquid == null ? "insufficient_evidence" : "observed"} /><Metric label="Safe to spend" value={money(metrics.safe)} state={metrics.safe == null ? "insufficient_evidence" : "calculated"} /><Metric label="Net cash flow" value={money(metrics.net)} state={metrics.net == null ? "insufficient_evidence" : "calculated"} /><Metric label="Credit utilization" value={pct(metrics.utilization)} state={metrics.utilization == null ? "insufficient_evidence" : "calculated"} /><Metric label="Round-Up projection" value={money(metrics.roundup)} state={metrics.roundup == null ? "insufficient_evidence" : "calculated"} /><Metric label="Anomalies" value={number(metrics.anomalies)} state={metrics.anomalies == null ? "insufficient_evidence" : "inferred"} /></div><Panel title="Evidence boundary"><p className="iis-note">Iris distinguishes observed provider evidence from calculations and inference. Missing evidence remains missing; simulations never become financial facts.</p></Panel></Shell>;
 
-  return <Shell title={meta[0]} subtitle={meta[1]} go={go}><div className="iis-catalog-toolbar"><select aria-label="Filter evidence state" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All evidence states</option><option value="observed">Observed</option><option value="calculated">Calculated</option><option value="inferred">Iris inference</option><option value="limited">Limited</option><option value="insufficient_evidence">Insufficient evidence</option></select></div><Panel title={`${visible.length.toLocaleString("en-US")} intelligence nodes`}><Rows rows={visible} /></Panel></Shell>;
+  return <Shell page={page} title={meta[0]} subtitle={meta[1]} go={go}><div className="iis-catalog-toolbar"><select aria-label="Filter evidence state" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All evidence states</option><option value="observed">Observed</option><option value="calculated">Calculated</option><option value="inferred">Iris inference</option><option value="limited">Limited</option><option value="insufficient_evidence">Insufficient evidence</option></select></div><Panel title={`${visible.length.toLocaleString("en-US")} intelligence nodes`}><Rows rows={visible} /></Panel></Shell>;
 }
