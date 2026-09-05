@@ -15,8 +15,8 @@ function friendlyError(message: string): string {
   return known[message] ?? message;
 }
 
-export function Auth() {
-  const [mode, setMode] = useState<Mode>("sign_in");
+export function Auth({ recovery = false, onRecoveryComplete }: { recovery?: boolean; onRecoveryComplete?: () => void }) {
+  const [mode, setMode] = useState<Mode>(recovery ? "reset" : "sign_in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -39,6 +39,26 @@ export function Auth() {
     e.preventDefault();
     setError(null);
     setNotice(null);
+
+    if (mode === "reset" && recovery) {
+      if (password.length < 8) {
+        setFieldErrors({ password: "Use at least 8 characters." });
+        return;
+      }
+      if (password !== confirmPassword) {
+        setFieldErrors({ confirmPassword: "Passwords don't match." });
+        return;
+      }
+      setFieldErrors({});
+      setLoading(true);
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      setLoading(false);
+      if (updateError) { setError(friendlyError(updateError.message)); return; }
+      window.sessionStorage.setItem("ibag.authenticated", "1");
+      onRecoveryComplete?.();
+      setNotice("Password updated. Your iBag session is now secured with the new password.");
+      return;
+    }
 
     if (mode === "reset") {
       setLoading(true);
@@ -68,11 +88,13 @@ export function Auth() {
     if (mode === "sign_up" && !result.data.session) setNotice("Check your inbox — confirm your email to finish creating your account.");
   }
 
-  const heading = mode === "sign_in" ? "Welcome back" : mode === "sign_up" ? "Create your iBag account" : "Reset your password";
+  const heading = mode === "sign_in" ? "Welcome back" : mode === "sign_up" ? "Create your iBag account" : recovery ? "Choose a new password" : "Reset your password";
   const subheading = mode === "sign_in"
     ? "Sign in to your financial intelligence environment."
     : mode === "sign_up"
     ? "One account for Iris intelligence and your Plaid data control plane."
+    : recovery
+    ? "Your recovery link is active. Set a new password to continue into iBag."
     : "Enter the email on your account and we'll send a reset link.";
 
   return (
@@ -102,7 +124,7 @@ export function Auth() {
       <section className="auth-panel auth-panel-v2">
         <div className="auth-card auth-card-v2">
           <div className="auth-mobile-brand"><span className="auth-logo-mark">i</span><strong>iBag</strong><span>·</span><IrisMark size={18} color="currentColor" /><span>Iris</span></div>
-          <div className="auth-eyebrow">{mode === "reset" ? "ACCOUNT RECOVERY" : "SECURE ACCESS"}</div>
+          <div className="auth-eyebrow">{recovery ? "ACCOUNT RECOVERY" : mode === "reset" ? "ACCOUNT RECOVERY" : "SECURE ACCESS"}</div>
           <h2 className="auth-heading">{heading}</h2>
           <p className="auth-subheading">{subheading}</p>
 
@@ -110,37 +132,37 @@ export function Auth() {
           {notice && <div className="banner banner-success" role="status">{notice}</div>}
 
           <form onSubmit={handleSubmit} noValidate>
-            <div className="field">
+            {!recovery && <div className="field">
               <label htmlFor="email">Email address</label>
               <input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
-            </div>
+            </div>}
 
-            {mode !== "reset" && <div className="field">
+            {(mode !== "reset" || recovery) && <div className="field">
               <div className="field-label-row"><label htmlFor="password">Password</label>{mode === "sign_in" && <button type="button" className="btn-link" onClick={() => switchMode("reset")}>Forgot?</button>}</div>
               <div className="field-input-row">
-                <input id="password" type={showPassword ? "text" : "password"} autoComplete={mode === "sign_in" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={mode === "sign_up" ? 8 : undefined} className={fieldErrors.password ? "has-error" : ""} />
+                <input id="password" type={showPassword ? "text" : "password"} autoComplete={recovery || mode === "sign_up" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={mode === "sign_up" || recovery ? 8 : undefined} className={fieldErrors.password ? "has-error" : ""} />
                 <button type="button" className="password-toggle" onClick={() => setShowPassword((v) => !v)}>{showPassword ? "Hide" : "Show"}</button>
               </div>
               {fieldErrors.password && <p className="field-error">{fieldErrors.password}</p>}
-              {mode === "sign_up" && !fieldErrors.password && <p className="field-hint">At least 8 characters.</p>}
+              {(mode === "sign_up" || recovery) && !fieldErrors.password && <p className="field-hint">At least 8 characters.</p>}
             </div>}
 
-            {mode === "sign_up" && <div className="field">
+            {(mode === "sign_up" || recovery) && <div className="field">
               <label htmlFor="confirm-password">Confirm password</label>
               <input id="confirm-password" type={showPassword ? "text" : "password"} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className={fieldErrors.confirmPassword ? "has-error" : ""} />
               {fieldErrors.confirmPassword && <p className="field-error">{fieldErrors.confirmPassword}</p>}
             </div>}
 
             <button type="submit" className="btn-primary auth-submit" disabled={loading}>
-              {loading ? "Please wait…" : mode === "sign_in" ? "Enter iBag" : mode === "sign_up" ? "Create account" : "Send reset link"}
+              {loading ? "Please wait…" : recovery ? "Update password" : mode === "sign_in" ? "Enter iBag" : mode === "sign_up" ? "Create account" : "Send reset link"}
             </button>
           </form>
 
-          <div className="auth-switch-row">
+          {!recovery && <div className="auth-switch-row">
             {mode === "sign_in" && <>New to iBag? <button type="button" className="btn-link" onClick={() => switchMode("sign_up")}>Create an account</button></>}
             {mode === "sign_up" && <>Already have an account? <button type="button" className="btn-link" onClick={() => switchMode("sign_in")}>Sign in</button></>}
             {mode === "reset" && <button type="button" className="btn-link" onClick={() => switchMode("sign_in")}>Back to sign in</button>}
-          </div>
+          </div>}
 
           <p className="auth-privacy">Your financial intelligence is built from authorized provider data. Phase 1 is read-only and does not move money.</p>
         </div>
