@@ -19,6 +19,7 @@ import { buildDecisionIntelligence } from "./decisionIntelligence.js";
 import { buildConsequenceModel } from "./consequence.js";
 import { buildOptimizationIntelligence } from "./optimization.js";
 import { buildGoalIntelligence, type DeclaredIrisGoal } from "./goals.js";
+import { buildIrisAnalysisAtlas } from "./analysisAtlas.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -73,6 +74,39 @@ export async function computeFullIntelligence(userId: string) {
   const optimization = { ...optimizationBase, options: decisionIntelligence.options.map(option => ({ ...option, score: optimizationBase.scores.find(score => score.option_id === option.id)?.total_score ?? null })) };
   const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimizationBase, declaredGoals);
   goals.limitations = [...new Set([...goals.limitations, ...goalDataLimitations])];
+
+  // Iris owns the semantic/intelligence hierarchy. This atlas does not create
+  // financial facts; it enumerates evidence-gated analytical compositions that
+  // can operate on the canonical observations already produced above.
+  const intelligenceAtlas = buildIrisAnalysisAtlas({
+    narrative,
+    net_worth: layerMetrics.net_worth,
+    debt_health: layerMetrics.debt_health,
+    cash_flow_safety: layerMetrics.cash_flow_safety,
+    roundup_projection: layerMetrics.roundup_projection,
+    cash_flow: layerMetrics.cash_flow,
+    spending_by_domain: layerMetrics.spending_by_domain,
+    spending_hierarchy: layerMetrics.spending_hierarchy,
+    balance_history: layerMetrics.balance_history,
+    forward_projection: layerMetrics.forward_projection,
+    anomalies: layerMetrics.anomalies,
+    category_drift: categoryDrift,
+    temporal: baseResult.layer_temporal,
+    behavior: baseResult.layer_behavioral,
+    reasoning,
+    maximum_intelligence: maximumIntelligence,
+    evidence_graph: evidenceGraph,
+    uncertainty,
+    financial_state: financialState,
+    causal_analysis: causalAnalysis,
+    decision_graph: decisionGraph,
+    decision_intelligence: decisionIntelligence,
+    consequence_model: consequenceModel,
+    optimization_intelligence: optimization,
+    goal_intelligence: goals,
+    provider_lineage: providerLineage,
+  });
+
   recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
-  return { ...baseResult, integrity, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals };
+  return { ...baseResult, integrity, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas };
 }
