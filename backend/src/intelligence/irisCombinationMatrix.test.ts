@@ -14,7 +14,7 @@ type Intent = "overview" | "cash_flow" | "spending" | "liquidity" | "debt" | "ro
 const INTENTS: Intent[] = ["overview", "cash_flow", "spending", "liquidity", "debt", "roundups", "anomaly"];
 const REQUIRED: Record<Intent, Product[][]> = {
   overview: [["transactions"], ["balance"]], cash_flow: [["transactions"]], spending: [["transactions"]],
-  liquidity: [["transactions"], ["balance"]], debt: [["liabilities"]], roundups: [["transactions"]], anomaly: [["transactions"]],
+  liquidity: [["transactions"], ["balance"]], debt: [["liabilities"], ["balance"], ["transactions"]], roundups: [["transactions"]], anomaly: [["transactions"]],
 };
 const subsets = <T,>(items: readonly T[]) => Array.from({ length: 1 << items.length }, (_, mask) => items.filter((_, i) => Boolean(mask & (1 << i))));
 const mapFor = (items: Product[]): Map<string, Set<string>> => new Map([["item-a", new Set(items)]]);
@@ -45,6 +45,13 @@ test("same Item satisfies overview and liquidity when all required products coex
   const observed = mapFor(["transactions", "balance"]);
   assert.equal(selector(observed, "overview").evidence_ready, true);
   assert.equal(selector(observed, "liquidity").evidence_ready, true);
+});
+
+test("debt requires liabilities, balance, and transactions together", () => {
+  assert.equal(selector(mapFor(["liabilities", "balance"]), "debt").evidence_ready, false);
+  assert.equal(selector(mapFor(["liabilities", "transactions"]), "debt").evidence_ready, false);
+  assert.equal(selector(mapFor(["balance", "transactions"]), "debt").evidence_ready, false);
+  assert.equal(selector(mapFor(["liabilities", "balance", "transactions"]), "debt").evidence_ready, true);
 });
 
 test("optional products enrich an intent but never substitute for required products", () => {
