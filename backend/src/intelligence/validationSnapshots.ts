@@ -16,12 +16,13 @@ export async function recordIntelligenceSnapshot(userId: string, input: {
   roundupProjected: number | null;
   sourceFidelityStatus: string | null;
   higherOrderReady: boolean;
+  forecastHorizonDays?: number;
   metadata?: Record<string, unknown>;
 }) {
   const { error } = await supabaseAdmin.from("iris_intelligence_snapshots").insert({
     user_id: userId,
     evidence_boundary: input.evidenceBoundary,
-    model_version: "IRIS_VALIDATION_SNAPSHOT_V1",
+    model_version: "IRIS_VALIDATION_SNAPSHOT_V2",
     liquid_assets: input.liquidAssets,
     cash_flow_net: input.cashFlowNet,
     safe_to_spend: input.safeToSpend,
@@ -31,7 +32,10 @@ export async function recordIntelligenceSnapshot(userId: string, input: {
     roundup_projected: input.roundupProjected,
     source_fidelity_status: input.sourceFidelityStatus,
     higher_order_ready: input.higherOrderReady,
-    metadata: input.metadata ?? {},
+    metadata: {
+      ...(input.metadata ?? {}),
+      forecast_horizon_days: input.forecastHorizonDays ?? 30,
+    },
   });
   if (error) throw error;
 }
