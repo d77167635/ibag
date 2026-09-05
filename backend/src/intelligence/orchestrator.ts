@@ -1,5 +1,5 @@
 import { computeBalanceMetrics, computeCashFlowSafety, computeBalanceHistory, computeDebtTrend } from "../services/intelligence.js";
-import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy, computeCanonicalForwardProjection } from "./transactionSemantics.js";
+import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy, computeCanonicalForwardProjection, getEvidenceObservationBoundary } from "./transactionSemantics.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
 import { validateCanonicalIntelligenceInput } from "./integrity.js";
 import { getFeatureFlags } from "../services/features.js";
@@ -27,23 +27,24 @@ import { buildInvestigationEngine } from "./investigationEngine.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
-  const canonical90Start = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
-  const [canonical, sourceFidelity] = await Promise.all([getCanonicalTransactions(userId, canonical90Start), assessSourceFidelity(userId)]);
+  const [evidenceBoundary, sourceFidelity] = await Promise.all([getEvidenceObservationBoundary(userId), assessSourceFidelity(userId)]);
+  const canonical90Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 90 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
+  const canonical = await getCanonicalTransactions(userId, canonical90Start);
   const integrity = validateCanonicalIntelligenceInput(canonical);
-  const current30Start = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const current30Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 30 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
   const current30 = canonical.filter(tx => tx.posted_date >= current30Start);
   const economicCurrent = computeEconomicCashFlow(current30);
   const roundupProjection = computeRoundupProjectionFromTransactions(canonical);
-  const spendingByDomain = computeSpendingByDomainFromTransactions(canonical);
-  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical);
+  const spendingByDomain = computeSpendingByDomainFromTransactions(canonical, 30, evidenceBoundary);
+  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical, 30, evidenceBoundary);
   const prior30 = canonical.filter(tx => tx.posted_date < current30Start);
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
-  const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
+  const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: evidenceBoundary, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
 
   const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
     computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId),
-    computeCanonicalAnomalies(userId), computeCanonicalForwardProjection(userId), computeDebtCostIntelligence(userId),
+    computeCanonicalAnomalies(userId), computeCanonicalForwardProjection(userId, 30, evidenceBoundary), computeDebtCostIntelligence(userId),
     computeCategoryDrift(userId), computeMultiWindowFlow(userId), computeFinancialReasoning(userId), getFeatureFlags(userId),
     supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
     verifyProviderLineage(supabaseAdmin, userId),
@@ -66,7 +67,7 @@ export async function computeFullIntelligence(userId: string) {
     forward_projection: forwardProjection,
     anomalies,
   };
-  const baseResult = { narrative, generated_at: new Date().toISOString(), feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence, provider_lineage: providerLineage };
+  const baseResult = { narrative, generated_at: new Date().toISOString(), feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence, provider_lineage: providerLineage, evidence_boundary: evidenceBoundary };
   const evidenceGraph = buildEvidenceGraph(baseResult);
   const uncertainty = assessUncertainty(evidenceGraph);
   const financialState = buildFinancialStateModel(evidenceGraph, uncertainty);
