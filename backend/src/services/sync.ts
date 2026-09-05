@@ -6,6 +6,7 @@ import { resolveMerchant, resolveSubdomain } from "./classify.js";
 import { classifyTransactionWithEvidence } from "../intelligence/classification.js";
 import { detectRecurringSeriesEvidenceBounded } from "./recurringEvidence.js";
 import { syncLiabilitiesForItem } from "../intelligence/liabilities.js";
+import { observeActivatedTrialProducts } from "./plaidTrialProductObservation.js";
 
 const updateSyncRun = async (id: string, patch: Record<string, unknown>) => {
   const { error } = await supabaseAdmin.from("sync_runs").update(patch).eq("id", id);
@@ -34,6 +35,7 @@ async function observeProducts(userId: string, itemId: string, accessToken: stri
     const state = flags.authorized ? "authorized" : flags.available ? "available" : flags.requested ? "not_observed" : "not_requested";
     await productObservation(userId, itemId, product, state, flags, "plaid.itemGet");
   }
+  return { billed, available, added, requested };
 }
 
 async function markProductObserved(userId: string, itemId: string, product: string, source: string) {
@@ -84,7 +86,7 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
   let added = 0, modified = 0, removed = 0;
   try {
     await updateSyncRun(runId, { state: "authorized", started_at: new Date().toISOString() });
-    await observeProducts(userId, itemDbId, accessToken);
+    const providerProducts = await observeProducts(userId, itemDbId, accessToken);
     await updateSyncRun(runId, { state: "started" });
     const accountsResp = await plaidClient.accountsGet({ access_token: accessToken });
     const accountMap = new Map<string, string>();
@@ -133,6 +135,7 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       await updateSyncRun(runId, { state: "committing", cursor, pages_processed: pages, added_count: added, modified_count: modified, removed_count: removed, last_checkpoint_at: new Date().toISOString() });
     }
     await markProductObserved(userId, itemDbId, "transactions", "plaid.transactionsSync");
+    await observeActivatedTrialProducts(userId, itemDbId, accessToken, providerProducts.added);
     await updateSyncRun(runId, { state: "reconciling" });
     const liabilityResult = await syncLiabilitiesForItem(userId, itemDbId, accessToken);
     if (liabilityResult.observed) await markProductObserved(userId, itemDbId, "liabilities", "plaid.liabilities");
