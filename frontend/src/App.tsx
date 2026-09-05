@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
-import { IrisApplication } from "./components/IrisApplication";
-import { IrisAssistant } from "./components/IrisAssistant";
 import { IrisIntelligenceWorkspace } from "./components/IrisIntelligenceWorkspace";
 import { PlaidControlPlane } from "./components/PlaidControlPlane";
 import "./iris-command-deck.css";
@@ -30,11 +28,31 @@ export default function App() {
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setCheckedAuth(true); });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => setSession(newSession));
+    let active = true;
+    const authEntered = window.sessionStorage.getItem("ibag.authenticated") === "1";
+
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!active) return;
+      if (data.session && !authEntered) {
+        await supabase.auth.signOut({ scope: "local" });
+        if (!active) return;
+        setSession(null);
+      } else {
+        setSession(data.session);
+      }
+      setCheckedAuth(true);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!active) return;
+      if (newSession) window.sessionStorage.setItem("ibag.authenticated", "1");
+      else window.sessionStorage.removeItem("ibag.authenticated");
+      setSession(newSession);
+    });
+
     const onHashChange = () => { const next = readWorkspace(); setWorkspace(next.workspace); setIrisPage(next.irisPage); };
     window.addEventListener("hashchange", onHashChange);
-    return () => { listener.subscription.unsubscribe(); window.removeEventListener("hashchange", onHashChange); };
+    return () => { active = false; listener.subscription.unsubscribe(); window.removeEventListener("hashchange", onHashChange); };
   }, []);
 
   const navigate = (nextWorkspace: string, nextIrisPage = "iris") => {
@@ -50,6 +68,7 @@ export default function App() {
     setSigningOut(true);
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) { setSigningOut(false); return; }
+    window.sessionStorage.removeItem("ibag.authenticated");
     window.history.replaceState(null, "", "/");
     setWorkspace("iris"); setIrisPage("iris");
   };
