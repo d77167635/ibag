@@ -4,9 +4,8 @@ import {
   computeBalanceHistory,
   computeDebtTrend,
   computeForwardProjection,
-  computeSpendingHierarchy,
 } from "../services/intelligence.js";
-import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions } from "./transactionSemantics.js";
+import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy } from "./transactionSemantics.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
 import { validateCanonicalIntelligenceInput } from "./integrity.js";
 import { getFeatureFlags } from "../services/features.js";
@@ -41,13 +40,14 @@ export async function computeFullIntelligence(userId: string) {
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
   const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
+  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical);
 
   const [
-    balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, spendingHierarchy,
+    balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection,
     debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage,
   ] = await Promise.all([
     computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId),
-    computeCanonicalAnomalies(userId), computeForwardProjection(userId), computeSpendingHierarchy(userId), computeDebtCostIntelligence(userId),
+    computeCanonicalAnomalies(userId), computeForwardProjection(userId), computeDebtCostIntelligence(userId),
     computeCategoryDrift(userId), computeMultiWindowFlow(userId), computeFinancialReasoning(userId), getFeatureFlags(userId),
     supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
     verifyProviderLineage(supabaseAdmin, userId),
