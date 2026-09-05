@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 
 export type IntelligenceValidation = {
-  architecture_version: "IRIS_VALIDATION_ENGINE_V2";
+  architecture_version: "IRIS_VALIDATION_ENGINE_V3";
   sample_count: number;
   eligible_predictions: number;
   validated_predictions: number;
@@ -49,9 +49,9 @@ function horizonFrom(row: any): number {
 
 /**
  * Validates forecasts only against a later real snapshot that is at least the
- * forecast horizon away. This prevents a 30-day forecast from being scored
- * against an observation captured hours later. No synthetic outcomes are
- * generated and no model is automatically changed by this evaluator.
+ * forecast horizon away. It selects the closest eligible subsequent snapshot,
+ * but does not impose an arbitrary seven-day validation cutoff: sparse real
+ * observations must remain valid candidates rather than being silently lost.
  */
 export async function evaluateIntelligenceValidation(userId: string): Promise<IntelligenceValidation> {
   const { data, error } = await supabaseAdmin
@@ -70,7 +70,6 @@ export async function evaluateIntelligenceValidation(userId: string): Promise<In
     const prior = rows[i];
     if (!finite(prior.forward_projected_liquid_position)) continue;
     const horizonDays = horizonFrom(prior);
-    const priorBoundary = new Date(prior.evidence_boundary).getTime();
     let target: any = null;
     let targetElapsed = Number.POSITIVE_INFINITY;
 
@@ -84,7 +83,6 @@ export async function evaluateIntelligenceValidation(userId: string): Promise<In
         target = candidate;
         targetElapsed = distance;
       }
-      if (elapsed > horizonDays + 7) break;
     }
     if (!target) continue;
     eligiblePredictions += 1;
@@ -123,7 +121,7 @@ export async function evaluateIntelligenceValidation(userId: string): Promise<In
   const directionalAccuracy = directional.length ? directional.filter(x => x.direction_correct === true).length / directional.length : null;
 
   return {
-    architecture_version: "IRIS_VALIDATION_ENGINE_V2",
+    architecture_version: "IRIS_VALIDATION_ENGINE_V3",
     sample_count: rows.length,
     eligible_predictions: eligiblePredictions,
     validated_predictions: observations.length,
@@ -133,11 +131,13 @@ export async function evaluateIntelligenceValidation(userId: string): Promise<In
     observations: observations.slice(-24),
     limitations: [
       "Validation requires later real evidence snapshots; no future outcome is invented.",
-      "Each forecast is scored only against a subsequent observation at or after its declared horizon; this avoids premature validation.",
+      "Each forecast is scored only against a subsequent observation at or after its declared horizon; premature observations are excluded.",
+      "The closest eligible later observation is used even when snapshots are sparse; elapsed horizon is retained so timing mismatch remains visible.",
       "MAPE is unavailable when the observed liquid position is zero and should not be interpreted as a probability.",
       "Forecast validation measures predictive error, not causation, guaranteed account outcomes, or decision quality.",
       "No automatic parameter or model change occurs from this evaluator; adaptation must pass separate governance, calibration, and regression gates.",
       "Sparse snapshots, evidence-boundary changes, provider coverage changes, and regime changes can make historical error non-stationary.",
+      "The current calibration label is sample-size based and is not a statistical probability-calibration claim.",
     ],
     generation: { source: "subsequent real evidence snapshots", financial_values_created: false, fake_mock_or_seeded_data: false, execution_capability: false },
   };
