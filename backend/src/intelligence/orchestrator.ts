@@ -89,8 +89,15 @@ export async function computeFullIntelligence(userId: string) {
   const decisionGraph = buildDecisionGraph(reasoning, financialState, causalAnalysis, evidenceGraph.nodes);
   const decisionIntelligence = buildDecisionIntelligence(reasoning, financialState, causalAnalysis, decisionGraph);
   const consequenceModel = buildConsequenceModel(decisionIntelligence, financialState, reasoning, cashFlow.net, multiWindowFlow.length ? multiWindowFlow.reduce((widest, current) => current.windowDays > widest.windowDays ? current : widest).outflow : null, cashFlow.windowDays);
-  const optimization = buildOptimizationIntelligence(decisionIntelligence, consequenceModel, financialState, declaredGoals);
-  const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimization, declaredGoals);
+  const optimizationBase = buildOptimizationIntelligence(decisionIntelligence, consequenceModel, financialState, declaredGoals);
+  const optimization = {
+    ...optimizationBase,
+    options: decisionIntelligence.options.map((option) => ({
+      ...option,
+      score: optimizationBase.scores.find((score) => score.option_id === option.id)?.total_score ?? null,
+    })),
+  };
+  const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimizationBase, declaredGoals);
   goals.limitations = [...new Set([...goals.limitations, ...goalDataLimitations])];
   recordExplainabilityTrace(userId, reasoning).catch((err) => console.error("explainability trace failed:", err));
   return { ...baseResult, integrity, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals };
