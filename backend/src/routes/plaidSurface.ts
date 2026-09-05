@@ -9,6 +9,7 @@ export const plaidSurfaceRouter = Router();
 
 const CANONICAL_PRODUCTS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
 const CANONICAL_SET = new Set<string>(CANONICAL_PRODUCTS);
+const ACCOUNT_SCOPED_PRODUCTS = new Set(["transactions", "balance", "liabilities"]);
 const CANONICAL_CATALOG = PLAID_PRODUCT_CATALOG_V2.filter((definition) => CANONICAL_SET.has(definition.key));
 
 function canonicalState(definition: (typeof CANONICAL_CATALOG)[number], observed: Set<string>, active: Set<string>, consented: Set<string>, available: Set<string>) {
@@ -45,8 +46,13 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
     observedByItem.set(row.item_id, set);
   }
 
+  // Transactions, balances, and liabilities have authoritative account-scoped
+  // raw tables. Do not also surface their generic product-observation mirrors,
+  // or the same provider evidence would be displayed/counting twice.
   const rawEvidence = [
-    ...(rawProducts ?? []).filter((r: any) => CANONICAL_SET.has(r.product)).map((r: any) => ({ ...r, source_domain: r.product })),
+    ...(rawProducts ?? [])
+      .filter((r: any) => CANONICAL_SET.has(r.product) && !ACCOUNT_SCOPED_PRODUCTS.has(r.product))
+      .map((r: any) => ({ ...r, source_domain: r.product })),
     ...(rawTransactions ?? []).map((r: any) => ({ ...r, product: "transactions", source_domain: "transactions" })),
     ...(rawBalances ?? []).map((r: any) => ({ ...r, product: "balance", source_domain: "balance" })),
     ...(rawLiabilities ?? []).map((r: any) => ({ ...r, product: "liabilities", source_domain: "liabilities" })),
