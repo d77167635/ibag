@@ -96,7 +96,7 @@ export function buildEvidenceGraph(intel: any): EvidenceGraph {
   };
 }
 
-/** Verifies the provider lineage chain instead of treating row counts as sufficient evidence. */
+/** Verifies the provider lineage chain and counts only actual Plaid domain observations as observed evidence. */
 export async function verifyProviderLineage(
   supabase: SupabaseClient,
   userId: string,
@@ -120,13 +120,18 @@ export async function verifyProviderLineage(
     .eq("is_active", true);
   if (transactionError) throw transactionError;
 
+  // evidence_state alone is intentionally insufficient here: the product-observation
+  // history can record provider lifecycle availability/consent as an observation row.
+  // A product is treated as an actually observed domain only when lifecycle_state is
+  // explicitly `observed` as written by the domain sync path.
   const { count: observedProductDomains, error: productError } = await supabase
     .from("plaid_product_observations")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("provider", "plaid")
     .eq("is_current", true)
-    .eq("evidence_state", "observed");
+    .eq("evidence_state", "observed")
+    .eq("lifecycle_state", "observed");
   if (productError) throw productError;
 
   const rows = transactionRows ?? [];
