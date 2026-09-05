@@ -143,14 +143,24 @@ export function computeCanonicalSpendingHierarchy(transactions: CanonicalTransac
 }
 
 export async function computeCanonicalForwardProjection(userId: string, days = 30, asOf?: string | Date | null) {
-  const [{ data: checkingAccounts, error: balanceError }, { data: series, error: seriesError }] = await Promise.all([
-    supabaseAdmin.from("plaid_accounts").select("available_balance").eq("user_id", userId).eq("type", "depository").eq("subtype", "checking").not("available_balance", "is", null),
+  const [{ data: items, error: itemError }, { data: productObservations, error: productError }, { data: series, error: seriesError }] = await Promise.all([
+    supabaseAdmin.from("plaid_items").select("id, status").eq("user_id", userId),
+    supabaseAdmin.from("plaid_product_observations").select("item_id, product, lifecycle_state, evidence_state, is_current").eq("user_id", userId).eq("provider", "plaid").eq("product", "balance").eq("is_current", true),
     supabaseAdmin.from("recurring_series").select("typical_amount, next_expected_date, occurrence_count, merchants(canonical_name)").eq("user_id", userId).eq("is_essential", true).gte("occurrence_count", 2).not("typical_amount", "is", null).not("next_expected_date", "is", null),
   ]);
-  if (balanceError) throw balanceError;
+  if (itemError) throw itemError;
+  if (productError) throw productError;
   if (seriesError) throw seriesError;
-  if (!checkingAccounts?.length) return { series: [], basis: "no_checking_balance", evidence_state: "insufficient_evidence" as const, limitations: ["No observed checking available balance."] };
-  const startBalance = checkingAccounts.reduce((sum, a) => sum + Number(a.available_balance), 0);
+  const activeItems = (items ?? []).filter((item: any) => item.status === "active").map((item: any) => item.id);
+  const certifiedItemIds = new Set((productObservations ?? []).filter((row: any) => ["observed", "validated", "fresh"].includes(row.lifecycle_state) && ["observed", "calculated"].includes(row.evidence_state ?? "observed")).map((row: any) => row.item_id));
+  const missingBalanceCertification = activeItems.filter(id => !certifiedItemIds.has(id));
+  if (!activeItems.length) return { series: [], basis: "no_active_plaid_item", evidence_state: "insufficient_evidence" as const, limitations: ["No active Plaid Item is available for certified balance evidence."] };
+  if (missingBalanceCertification.length) return { series: [], basis: "balance_product_not_certified_for_every_item", evidence_state: "insufficient_evidence" as const, certified_item_count: certifiedItemIds.size, active_item_count: activeItems.length, limitations: [`${missingBalanceCertification.length} active Plaid Item(s) lack a current certified Balance observation; projection is withheld rather than borrowing another Item's balance.`] };
+  const { data: checkingAccounts, error: balanceError } = await supabaseAdmin.from("plaid_accounts").select("available_balance, item_id").eq("user_id", userId).eq("type", "depository").eq("subtype", "checking").not("available_balance", "is", null).in("item_id", activeItems);
+  if (balanceError) throw balanceError;
+  if (!checkingAccounts?.length) return { series: [], basis: "no_certified_checking_balance", evidence_state: "insufficient_evidence" as const, limitations: ["No observed checking available balance exists within certified active Plaid Items."] };
+  const startBalance = checkingAccounts.filter((a: any) => certifiedItemIds.has(a.item_id)).reduce((sum, a) => sum + Number(a.available_balance), 0);
+  if (!Number.isFinite(startBalance)) return { series: [], basis: "invalid_certified_balance", evidence_state: "insufficient_evidence" as const, limitations: ["Certified checking balance evidence is not numerically usable."] };
   const projected: { date: string; balance: number; event: string | null }[] = [];
   let balance = startBalance;
   const boundary = boundaryDate(asOf);
@@ -167,8 +177,8 @@ export async function computeCanonicalForwardProjection(userId: string, days = 3
     projected.push({ date, balance, event });
   }
   const observedSeriesCount = (series ?? []).length;
-  const limitations = ["Projection models only recurring essential bills with at least two observed occurrences; it does not model unobserved income or discretionary spending."];
-  return { series: projected, basis: "observed_checking_balance_plus_recurring_essential_series", evidence_state: observedSeriesCount ? "calculated" as const : "limited" as const, recurring_series_count: observedSeriesCount, horizon_days: days, limitations };
+  const limitations = ["Projection models only recurring essential bills with at least two observed occurrences; it does not model unobserved income or discretionary spending.", "Starting balance is restricted to checking accounts belonging to active Plaid Items with current certified Balance evidence."];
+  return { series: projected, basis: "certified_observed_checking_balance_plus_recurring_essential_series", evidence_state: observedSeriesCount ? "calculated" as const : "limited" as const, recurring_series_count: observedSeriesCount, certified_item_count: certifiedItemIds.size, active_item_count: activeItems.length, horizon_days: days, limitations };
 }
 
 export function computeCanonicalWindowFlows(transactions: CanonicalTransaction[], windows: readonly number[], asOf?: string | Date | null) {
