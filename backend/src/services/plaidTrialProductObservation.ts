@@ -1,11 +1,36 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { plaidClient } from "../plaid/client.js";
 
-function endpointFor(product: string, accessToken: string) {
+function sleep(ms: number) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+async function fetchAssets(accessToken: string) {
+  const created = await (plaidClient as any).assetReportCreate({
+    access_tokens: [accessToken],
+    days_requested: 90,
+  });
+  const token = created?.data?.asset_report_token;
+  if (!token) throw new Error("Plaid asset report creation returned no asset_report_token");
+
+  let lastError: any = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      return await (plaidClient as any).assetReportGet({ asset_report_token: token });
+    } catch (err: any) {
+      lastError = err;
+      const code = err?.response?.data?.error_code ?? err?.code;
+      if (code !== "PRODUCT_NOT_READY") throw err;
+      await sleep(1000);
+    }
+  }
+  throw lastError ?? new Error("Plaid asset report was not ready");
+}
+
+async function endpointFor(product: string, accessToken: string) {
   const args = { access_token: accessToken };
   switch (product) {
     case "auth": return () => (plaidClient as any).authGet(args);
     case "identity": return () => (plaidClient as any).identityGet(args);
+    case "assets": return () => fetchAssets(accessToken);
     case "investments": return () => (plaidClient as any).investmentsHoldingsGet(args);
     case "statements": return () => (plaidClient as any).statementsList(args);
     default: return null;
@@ -31,13 +56,13 @@ async function markObserved(userId: string, itemId: string, product: string) {
 
 export async function observeActivatedTrialProducts(userId: string, itemId: string, accessToken: string, activated: Set<string>) {
   const results: Array<{ product: string; observed: boolean; error?: string }> = [];
-  for (const product of ["auth", "identity", "investments", "statements"]) {
+  for (const product of ["auth", "identity", "assets", "investments", "statements"]) {
     if (!activated.has(product)) {
       results.push({ product, observed: false });
       continue;
     }
     try {
-      const endpoint = endpointFor(product, accessToken);
+      const endpoint = await endpointFor(product, accessToken);
       if (!endpoint) throw new Error(`No provider endpoint configured for ${product}`);
       const response = await endpoint();
       const payload = response?.data;
