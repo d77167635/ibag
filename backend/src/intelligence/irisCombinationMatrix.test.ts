@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+process.env.PLAID_CLIENT_ID ??= "test-client-id";
+process.env.PLAID_SECRET ??= "test-secret";
+process.env.SUPABASE_URL ??= "https://example.supabase.co";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+process.env.TOKEN_ENCRYPTION_KEY ??= "test-token-encryption-key";
+
+const { chooseIrisCombinations: selector, COMBINATION_LIBRARY: combinations } = await import("./trialProductIntelligence.js");
 const PRODUCTS = ["transactions", "balance", "auth", "identity", "assets", "liabilities", "investments", "statements"] as const;
 type Product = typeof PRODUCTS[number];
 type Intent = "overview" | "cash_flow" | "spending" | "liquidity" | "debt" | "roundups" | "anomaly";
@@ -12,23 +19,9 @@ const REQUIRED: Record<Intent, Product[][]> = {
 const subsets = <T,>(items: readonly T[]) => Array.from({ length: 1 << items.length }, (_, mask) => items.filter((_, i) => Boolean(mask & (1 << i))));
 const mapFor = (items: Product[]): Map<string, Set<string>> => new Map([["item-a", new Set(items)]]);
 const expectedSingleItem = (observed: readonly Product[], groups: Product[][]) => groups.every((group) => group.some((p) => observed.includes(p)));
-let selector: typeof import("./trialProductIntelligence.js").chooseIrisCombinations;
-let combinations: typeof import("./trialProductIntelligence.js").COMBINATION_LIBRARY;
-
-test("load production selector without requiring secrets", async () => {
-  process.env.PLAID_CLIENT_ID ??= "test-client-id";
-  process.env.PLAID_SECRET ??= "test-secret";
-  process.env.SUPABASE_URL ??= "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
-  process.env.TOKEN_ENCRYPTION_KEY ??= "test-token-encryption-key";
-  const mod = await import("./trialProductIntelligence.js");
-  selector = mod.chooseIrisCombinations;
-  combinations = mod.COMBINATION_LIBRARY;
-});
 
 for (const intent of INTENTS) {
-  test(`${intent}: production selector passes every valid/invalid 8-product subset`, async () => {
-    assert.ok(selector);
+  test(`${intent}: production selector passes every valid/invalid 8-product subset`, () => {
     const matrix = subsets(PRODUCTS);
     assert.equal(matrix.length, 256);
     for (const observed of matrix) {
@@ -61,7 +54,6 @@ test("optional products enrich an intent but never substitute for required produ
 });
 
 test("every declared combination requires all products on one Item", () => {
-  assert.ok(combinations);
   for (const combo of combinations) {
     const complete = mapFor([...combo.products] as Product[]);
     const ready = selector(complete, "unknown").ready_combinations.find((c) => c.key === combo.key);
