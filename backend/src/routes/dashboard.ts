@@ -21,9 +21,9 @@ dashboardRouter.post("/dashboard/accounts/:accountId/roundup-toggle", requireAut
 dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedRequest, res) => {
   const userId = req.userId!;
   const [{ data: accounts, error: accountsErr }, { data: recentTx, error: txErr }, { data: ibag, error: ibagErr }] = await Promise.all([
-    supabaseAdmin.from("plaid_accounts").select("*, card_roundup_ledger!card_roundup_ledger_account_id_fkey(accrued_unswept, lifetime_roundup_total)").eq("user_id", userId),
-    supabaseAdmin.from("transactions").select("*, merchants(canonical_name), subdomains(label, domains(key, label))").eq("user_id", userId).order("posted_date", { ascending: false }).limit(50),
-    supabaseAdmin.from("virtual_ibag_balance").select("*").eq("user_id", userId).maybeSingle(),
+    supabaseAdmin.from("plaid_accounts").select("id, item_id, name, official_name, mask, type, subtype, current_balance, available_balance, credit_limit, balance_updated_at, roundup_enabled, created_at").eq("user_id", userId),
+    supabaseAdmin.from("transactions").select("id, account_id, amount, iso_currency_code, merchant_name, merchant_id, plaid_category_primary, plaid_category_detailed, posted_date, transaction_class, classification_evidence, classification_version, pending, is_active, merchants(canonical_name), subdomains(label, domains(key, label))").eq("user_id", userId).eq("is_active", true).eq("pending", false).order("posted_date", { ascending: false }).limit(50),
+    supabaseAdmin.from("virtual_ibag_balance").select("user_id, projected_balance, updated_at").eq("user_id", userId).maybeSingle(),
   ]);
   if (accountsErr) console.error("dashboard/overview accounts query error:", accountsErr.message);
   if (txErr) console.error("dashboard/overview transactions query error:", txErr.message);
@@ -31,7 +31,7 @@ dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedReques
   const withMerchant = (recentTx ?? []).filter((t: any) => t.merchants).length;
   const withSubdomain = (recentTx ?? []).filter((t: any) => t.subdomains).length;
   console.log(`dashboard/overview for user ${userId}: ${recentTx?.length ?? 0} tx, ${withMerchant} with merchant join, ${withSubdomain} with subdomain join`);
-  res.json({ accounts: accounts ?? [], recent_transactions: recentTx ?? [], ibag: ibag ?? { projected_balance: 0 } });
+  res.json({ accounts: accounts ?? [], recent_transactions: recentTx ?? [], ibag: ibag ?? null });
 });
 
 dashboardRouter.get("/dashboard/hierarchy", requireAuth, async (_req, res) => {
@@ -84,7 +84,13 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       temporal: full.layer_temporal,
       maximum_intelligence: full.layer_max_intelligence,
       feature_flags: full.feature_flags,
+      provider_lineage: full.provider_lineage,
+      integrity: full.integrity,
+      source_fidelity: full.source_fidelity,
+      intelligence_gate: full.intelligence_gate,
       evidence_graph: full.evidence_graph,
+      intelligence_graph: full.intelligence_graph,
+      investigations: full.investigations,
       uncertainty: full.uncertainty,
       financial_state: full.financial_state,
       causal_analysis: full.causal_analysis,
