@@ -1,11 +1,5 @@
-import {
-  computeBalanceMetrics,
-  computeCashFlowSafety,
-  computeBalanceHistory,
-  computeDebtTrend,
-  computeForwardProjection,
-} from "../services/intelligence.js";
-import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy } from "./transactionSemantics.js";
+import { computeBalanceMetrics, computeCashFlowSafety, computeBalanceHistory, computeDebtTrend } from "../services/intelligence.js";
+import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy, computeCanonicalForwardProjection } from "./transactionSemantics.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
 import { validateCanonicalIntelligenceInput } from "./integrity.js";
 import { getFeatureFlags } from "../services/features.js";
@@ -36,18 +30,15 @@ export async function computeFullIntelligence(userId: string) {
   const economicCurrent = computeEconomicCashFlow(current30);
   const roundupProjection = computeRoundupProjectionFromTransactions(canonical);
   const spendingByDomain = computeSpendingByDomainFromTransactions(canonical);
+  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical);
   const prior30 = canonical.filter(tx => tx.posted_date < current30Start);
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
   const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
-  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical);
 
-  const [
-    balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection,
-    debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage,
-  ] = await Promise.all([
+  const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
     computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId),
-    computeCanonicalAnomalies(userId), computeForwardProjection(userId), computeDebtCostIntelligence(userId),
+    computeCanonicalAnomalies(userId), computeCanonicalForwardProjection(userId), computeDebtCostIntelligence(userId),
     computeCategoryDrift(userId), computeMultiWindowFlow(userId), computeFinancialReasoning(userId), getFeatureFlags(userId),
     supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
     verifyProviderLineage(supabaseAdmin, userId),
@@ -70,18 +61,7 @@ export async function computeFullIntelligence(userId: string) {
     forward_projection: forwardProjection,
     anomalies,
   };
-  const baseResult = {
-    narrative,
-    generated_at: new Date().toISOString(),
-    feature_flags: featureFlags,
-    layer_metrics: layerMetrics,
-    layer_debt_cost: debtCost,
-    layer_temporal: { windows: multiWindowFlow, trajectory },
-    layer_behavioral: { categoryDrift },
-    layer_reasoning: reasoning,
-    layer_max_intelligence: maximumIntelligence,
-    provider_lineage: providerLineage,
-  };
+  const baseResult = { narrative, generated_at: new Date().toISOString(), feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence, provider_lineage: providerLineage };
   const evidenceGraph = buildEvidenceGraph(baseResult);
   const uncertainty = assessUncertainty(evidenceGraph);
   const financialState = buildFinancialStateModel(evidenceGraph, uncertainty);
@@ -90,15 +70,9 @@ export async function computeFullIntelligence(userId: string) {
   const decisionIntelligence = buildDecisionIntelligence(reasoning, financialState, causalAnalysis, decisionGraph);
   const consequenceModel = buildConsequenceModel(decisionIntelligence, financialState, reasoning, cashFlow.net, multiWindowFlow.length ? multiWindowFlow.reduce((widest, current) => current.windowDays > widest.windowDays ? current : widest).outflow : null, cashFlow.windowDays);
   const optimizationBase = buildOptimizationIntelligence(decisionIntelligence, consequenceModel, financialState, declaredGoals);
-  const optimization = {
-    ...optimizationBase,
-    options: decisionIntelligence.options.map((option) => ({
-      ...option,
-      score: optimizationBase.scores.find((score) => score.option_id === option.id)?.total_score ?? null,
-    })),
-  };
+  const optimization = { ...optimizationBase, options: decisionIntelligence.options.map(option => ({ ...option, score: optimizationBase.scores.find(score => score.option_id === option.id)?.total_score ?? null })) };
   const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimizationBase, declaredGoals);
   goals.limitations = [...new Set([...goals.limitations, ...goalDataLimitations])];
-  recordExplainabilityTrace(userId, reasoning).catch((err) => console.error("explainability trace failed:", err));
+  recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
   return { ...baseResult, integrity, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals };
 }
