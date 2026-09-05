@@ -63,7 +63,7 @@ linkRouter.post("/link/upgrade-token", requireAuth, async (req: AuthedRequest, r
       const candidates = ["auth", "identity", "investments"] as const;
       const missingSupported = candidates.filter((product) =>
         !alreadyAdded.has(product) && !consented.has(product) && (available.has(product) || product === "auth" || product === "identity")
-      ) as unknown as Products[];
+      );
       if (missingSupported.length === 0) {
         return res.status(409).json({ error: "This Item has no additional consentable canonical products available from Plaid." });
       }
