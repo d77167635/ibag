@@ -34,7 +34,7 @@ export async function selectPlaidProducts(userId: string) {
   if (subscriptionError) throw subscriptionError;
   if (itemsError) throw itemsError;
   if (!subscription || subscription.status !== "active" || (subscription.ends_at && new Date(subscription.ends_at).getTime() <= Date.now())) {
-    return { strategy: "iris_evidence_weighted_product_selection_v5", plan: { key: subscription?.plan_key ?? null, status: subscription?.status ?? "not_entitled" }, catalog_size: PLAID_PRODUCT_CATALOG_V2.length, selected: [], all_eligible_products: [], items: [] };
+    return { strategy: "iris_evidence_weighted_product_selection_v6", plan: { key: subscription?.plan_key ?? null, status: subscription?.status ?? "not_entitled" }, catalog_size: PLAID_PRODUCT_CATALOG_V2.length, selected: [], all_eligible_products: [], items: [] };
   }
 
   const { data: entitlements, error: entitlementError } = await supabaseAdmin.from("ibag_plan_plaid_products")
@@ -54,8 +54,6 @@ export async function selectPlaidProducts(userId: string) {
   if (observationsError) throw observationsError;
   const observedByItemProduct = new Map<string, any>();
   for (const row of observations ?? []) {
-    // Intelligence authority is evidence-state strict. A calculated/limited
-    // row cannot be promoted to provider observation merely by selection.
     if (row.lifecycle_state === "observed" && row.evidence_state === "observed") {
       observedByItemProduct.set(`${row.item_id}:${row.product}`, row);
     }
@@ -70,10 +68,10 @@ export async function selectPlaidProducts(userId: string) {
       const raw = response.data.item as any;
       const candidates = definitions.map((definition) => {
         const status = providerStatus(definition, raw);
-        const evidenceRows = [...observedByItemProduct.entries()]
-          .filter(([key]) => key.startsWith(`${item.id}:`))
-          .map(([, row]) => row);
-        const evidenceObserved = definition.plaidProductStates.some((state) => evidenceRows.some((row) => row.product === state));
+        // Exact iBag product identity is authoritative. Plaid state aliases
+        // such as transactions_refresh, balance_plus, and credit_details
+        // cannot silently certify a Trial product.
+        const evidenceObserved = observedByItemProduct.has(`${item.id}:${definition.key}`);
         const commercial = termByProduct.get(definition.key);
         return {
           product: definition.key,
@@ -113,7 +111,7 @@ export async function selectPlaidProducts(userId: string) {
   const observed = eligible.filter((candidate) => candidate.observed_item_count > 0);
   const awaitingObservation = eligible.filter((candidate) => candidate.observed_item_count === 0 && candidate.provider_status !== "not_available");
   return {
-    strategy: "iris_evidence_weighted_product_selection_v5",
+    strategy: "iris_evidence_weighted_product_selection_v6",
     plan: { key: subscription.plan_key, status: subscription.status, starts_at: subscription.starts_at, ends_at: subscription.ends_at, entitled_product_count: definitions.length },
     catalog_size: PLAID_PRODUCT_CATALOG_V2.length,
     selected: observed,
@@ -128,6 +126,7 @@ export async function selectPlaidProducts(userId: string) {
       "Plaid institution support, consent, active state and iBag entitlement remain separate facts.",
       "Iris ranks eligible products by the Financial Life State capabilities they can unlock.",
       "Available or consented never counts as observed; only a successful provider response persisted as evidence can be selected for Iris intelligence.",
+      "Exact iBag Trial product identity is required for Trial evidence selection; Plaid state aliases cannot substitute for it.",
       "A product is not selected merely because itemGet reports it as available, billed, consented, or authorized.",
       "Commercial terms remain explicit and contract-dependent; Plaid charges can be passed through according to iBag policy.",
       "Iris never silently requests consent, activates a product, or performs money movement in Phase 1.",
