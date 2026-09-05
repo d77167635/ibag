@@ -18,7 +18,7 @@ function readWorkspace() {
   if (hash.startsWith("workspace/iris/")) return { workspace: "iris", irisPage: hash.slice("workspace/".length) || "iris" };
   if (hash === "workspace/iris") return { workspace: "iris", irisPage: "iris" };
   if (hash === "iris" || hash.startsWith("iris/")) return { workspace: "iris", irisPage: hash || "iris" };
-  return { workspace: "ibag", irisPage: "iris" };
+  return { workspace: "iris", irisPage: "iris" };
 }
 
 export default function App() {
@@ -38,7 +38,7 @@ export default function App() {
   }, []);
 
   const navigate = (nextWorkspace: string, nextIrisPage = "iris") => {
-    const hash = nextWorkspace === "plaid" ? "#workspace/plaid" : nextWorkspace === "iris" ? `#workspace/${nextIrisPage}` : "";
+    const hash = nextWorkspace === "plaid" ? "#workspace/plaid" : `#workspace/${nextIrisPage}`;
     window.history.pushState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
     setWorkspace(nextWorkspace);
     setIrisPage(nextIrisPage);
@@ -51,7 +51,7 @@ export default function App() {
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) { setSigningOut(false); return; }
     window.history.replaceState(null, "", "/");
-    setWorkspace("ibag"); setIrisPage("iris");
+    setWorkspace("iris"); setIrisPage("iris");
   };
 
   if (!checkedAuth) return null;
@@ -61,6 +61,5 @@ export default function App() {
   const workspaceSwitch = <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher"><button type="button" className={workspace === "iris" ? "active" : ""} onClick={() => navigate("iris")}>Iris</button><button type="button" className={workspace === "plaid" ? "active" : ""} onClick={() => navigate("plaid")}>Plaid</button></div>;
 
   if (workspace === "plaid") return <div className="app-workspace app-workspace-plaid"><PlaidControlPlane />{workspaceSwitch}{accountControl}</div>;
-  if (workspace === "iris") return <div className="app-workspace app-workspace-iris"><IrisIntelligenceWorkspace page={irisPage} go={(page) => navigate("iris", page)} />{workspaceSwitch}{accountControl}</div>;
-  return <div className="app-workspace app-workspace-ibag">{workspaceSwitch}<IrisApplication /><IrisAssistant />{accountControl}</div>;
+  return <div className="app-workspace app-workspace-iris"><IrisIntelligenceWorkspace page={irisPage} go={(page) => navigate("iris", page)} />{workspaceSwitch}{accountControl}</div>;
 }
