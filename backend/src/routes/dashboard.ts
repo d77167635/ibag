@@ -7,6 +7,7 @@ import { plaidClient } from "../plaid/client.js";
 import { computeFullIntelligence } from "../intelligence/orchestrator.js";
 import { computeCanonicalScenario } from "../intelligence/canonicalScenario.js";
 import { evaluateIntelligenceValidation } from "../intelligence/validationEngine.js";
+import { assessModelGovernance } from "../intelligence/modelGovernance.js";
 
 export const dashboardRouter = Router();
 
@@ -88,6 +89,16 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
 dashboardRouter.get("/dashboard/intelligence/validation", requireAuth, async (req: AuthedRequest, res) => {
   try { res.json(await evaluateIntelligenceValidation(req.userId!)); }
   catch (err) { console.error("dashboard/intelligence/validation error:", err); res.status(500).json({ error: "Failed to evaluate intelligence validation" }); }
+});
+
+dashboardRouter.get("/dashboard/intelligence/governance", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const validation = await evaluateIntelligenceValidation(req.userId!);
+    res.json(assessModelGovernance(validation.observations));
+  } catch (err) {
+    console.error("dashboard/intelligence/governance error:", err);
+    res.status(500).json({ error: "Failed to evaluate intelligence model governance" });
+  }
 });
 
 const PLAID_STANDARD_PRODUCTS = ["transactions", "auth", "balance", "identity", "investments", "liabilities", "transfer", "signal"] as const;
