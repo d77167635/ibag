@@ -29,5 +29,14 @@ export default function App() {
   if (!checkedAuth) return null;
   if (!session) return <Auth />;
   if (path === "/plaid" || path === "/plaid/") return <PlaidControlPlane />;
-  return <><IrisApplication /><IrisAssistant /></>;
+  return (
+    <>
+      <div className="ia-mode-switch" role="navigation" aria-label="iBag workspace switcher">
+        <a className="active" href="/">iBag</a>
+        <a href="/plaid">Plaid</a>
+      </div>
+      <IrisApplication />
+      <IrisAssistant />
+    </>
+  );
 }
