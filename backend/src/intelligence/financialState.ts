@@ -17,7 +17,7 @@ export interface FinancialStateModel {
 function node(graph: EvidenceGraph, id: string) { return graph.nodes.find((item) => item.id === id); }
 function numericValue(n: EvidenceNode | undefined): number | null { return n && typeof n.value === "number" && Number.isFinite(n.value) ? n.value : null; }
 function directionOf(n: EvidenceNode | undefined): string | null {
-  if (!n || typeof n.value !== "object' || n.value === null || !("direction" in n.value)) return null;
+  if (!n || typeof n.value !== "object" || n.value === null || !("direction" in n.value)) return null;
   return String((n.value as any).direction);
 }
 
