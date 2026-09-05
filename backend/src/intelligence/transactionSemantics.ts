@@ -77,13 +77,13 @@ export function computeEconomicCashFlow(transactions: CanonicalTransaction[]) {
 
 export function computeRoundupProjectionFromTransactions(transactions: CanonicalTransaction[], projectDays = 30) {
   const eligible = transactions.filter(isEligibleRoundup);
-  if (!eligible.length) return { dailyRate: null, projected: null, projectedAmount: null, basisDays: 0, projectDays, eligibleTransactionCount: 0, calculation_version: ROUNDUP_RULE_VERSION };
+  if (!eligible.length) return { total: 0, dailyRate: null, projected: null, projectedAmount: null, projectedTotal: null, basisDays: 0, projectDays, eligibleTransactionCount: 0, calculation_version: ROUNDUP_RULE_VERSION };
   const total = eligible.reduce((sum, tx) => sum + roundupAmount(tx.amount), 0);
   const dates = eligible.map(tx => new Date(tx.posted_date).getTime());
   const spanDays = Math.max(1, Math.round((Math.max(...dates) - Math.min(...dates)) / 86_400_000));
   const dailyRate = total / spanDays;
   const projected = dailyRate * projectDays;
-  return { dailyRate, projected, projectedAmount: projected, basisDays: spanDays, projectDays, eligibleTransactionCount: eligible.length, calculation_version: ROUNDUP_RULE_VERSION };
+  return { total, dailyRate, projected, projectedAmount: projected, projectedTotal: projected, basisDays: spanDays, projectDays, eligibleTransactionCount: eligible.length, calculation_version: ROUNDUP_RULE_VERSION };
 }
 
 export function computeSpendingByDomainFromTransactions(transactions: CanonicalTransaction[], windowDays = 30) {
