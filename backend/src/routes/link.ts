@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { CountryCode, Products } from "plaid";
+import type { CountryCode, Products } from "plaid";
 import { plaidClient } from "../plaid/client.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { env } from "../config/env.js";
@@ -12,7 +12,7 @@ export const linkRouter = Router();
 
 linkRouter.post("/link/token", requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const response = await plaidClient.linkTokenCreate({ user: { client_user_id: req.userId! }, client_name: "Iris", products: env.plaidProducts as Products[], country_codes: env.plaidCountryCodes as CountryCode[], language: "en", webhook: env.plaidWebhookUrl || undefined });
+    const response = await plaidClient.linkTokenCreate({ user: { client_user_id: req.userId! }, client_name: "Iris", products: env.plaidProducts as unknown as Products[], country_codes: env.plaidCountryCodes as CountryCode[], language: "en", webhook: env.plaidWebhookUrl || undefined });
     res.json({ link_token: response.data.link_token });
   } catch (err) { console.error("link/token error", err); res.status(502).json({ error: "Failed to create Plaid Link token" }); }
 });
