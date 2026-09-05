@@ -131,7 +131,6 @@ export async function computeCanonicalForwardProjection(userId: string, days = 3
   if (seriesError) throw seriesError;
   if (!checkingAccounts?.length) return { series: [], basis: "no_checking_balance", evidence_state: "insufficient_evidence" as const, limitations: ["No observed checking available balance."] };
   const startBalance = checkingAccounts.reduce((sum, a) => sum + Number(a.available_balance), 0);
-  const horizon = new Date(Date.now() + days * 86_400_000);
   const projected: { date: string; balance: number; event: string | null }[] = [];
   let balance = startBalance;
   for (let i = 0; i <= days; i++) {
@@ -140,8 +139,9 @@ export async function computeCanonicalForwardProjection(userId: string, days = 3
     let event: string | null = null;
     for (const bill of dueToday) {
       balance -= Number(bill.typical_amount);
-      const merchant = bill.merchants?.canonical_name ?? "Known essential bill";
-      event = event ? `${event}, ${merchant}` : merchant;
+      const merchant = Array.isArray(bill.merchants) ? bill.merchants[0]?.canonical_name : bill.merchants?.canonical_name;
+      const label = merchant ?? "Known essential bill";
+      event = event ? `${event}, ${label}` : label;
     }
     projected.push({ date, balance, event });
   }
