@@ -102,7 +102,7 @@ function tierOf(page: string) {
 function Nav({ page, go }: { page: string; go?: (page: string) => void }) {
   const active = tierOf(page);
   return (
-    <nav aria-label="Iris four tier navigation" style={{ display: "flex", gap: 8, overflowX: "auto", padding: "4px 0 16px" }}>
+    <nav className="iis-tier-nav" aria-label="Iris four tier navigation">
       {tiers.map((tier) => (
         <button
           type="button"
@@ -191,7 +191,35 @@ export function IrisFourTier({ page, go, intel }: Props) {
   const activeTier = tiers.find((tier) => tier.id === active);
 
   return (
-    <div className="iis-screen" style={{ maxWidth: 1280, margin: "0 auto" }}>
+    <div className="iis-screen" style={{ maxWidth: 1280, width: "100%", margin: "0 auto", minWidth: 0 }}>
+      <style>{`
+        .iis-screen, .iis-screen * { min-width: 0; }
+        .iis-tier-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 4px 0 16px; }
+        .iis-tier-nav button { width: 100%; min-width: 0 !important; overflow: hidden; }
+        .iis-tier-nav b, .iis-tier-nav small { overflow-wrap: anywhere; }
+        .iis-screen .iis-hero, .iis-screen .iis-panel { width: 100%; min-width: 0; overflow: hidden; }
+        .iis-screen .iis-hero p, .iis-screen .iis-note, .iis-screen .iis-card p { overflow-wrap: anywhere; }
+        .iis-screen .iis-metric-grid { min-width: 0; }
+        @media (max-width: 720px) {
+          .iis-tier-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; padding-bottom: 12px; }
+          .iis-tier-nav button { padding: 10px 10px !important; border-radius: 10px; }
+          .iis-screen { padding-left: 0 !important; padding-right: 0 !important; }
+          .iis-screen .iis-hero { padding: 18px 16px !important; }
+          .iis-screen .iis-panel { padding: 16px !important; }
+          .iis-screen .iis-metric-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
+          .iis-screen .iis-metric { min-width: 0; padding: 14px !important; }
+          .iis-screen .iis-metric strong { font-size: 22px !important; overflow-wrap: anywhere; }
+          .iis-screen .iis-card { min-width: 0; }
+        }
+        @media (max-width: 420px) {
+          .iis-tier-nav { gap: 6px; }
+          .iis-tier-nav button { font-size: 12px; }
+          .iis-screen .iis-hero h1 { font-size: 30px !important; line-height: 1.05; }
+          .iis-screen .iis-hero p { font-size: 13px !important; }
+          .iis-screen .iis-panel h2 { font-size: 22px !important; }
+          .iis-screen .iis-card { padding: 13px !important; }
+        }
+      `}</style>
       <Nav page={page} go={go} />
 
       <header className="iis-hero">
