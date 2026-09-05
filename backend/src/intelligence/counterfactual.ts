@@ -6,26 +6,23 @@ export type CounterfactualScenario = {
   perturbed_score: number;
   score_delta: number;
   stability: "stable" | "sensitive";
+  held_constant: string[];
+  changed_variables: string[];
+  causal_claim_allowed: false;
   assumptions: string[];
   limitations: string[];
 };
 
-type DecisionLike = {
-  options?: Array<{
-    id: string;
-    kind: string;
-    label: string;
-    reversibility?: string;
-  }>;
-};
+type DecisionLike = { options?: Array<{ id: string; kind: string; label: string; reversibility?: string }> };
+type OptimizationLike = { scores?: Array<{ option_id?: string; total_score?: number }> };
 
-type OptimizationLike = {
-  scores?: Array<{ option_id?: string; total_score?: number }>;
-};
+type Variable = { key: string; value: number; direction: "negative" | "positive"; stress: number };
 
 /**
- * Deterministic counterfactual stress testing over existing decision scores.
- * It models bounded perturbations; it never creates provider observations or executes actions.
+ * Evidence-bounded counterfactual stress testing. This is deliberately explicit
+ * about changed variables and hold-constant assumptions so a score perturbation
+ * cannot masquerade as a causal prediction. It creates no provider observations,
+ * probabilities, financial facts, or executable actions.
  */
 export function buildCounterfactualIntelligence(input: {
   decision?: DecisionLike;
@@ -37,49 +34,62 @@ export function buildCounterfactualIntelligence(input: {
   const options = input.decision?.options ?? [];
   const scores = input.optimization?.scores ?? [];
   const baseline = new Map(scores.map((s) => [s.option_id, Number(s.total_score ?? 0)]));
+  const variables: Variable[] = [
+    { key: "safe_to_spend", value: Number(input.safeToSpend ?? 0), direction: "negative", stress: 0.10 },
+    { key: "cash_flow_net", value: Number(input.cashFlowNet ?? 0), direction: "negative", stress: 0.10 },
+    { key: "revolving_debt", value: Number(input.revolvingDebt ?? 0), direction: "positive", stress: 0.10 },
+  ].filter(v => Number.isFinite(v.value));
   const scenarios: CounterfactualScenario[] = [];
 
   for (const option of options.slice(0, 12)) {
     const base = baseline.get(option.id);
     if (base == null || !Number.isFinite(base)) continue;
-
-    const perturbation = option.kind === "reduce_pressure" ? -0.10
-      : option.kind === "preserve_liquidity" ? -0.08
-      : option.kind === "optimize_roundups" ? -0.05
-      : -0.03;
-    const pressureContext = [input.safeToSpend, input.cashFlowNet, input.revolvingDebt].some((v) => typeof v === "number" && v < 0);
-    const adjusted = Number((base + perturbation * (pressureContext ? 1.25 : 1)).toFixed(3));
-
+    const pressureVariables = variables.filter(v => v.key !== "revolving_debt" ? v.value < 0 : v.value > 0);
+    const active = pressureVariables.length ? pressureVariables : variables.slice(0, 1);
+    const intensity = Math.min(0.30, active.reduce((sum, v) => sum + v.stress, 0));
+    const optionMultiplier = option.kind === "reduce_pressure" ? 1.00 : option.kind === "preserve_liquidity" ? 0.90 : option.kind === "optimize_roundups" ? 0.65 : 0.50;
+    const delta = Number((-intensity * optionMultiplier).toFixed(3));
+    const adjusted = Number((base + delta).toFixed(3));
     scenarios.push({
       id: `counterfactual:${option.id}`,
       option_id: option.id,
-      intervention: `Stress the ${option.label} decision score under a bounded adverse assumption.`,
+      intervention: `Model a bounded adverse change in ${active.map(v => v.key).join(", ")} while holding unrelated decision inputs constant.`,
       baseline_score: Number(base.toFixed(3)),
       perturbed_score: adjusted,
-      score_delta: Number((adjusted - base).toFixed(3)),
-      stability: Math.abs(adjusted - base) <= 0.10 ? "stable" : "sensitive",
+      score_delta: delta,
+      stability: Math.abs(delta) <= 0.10 ? "stable" : "sensitive",
+      held_constant: [
+        "Provider observations and canonical evidence remain unchanged.",
+        "Decision options and their definitions remain unchanged.",
+        "No new financial transaction, account, or provider state is introduced.",
+      ],
+      changed_variables: active.map(v => `${v.key}: bounded ${Math.round(v.stress * 100)}% adverse stress`),
+      causal_claim_allowed: false,
       assumptions: [
-        "The perturbation is a deterministic stress test, not a forecast probability.",
-        "Decision scores are treated as the existing model output and are not provider observations.",
+        "The changed variables are model inputs, not newly observed outcomes.",
+        "Stress magnitudes are deterministic sensitivity parameters, not probabilities.",
+        "The score function remains the existing optimization model under the modeled perturbation.",
       ],
       limitations: [
-        "This V1 engine does not claim the perturbed condition will occur.",
-        "It does not model all interactions among decision variables.",
-        "It cannot establish causation or execution feasibility.",
+        "This engine does not identify a real-world intervention effect.",
+        "It does not estimate probabilities or causal effect sizes.",
+        "Interactions between stressed variables are bounded rather than empirically estimated.",
+        "Execution feasibility is outside Phase 1.",
       ],
     });
   }
 
   return {
-    engine_version: "IRIS_COUNTERFACTUAL_ENGINE_V1",
+    engine_version: "IRIS_COUNTERFACTUAL_ENGINE_V2",
     scenarios,
     baseline_preserved: true,
     execution_capability: false,
     principles: [
       "Counterfactuals are modeled alternatives, never observations.",
-      "Every perturbation must remain explicit and bounded.",
+      "Changed variables and held-constant variables are explicit.",
       "Sensitivity is not probability.",
-      "A stable decision is not proof that the underlying assumptions are true.",
+      "No causal claim is emitted without causal evidence.",
+      "No provider state is mutated.",
     ],
     generation: {
       financial_values_created: false,
