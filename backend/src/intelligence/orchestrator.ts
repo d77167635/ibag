@@ -137,6 +137,9 @@ export async function computeFullIntelligence(userId: string) {
     roundupProjected: roundupProjection.projectedAmount ?? roundupProjection.projectedTotal ?? null,
     anomalies: anomalies.length,
     crossDomainFindings: rawComposition.cross_domain_findings,
+    decision: decisionIntelligence,
+    consequences: consequenceModel,
+    optimization: optimizationBase,
   });
   const intelligenceGate = {
     ...sourceFidelity,
