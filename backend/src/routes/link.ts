@@ -17,6 +17,42 @@ linkRouter.post("/link/token", requireAuth, async (req: AuthedRequest, res) => {
   } catch (err) { console.error("link/token error", err); res.status(502).json({ error: "Failed to create Plaid Link token" }); }
 });
 
+linkRouter.post("/link/upgrade-token", requireAuth, async (req: AuthedRequest, res) => {
+  const { item_id, stage } = req.body as { item_id?: string; stage?: "consent" | "assets" | "statements" };
+  if (!item_id) return res.status(400).json({ error: "item_id is required" });
+  if (!["consent", "assets", "statements"].includes(stage ?? "")) return res.status(400).json({ error: "stage must be consent, assets, or statements" });
+  try {
+    const { data: item, error } = await supabaseAdmin.from("plaid_items").select("id, user_id, plaid_access_token").eq("id", item_id).eq("user_id", req.userId!).maybeSingle();
+    if (error) throw error;
+    if (!item) return res.status(404).json({ error: "Plaid Item not found" });
+    const accessToken = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
+    const base = {
+      user: { client_user_id: req.userId! },
+      client_name: "Iris",
+      country_codes: env.plaidCountryCodes as CountryCode[],
+      language: "en",
+      access_token: accessToken,
+      update: { account_selection_enabled: true },
+    } as any;
+    if (stage === "assets") {
+      base.products = ["assets"];
+    } else if (stage === "statements") {
+      const end = new Date();
+      const start = new Date(end);
+      start.setFullYear(start.getFullYear() - 2);
+      base.products = ["statements"];
+      base.statements = { start_date: start.toISOString().slice(0, 10), end_date: end.toISOString().slice(0, 10) };
+    } else {
+      base.additional_consented_products = ["auth", "identity", "investments", "liabilities"];
+    }
+    const response = await plaidClient.linkTokenCreate(base);
+    res.json({ link_token: response.data.link_token, item_id: item.id, stage });
+  } catch (err) {
+    console.error("link/upgrade-token error", err);
+    res.status(502).json({ error: "Failed to create Plaid evidence upgrade Link token" });
+  }
+});
+
 linkRouter.post("/link/exchange", requireAuth, async (req: AuthedRequest, res) => {
   const { public_token } = req.body as { public_token?: string };
   if (!public_token) return res.status(400).json({ error: "public_token is required" });
