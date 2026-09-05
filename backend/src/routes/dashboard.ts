@@ -84,6 +84,15 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       temporal: full.layer_temporal,
       maximum_intelligence: full.layer_max_intelligence,
       feature_flags: full.feature_flags,
+      evidence_graph: full.evidence_graph,
+      uncertainty: full.uncertainty,
+      financial_state: full.financial_state,
+      causal_analysis: full.causal_analysis,
+      decision_graph: full.decision_graph,
+      decision_intelligence: full.decision_intelligence,
+      consequence_model: full.consequence_model,
+      optimization_intelligence: full.optimization_intelligence,
+      goal_intelligence: full.goal_intelligence,
     });
   } catch (err) {
     console.error("dashboard/intelligence error:", err);
