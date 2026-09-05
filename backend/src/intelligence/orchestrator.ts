@@ -26,6 +26,7 @@ import { buildIntelligenceGraph } from "./intelligenceGraph.js";
 import { buildInvestigationEngine } from "./investigationEngine.js";
 import { buildHigherOrderSynthesis } from "./higherOrderSynthesis.js";
 import { buildMetaIntelligence } from "./metaIntelligence.js";
+import { recordIntelligenceSnapshot } from "./validationSnapshots.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
@@ -77,5 +78,6 @@ export async function computeFullIntelligence(userId: string) {
   const metaIntelligence = buildMetaIntelligence({ atlas: intelligenceAtlas, sourceFidelity, integrity, uncertainty, investigations, composition });
   const intelligenceGate = { ...sourceFidelity, higher_order_conclusions_enabled: sourceFidelity.ready_for_higher_order_intelligence, limitation: sourceFidelity.ready_for_higher_order_intelligence ? null : "Higher-order Iris compositions remain evidence-bounded until source completeness and lineage are certified." };
   recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
+  recordIntelligenceSnapshot(userId, { evidenceBoundary, liquidAssets: balances.liquidAssets, cashFlowNet: cashFlow.net, safeToSpend: cashFlowSafety.safeToSpend, revolvingDebt: balances.revolvingDebt, creditUtilization: balances.creditUtilization, forwardProjectedLiquidPosition: typeof forwardProjection.projectedLiquidPosition === "number" ? forwardProjection.projectedLiquidPosition : null, roundupProjected: roundupProjection.projectedAmount ?? roundupProjection.projectedTotal ?? null, sourceFidelityStatus: sourceFidelity.status ?? null, higherOrderReady: sourceFidelity.ready_for_higher_order_intelligence, metadata: { atlas_ready: intelligenceAtlas.counts.evidence_ready, atlas_total: intelligenceAtlas.counts.total_defined, investigation_count: investigations.investigations.length, composition_possible: rawComposition.counts.possible_combinations } }).catch(err => console.error("intelligence snapshot failed:", err));
   return { ...baseResult, integrity, source_fidelity: sourceFidelity, intelligence_gate: intelligenceGate, evidence_graph: evidenceGraph, intelligence_graph: intelligenceGraph, investigations, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition, higher_order_synthesis: higherOrderSynthesis, meta_intelligence: metaIntelligence };
 }
