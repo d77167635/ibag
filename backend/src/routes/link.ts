@@ -42,6 +42,7 @@ linkRouter.post("/link/exchange", requireAuth, async (req: AuthedRequest, res) =
       if (error) throw error;
       itemDbId = itemRow.id;
     }
+    if (!itemDbId) throw new Error("Plaid Item persistence did not return an Item id");
     await fullSyncForItem(itemDbId, req.userId!, accessToken, `plaid-link-exchange:${itemDbId}`);
     res.json({ item_id: itemDbId, institution_name: institutionName, status: "ready" });
   } catch (err) {
@@ -59,7 +60,8 @@ linkRouter.post("/link/resync", requireAuth, async (req: AuthedRequest, res) => 
     try {
       const accessToken = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
       const syncKey = `plaid-resync:${item.id}:${item.last_synced_at ?? "never"}`;
-      await supabaseAdmin.from("plaid_items").update({ status: "syncing" }).eq("id", item.id).eq("user_id", req.userId!);
+      const { error: statusError } = await supabaseAdmin.from("plaid_items").update({ status: "syncing" }).eq("id", item.id).eq("user_id", req.userId!);
+      if (statusError) throw statusError;
       await fullSyncForItem(item.id, item.user_id, accessToken, syncKey);
       outcomes.push({ item_id: item.id, status: "completed" });
     } catch (err) {
