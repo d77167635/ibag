@@ -30,6 +30,11 @@ const INTENT_RULES: Array<[IrisIntent, RegExp]> = [
   ["overview", /what.*happen|what.*going on|overview|summar|tell me|financial life|money/],
 ];
 
+const WINDOW_PATTERN = /(?:last|past|previous|over)\s+(7|14|30|90|180|365)\s+days?/i;
+const ACCOUNT_ID_PATTERN = /\baccount(?:\s+id)?[:#\s]+([0-9a-f-]{8,})\b/i;
+const TRANSACTION_ID_PATTERN = /\btransaction(?:\s+id)?[:#\s]+([0-9a-f-]{8,})\b/i;
+const PRODUCT_PATTERN = /\b(?:plaid\s+)?product[:#\s]+([a-z0-9_-]+)\b/i;
+
 export function resolveIrisContext(question: string, supplied?: IrisQuestionContext): {
   intent: IrisIntent;
   context: IrisQuestionContext;
@@ -38,13 +43,18 @@ export function resolveIrisContext(question: string, supplied?: IrisQuestionCont
   const normalizedQuestion = question.trim().replace(/\s+/g, " ");
   const q = normalizedQuestion.toLowerCase();
   const intent = INTENT_RULES.find(([, pattern]) => pattern.test(q))?.[0] ?? "unknown";
+  const windowMatch = normalizedQuestion.match(WINDOW_PATTERN);
+  const parsedWindow = windowMatch ? Number(windowMatch[1]) : undefined;
   const timeWindowDays = supplied?.timeWindowDays && [7, 14, 30, 90, 180, 365].includes(supplied.timeWindowDays)
     ? supplied.timeWindowDays
-    : undefined;
+    : parsedWindow && [7, 14, 30, 90, 180, 365].includes(parsedWindow) ? parsedWindow : undefined;
+  const accountId = supplied?.accountId ?? normalizedQuestion.match(ACCOUNT_ID_PATTERN)?.[1];
+  const transactionId = supplied?.transactionId ?? normalizedQuestion.match(TRANSACTION_ID_PATTERN)?.[1];
+  const product = supplied?.product ?? normalizedQuestion.match(PRODUCT_PATTERN)?.[1];
   return {
     intent,
     normalizedQuestion,
-    context: { ...supplied, timeWindowDays },
+    context: { ...supplied, accountId, transactionId, product, timeWindowDays },
   };
 }
 
