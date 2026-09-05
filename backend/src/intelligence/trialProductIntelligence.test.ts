@@ -18,7 +18,7 @@ test("load production selector", async () => {
 });
 
 test("overview rejects split required evidence and accepts same-item evidence", () => {
-  assert.equal(selector(new Map([["a", new Set(["transactions"])], ["b", new Set(["balance"])]), "overview").evidence_ready, false);
+  assert.equal(selector(new Map([["a", new Set(["transactions"])], ["b", new Set(["balance"])]]) , "overview").evidence_ready, false);
   assert.equal(selector(mapFor(["transactions", "balance"]), "overview").evidence_ready, true);
 });
 
