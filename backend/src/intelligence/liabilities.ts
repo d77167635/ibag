@@ -13,6 +13,38 @@ export async function syncLiabilitiesForItem(userId: string, itemId: string, acc
     return { observed: false, liabilityCount: 0 };
   }
 
+  // A successful provider endpoint response is itself provider evidence,
+  // including an empty liability payload. Persist that observation before any
+  // downstream normalized liability work. This prevents a valid provider
+  // response from being rejected merely because itemGet did not advertise the
+  // product in billed/available/products for this sandbox Item.
+  let itemEvidence: any = null;
+  try {
+    const itemResp = await plaidClient.itemGet({ access_token: accessToken });
+    itemEvidence = itemResp.data.item;
+  } catch (err: any) {
+    // The successful liabilities response remains sufficient provider
+    // evidence. Keep item-level lifecycle flags unknown rather than inventing
+    // billed/available state.
+    console.warn("itemGet unavailable while recording liabilities evidence:", err?.response?.data?.error_code ?? err?.code ?? err?.message ?? err);
+  }
+  const billed = new Set(itemEvidence?.billed_products ?? []);
+  const available = new Set(itemEvidence?.available_products ?? []);
+  const providerAdded = new Set(itemEvidence?.products ?? []);
+  const { error: observationError } = await supabaseAdmin.rpc("record_plaid_product_observation", {
+    p_user_id: userId,
+    p_item_id: itemId,
+    p_product: "liabilities",
+    p_lifecycle_state: "observed",
+    p_billed: billed.has("liabilities"),
+    p_available: available.has("liabilities"),
+    p_authorized: true,
+    p_requested: false,
+    p_provider_added: providerAdded.has("liabilities"),
+    p_provenance: { source: "plaid.liabilitiesGet", observation: "live", provider: "plaid", response_received: true },
+  });
+  if (observationError) throw observationError;
+
   const { data: accountIdRows, error: accountError } = await supabaseAdmin
     .from("plaid_accounts")
     .select("id, plaid_account_id")
