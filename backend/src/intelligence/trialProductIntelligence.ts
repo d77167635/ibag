@@ -5,6 +5,10 @@ type ProductAuthority = { id: string; item_id: string; product: string; acquired
 
 export type IrisProductIntent = "overview" | "cash_flow" | "spending" | "liquidity" | "debt" | "roundups" | "anomaly" | "explanation" | "provider_data" | "unknown";
 const CORE_PRODUCTS = new Set(["transactions", "balance"]);
+
+// This is the analysis-to-provider-source contract, not a claim that every
+// analysis is consumed on every request. Request-time consumption below is
+// intentionally narrowed to the actual answer path for the resolved intent.
 const CONSUMPTION: Record<string, string[]> = {
   auth: ["account_integrity"], identity: ["identity_context", "account_integrity"], assets: ["asset_position", "net_worth"],
   liabilities: ["debt_health", "net_worth", "cash_flow_risk"], investments: ["portfolio", "net_worth", "financial_state"],
@@ -12,16 +16,25 @@ const CONSUMPTION: Record<string, string[]> = {
   balance: ["liquidity", "cash_flow", "net_worth", "financial_state"],
 };
 
+// Required evidence must match the actual answer path. Optional products are
+// exposed as enrichment candidates but cannot certify or be labeled consumed.
 const REQUIRED: Record<IrisProductIntent, string[][]> = {
   overview: [["transactions"], ["balance"]], cash_flow: [["transactions"]], spending: [["transactions"]],
-  liquidity: [["balance"], ["transactions"]], debt: [["liabilities"]], roundups: [["transactions"]], anomaly: [["transactions"]],
+  liquidity: [["balance"], ["transactions"]],
+  // debt_health uses current account balances + transaction history, while
+  // debt-cost intelligence uses observed Plaid liabilities. All three sources
+  // therefore have to coexist on the same Item before Iris answers debt questions.
+  debt: [["liabilities"], ["balance"], ["transactions"]],
+  roundups: [["transactions"]], anomaly: [["transactions"]],
   explanation: [], provider_data: [], unknown: [],
 };
 const OPTIONAL: Record<IrisProductIntent, string[][]> = {
   overview: [["liabilities"], ["assets", "investments"], ["statements"]], cash_flow: [["balance"], ["statements"]], spending: [["balance"], ["statements"]],
-  liquidity: [["transactions"]], debt: [["balance"], ["transactions"]], roundups: [["balance"]], anomaly: [["balance"]], explanation: [], provider_data: [], unknown: [],
+  liquidity: [], debt: [], roundups: [["balance"]], anomaly: [["balance"]], explanation: [], provider_data: [], unknown: [],
 };
 
+// A combination is evidence-ready only when every member is current, observed,
+// provider-backed and present on one Item. It does not imply downstream use.
 export const COMBINATION_LIBRARY = [
   { key: "cash_flow_state", products: ["transactions", "balance"], analyses: ["cash_flow", "liquidity", "forecasting"] },
   { key: "debt_liquidity", products: ["liabilities", "balance", "transactions"], analyses: ["debt_health", "cash_flow_risk", "liquidity"] },
@@ -31,6 +44,17 @@ export const COMBINATION_LIBRARY = [
   { key: "behavior_and_forecast", products: ["transactions", "balance", "statements"], analyses: ["behavior", "forecasting", "history"] },
   { key: "full_financial_state", products: ["transactions", "balance", "assets", "investments", "liabilities", "statements", "auth", "identity"], analyses: ["financial_state", "net_worth", "cash_flow", "spending", "debt_health", "portfolio", "history", "account_integrity"] },
 ] as const;
+
+const ACTUAL_CONSUMPTION: Record<IrisProductIntent, Record<string, string[]>> = {
+  overview: { transactions: ["cash_flow", "spending"], balance: ["liquidity"] },
+  cash_flow: { transactions: ["cash_flow"] },
+  spending: { transactions: ["spending"] },
+  liquidity: { transactions: ["cash_flow"], balance: ["liquidity"] },
+  debt: { liabilities: ["debt_cost"], balance: ["debt_health"], transactions: ["debt_trend"] },
+  roundups: { transactions: ["roundups"] },
+  anomaly: { transactions: ["anomalies"] },
+  explanation: {}, provider_data: {}, unknown: {},
+};
 
 export type ObservedByItem = Map<string, Set<string>>;
 
@@ -49,10 +73,6 @@ export function chooseIrisCombinations(observedByItem: ObservedByItem, intent: I
       .filter(([, products]) => group.some((p) => products.has(p)))
       .map(([item_id]) => item_id),
   }));
-
-  // Required groups are conjunctive and must resolve to one Item. This is the
-  // critical anti-cross-Item invariant: satisfying group A on Item X and group
-  // B on Item Y does not certify the intent.
   const requiredItemIds = [...observedByItem.entries()]
     .filter(([, products]) => requiredGroups.every((group) => group.some((p) => products.has(p))))
     .map(([item_id]) => item_id);
@@ -68,11 +88,8 @@ export function chooseIrisCombinations(observedByItem: ObservedByItem, intent: I
       missing_products: combo.products.filter((product) => ![...observedByItem.values()].some((products) => products.has(product))),
     };
   });
-
   return {
-    intent,
-    required,
-    optional,
+    intent, required, optional,
     evidence_ready: requiredGroups.length === 0 || requiredItemIds.length > 0,
     required_item_ids: requiredItemIds,
     ready_combinations: candidates.filter((c) => c.evidence_ready),
@@ -121,26 +138,37 @@ export async function buildTrialProductIntelligence(userId: string, intent: Iris
   for (const row of (rawBalances ?? []) as any[]) balanceCountByItem.set(row.item_id, (balanceCountByItem.get(row.item_id) ?? 0) + 1);
   for (const authority of eligibleAuthorities.filter((a) => a.product === "transactions")) summaries.push({ item_id: authority.item_id, product: "transactions", acquired_at: authority.acquired_at, transaction_raw_observation_count: transactionCountByItem.get(authority.item_id) ?? 0 });
   for (const authority of eligibleAuthorities.filter((a) => a.product === "balance")) summaries.push({ item_id: authority.item_id, product: "balance", acquired_at: authority.acquired_at, balance_raw_observation_count: balanceCountByItem.get(authority.item_id) ?? 0 });
+
+  // Persist only request-time consumption. A product being observed or mapped
+  // to an analysis is not itself consumption; the resolved intent must select
+  // the source and the answer path must be evidence-ready first.
+  const actualConsumption = ACTUAL_CONSUMPTION[intent] ?? {};
   const consumptionRows: any[] = [];
-  for (const row of rawObserved) {
-    const authority = eligibleAuthorities.find((a) => a.item_id === row.item_id && a.product === row.product);
-    if (!authority) continue;
-    for (const analysisKey of CONSUMPTION[row.product] ?? []) consumptionRows.push({ user_id: userId, item_id: row.item_id, product: row.product, analysis_key: analysisKey, evidence_observation_id: authority.id, raw_observation_id: row.id, details: { evidence_state: row.evidence_state, acquired_at: row.acquired_at, source_kind: "plaid_raw_product_observations" } });
+  for (const [product, analysisKeys] of Object.entries(actualConsumption)) {
+    const authoritiesForProduct = eligibleAuthorities.filter((a) => a.product === product);
+    const rawForProduct = rawObserved.filter((r) => r.product === product);
+    for (const authority of authoritiesForProduct) {
+      const raw = rawForProduct.find((r) => r.item_id === authority.item_id);
+      if (!raw && CORE_PRODUCTS.has(product)) continue;
+      for (const analysisKey of analysisKeys) consumptionRows.push({ user_id: userId, item_id: authority.item_id, product, analysis_key: analysisKey, evidence_observation_id: authority.id, raw_observation_id: raw?.id ?? null, details: { evidence_state: "observed", acquired_at: raw?.acquired_at ?? authority.acquired_at, source_kind: raw ? "plaid_raw_product_observations" : product === "transactions" ? "plaid_raw_transactions" : "plaid_raw_balances", intent, consumption: "request_path" } });
+    }
   }
-  const coreConsumption = eligibleAuthorities.filter((a) => CORE_PRODUCTS.has(a.product)).flatMap((a) => (CONSUMPTION[a.product] ?? []).map((analysisKey) => ({ item_id: a.item_id, product: a.product, analysis_key: analysisKey, evidence_observation_id: a.id, source_kind: a.product === "transactions" ? "plaid_raw_transactions" : "plaid_raw_balances" })));
   if (consumptionRows.length) {
     const { error: consumptionError } = await supabaseAdmin.from("iris_product_consumption").upsert(consumptionRows, { onConflict: "user_id,item_id,product,analysis_key,raw_observation_id", ignoreDuplicates: true });
     if (consumptionError) throw consumptionError;
   }
+  const consumedProducts = [...new Set(consumptionRows.map((r) => r.product))];
+  const consumedAnalyses = [...new Set(consumptionRows.map((r) => r.analysis_key))];
+  const coreConsumption = consumptionRows.filter((r) => CORE_PRODUCTS.has(r.product)).map((r) => ({ item_id: r.item_id, product: r.product, analysis_key: r.analysis_key, evidence_observation_id: r.evidence_observation_id, source_kind: r.details.source_kind }));
   return {
     observed_products: observedProducts,
     observed_by_item: Object.fromEntries([...observedByItem.entries()].map(([item, products]) => [item, [...products]])),
     summaries,
     by_product: Object.fromEntries(summaries.map((s) => [s.product, s])),
-    consumed_products: [...new Set([...consumptionRows.map((r) => r.product), ...coreConsumption.map((r) => r.product)])],
-    consumed_analyses: [...new Set([...consumptionRows.map((r) => r.analysis_key), ...coreConsumption.map((r) => r.analysis_key)])],
+    consumed_products: consumedProducts,
+    consumed_analyses: consumedAnalyses,
     core_consumption: coreConsumption,
     selection: chooseIrisCombinations(observedByItem, intent),
-    evidence_rule: "Only current Plaid product observations with lifecycle_state=observed and evidence_state=observed are selectable, and every selected product must have a matching current observed provider-source mirror on the same Plaid Item. Products from different Items are never combined implicitly.",
+    evidence_rule: "Only current Plaid product observations with lifecycle_state=observed and evidence_state=observed are selectable, and every selected product must have a matching current observed provider-source mirror on the same Plaid Item. Products from different Items are never combined implicitly. Consumption is request-path-specific; observation and eligibility alone are not labeled consumption.",
   };
 }
