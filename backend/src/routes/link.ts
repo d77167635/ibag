@@ -10,11 +10,21 @@ import { getPlaidAccessToken } from "../services/tokenStore.js";
 
 export const linkRouter = Router();
 
+function safePlaidError(err: unknown) {
+  const e = err as any;
+  return {
+    message: e?.response?.data?.error_message ?? e?.message ?? "Unknown error",
+    error_code: e?.response?.data?.error_code,
+    error_type: e?.response?.data?.error_type,
+    request_id: e?.response?.data?.request_id,
+  };
+}
+
 linkRouter.post("/link/token", requireAuth, async (req: AuthedRequest, res) => {
   try {
     const response = await plaidClient.linkTokenCreate({ user: { client_user_id: req.userId! }, client_name: "Iris", products: env.plaidProducts as unknown as Products[], country_codes: env.plaidCountryCodes as CountryCode[], language: "en", webhook: env.plaidWebhookUrl || undefined });
     res.json({ link_token: response.data.link_token });
-  } catch (err) { console.error("link/token error", err); res.status(502).json({ error: "Failed to create Plaid Link token" }); }
+  } catch (err) { console.error("link/token error", safePlaidError(err)); res.status(502).json({ error: "Failed to create Plaid Link token" }); }
 });
 
 linkRouter.post("/link/upgrade-token", requireAuth, async (req: AuthedRequest, res) => {
@@ -43,12 +53,25 @@ linkRouter.post("/link/upgrade-token", requireAuth, async (req: AuthedRequest, r
       base.products = ["statements"];
       base.statements = { start_date: start.toISOString().slice(0, 10), end_date: end.toISOString().slice(0, 10) };
     } else {
-      base.additional_consented_products = ["auth", "identity", "investments", "liabilities"];
+      // Do not ask Plaid for consent to products this specific Item cannot support.
+      // Item/get is the provider source of truth for currently available products.
+      const itemState = await plaidClient.itemGet({ access_token: accessToken });
+      const available = new Set(itemState.data.item.available_products ?? []);
+      const alreadyAdded = new Set(itemState.data.item.products ?? []);
+      const consented = new Set(itemState.data.item.consented_products ?? []);
+      const candidates = ["auth", "identity", "investments", "liabilities"] as const;
+      const missingSupported = candidates.filter((product) =>
+        !alreadyAdded.has(product) && !consented.has(product) && (available.has(product) || product === "auth" || product === "identity")
+      );
+      if (missingSupported.length === 0) {
+        return res.status(409).json({ error: "This Item has no additional consentable canonical products available from Plaid." });
+      }
+      base.additional_consented_products = missingSupported;
     }
     const response = await plaidClient.linkTokenCreate(base);
     res.json({ link_token: response.data.link_token, item_id: item.id, stage });
   } catch (err) {
-    console.error("link/upgrade-token error", err);
+    console.error("link/upgrade-token error", safePlaidError(err));
     res.status(502).json({ error: "Failed to create Plaid evidence upgrade Link token" });
   }
 });
@@ -82,7 +105,7 @@ linkRouter.post("/link/exchange", requireAuth, async (req: AuthedRequest, res) =
     await fullSyncForItem(itemDbId, req.userId!, accessToken, `plaid-link-exchange:${itemDbId}`);
     res.json({ item_id: itemDbId, institution_name: institutionName, status: "ready" });
   } catch (err) {
-    console.error("link/exchange error", err);
+    console.error("link/exchange error", safePlaidError(err));
     if (itemDbId) await supabaseAdmin.from("plaid_items").update({ status: "retryable" }).eq("id", itemDbId).eq("user_id", req.userId!);
     res.status(502).json({ error: "Institution connected, but its evidence sync did not complete. The connection is retained for retry; Iris will not certify incomplete evidence." });
   }
@@ -101,7 +124,7 @@ linkRouter.post("/link/resync", requireAuth, async (req: AuthedRequest, res) => 
       await fullSyncForItem(item.id, item.user_id, accessToken, syncKey);
       outcomes.push({ item_id: item.id, status: "completed" });
     } catch (err) {
-      console.error(`link/resync failed for item ${item.id}:`, err);
+      console.error(`link/resync failed for item ${item.id}:`, safePlaidError(err));
       await supabaseAdmin.from("plaid_items").update({ status: "retryable" }).eq("id", item.id).eq("user_id", req.userId!);
       outcomes.push({ item_id: item.id, status: "failed" });
     }
