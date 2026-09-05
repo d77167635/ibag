@@ -7,11 +7,7 @@ async function authedFetch(path: string, init?: RequestInit) {
   const token = data.session?.access_token;
   const resp = await fetch(`${BASE_URL}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers ?? {}) },
   });
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
@@ -21,13 +17,8 @@ async function authedFetch(path: string, init?: RequestInit) {
 }
 
 let intelligenceInFlight: Promise<any> | null = null;
-
 function getCanonicalIntelligence() {
-  if (!intelligenceInFlight) {
-    intelligenceInFlight = authedFetch("/dashboard/intelligence").finally(() => {
-      intelligenceInFlight = null;
-    });
-  }
+  if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/dashboard/intelligence").finally(() => { intelligenceInFlight = null; });
   return intelligenceInFlight;
 }
 
@@ -36,6 +27,8 @@ export const api = {
   exchangePublicToken: (publicToken: string) => authedFetch("/link/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken }) }),
   getOverview: () => authedFetch("/dashboard/overview"),
   getIntelligence: getCanonicalIntelligence,
+  getIrisCatalog: () => authedFetch("/iris/catalog"),
+  saveIrisCatalogSelection: (capabilityIds: string[]) => authedFetch("/iris/catalog/selection", { method: "PUT", body: JSON.stringify({ capability_ids: capabilityIds }) }),
   askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
   resync: () => authedFetch("/link/resync", { method: "POST" }),
   getHierarchy: () => authedFetch("/dashboard/hierarchy"),
