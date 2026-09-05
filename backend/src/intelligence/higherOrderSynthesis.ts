@@ -17,12 +17,11 @@ type ProviderDomainSynthesis = {
   derived?: {
     net_worth?: number | null;
     net_worth_components?: Record<string, number | null> | null;
-    portfolio?: { holding_count?: number; security_count?: number; institution_value?: number | null } | null;
-    liability_state?: { liability_balance?: number | null; liability_count?: number } | null;
+    portfolio?: { holdings?: number; securities?: number; market_value?: number | null } | null;
+    liability_state?: { liability_balance?: number | null; liability_records?: number } | null;
     statement_reconciliation?: { statement_records?: number; statement_accounts?: number; dollar_reconciliation?: number | null } | null;
-    account_integrity?: { auth_accounts?: number; identity_accounts?: number } | null;
+    account_integrity?: { auth_records?: number; identity_records?: number } | null;
   };
-  domains?: Record<string, { observed?: boolean; raw_observation_count?: number }>;
 };
 
 type SynthesisInput = {
@@ -82,17 +81,17 @@ export function buildHigherOrderSynthesis(input: SynthesisInput) {
     if (finite(d.net_worth)) {
       findings.push({ id: "provider-net-worth-state", title: "Provider-domain net worth is incorporated", conclusion: "Iris incorporates the certified same-Item provider-domain net-worth calculation into higher-order financial-state synthesis.", evidence: { selected_item_id: provider.selected_item_id, provider_net_worth: d.net_worth }, confidence: "calculated", limitation: "Net worth is calculated from non-overlapping provider account bases; it is not an observed provider field." });
     }
-    if (d.portfolio && (d.portfolio.holding_count ?? 0) > 0) {
-      findings.push({ id: "provider-portfolio-state", title: "Investment portfolio evidence is incorporated", conclusion: "Iris incorporates certified same-Item investment holdings into portfolio-state synthesis without double-counting them as separate net-worth assets.", evidence: { selected_item_id: provider.selected_item_id, holding_count: d.portfolio.holding_count ?? 0, security_count: d.portfolio.security_count ?? 0, institution_value: d.portfolio.institution_value ?? null }, confidence: "calculated", limitation: "Portfolio holdings are provider observations used analytically; valuation is only reported when safely evidenced." });
+    if (d.portfolio && (d.portfolio.holdings ?? 0) > 0) {
+      findings.push({ id: "provider-portfolio-state", title: "Investment portfolio evidence is incorporated", conclusion: "Iris incorporates certified same-Item investment holdings into portfolio-state synthesis without double-counting them as separate net-worth assets.", evidence: { selected_item_id: provider.selected_item_id, holding_count: d.portfolio.holdings ?? 0, security_count: d.portfolio.securities ?? 0, market_value: d.portfolio.market_value ?? null }, confidence: "calculated", limitation: "Portfolio valuation is reported only when safely evidenced." });
     }
-    if (d.liability_state && (d.liability_state.liability_count ?? 0) > 0) {
-      findings.push({ id: "provider-liability-state", title: "Liability-domain evidence is incorporated", conclusion: "Iris incorporates same-Item liability evidence into debt-state synthesis while retaining account-level debt calculations separately.", evidence: { selected_item_id: provider.selected_item_id, liability_count: d.liability_state.liability_count ?? 0, liability_balance: d.liability_state.liability_balance ?? null }, confidence: "calculated", limitation: "Liability totals are only aggregated when provider currency and numeric evidence are sufficiently unambiguous." });
+    if (d.liability_state && (d.liability_state.liability_records ?? 0) > 0) {
+      findings.push({ id: "provider-liability-state", title: "Liability-domain evidence is incorporated", conclusion: "Iris incorporates same-Item liability evidence into debt-state synthesis while retaining account-level debt calculations separately.", evidence: { selected_item_id: provider.selected_item_id, liability_records: d.liability_state.liability_records ?? 0, liability_balance: d.liability_state.liability_balance ?? null }, confidence: "calculated", limitation: "Liability totals are aggregated only when provider evidence is sufficiently unambiguous." });
     }
     if (d.statement_reconciliation && (d.statement_reconciliation.statement_records ?? 0) > 0) {
       findings.push({ id: "provider-statement-history", title: "Statement evidence is incorporated into financial history", conclusion: "Iris incorporates certified same-Item statement coverage into historical-state synthesis and preserves dollar reconciliation as unavailable until transaction-period matching is evidenced.", evidence: { selected_item_id: provider.selected_item_id, statement_records: d.statement_reconciliation.statement_records ?? 0, statement_accounts: d.statement_reconciliation.statement_accounts ?? 0, dollar_reconciliation: d.statement_reconciliation.dollar_reconciliation ?? null }, confidence: "calculated", limitation: "Statement coverage is not equivalent to dollar reconciliation until statement-period transactions are explicitly matched." });
     }
-    if (d.account_integrity && ((d.account_integrity.auth_accounts ?? 0) > 0 || (d.account_integrity.identity_accounts ?? 0) > 0)) {
-      findings.push({ id: "provider-account-integrity", title: "Auth and identity evidence is incorporated", conclusion: "Iris incorporates same-Item Auth and Identity observations into account-integrity context rather than treating them as financial amounts.", evidence: { selected_item_id: provider.selected_item_id, auth_accounts: d.account_integrity.auth_accounts ?? 0, identity_accounts: d.account_integrity.identity_accounts ?? 0 }, confidence: "calculated", limitation: "Identity and Auth observations provide account context; they do not by themselves prove ownership or identity beyond the provider response." });
+    if (d.account_integrity && ((d.account_integrity.auth_records ?? 0) > 0 || (d.account_integrity.identity_records ?? 0) > 0)) {
+      findings.push({ id: "provider-account-integrity", title: "Auth and identity evidence is incorporated", conclusion: "Iris incorporates same-Item Auth and Identity observations into account-integrity context rather than treating them as financial amounts.", evidence: { selected_item_id: provider.selected_item_id, auth_records: d.account_integrity.auth_records ?? 0, identity_records: d.account_integrity.identity_records ?? 0 }, confidence: "calculated", limitation: "Identity and Auth observations provide account context and do not independently prove ownership beyond the provider response." });
     }
   }
 
@@ -116,7 +115,7 @@ export function buildHigherOrderSynthesis(input: SynthesisInput) {
     const preferred = optimization.preferred_option_id ? optimization.scores.find((s) => s.option_id === optimization.preferred_option_id) : null;
     const second = preferred ? optimization.scores.find((s) => s.option_id !== preferred.option_id && s.total_score > 0) : null;
     if (preferred && second) {
-      findings.push({ id: "optimization-sensitivity", title: "Decision preference has measurable ranking sensitivity", conclusion: `The leading analytical option exceeds the next viable option by ${(preferred.total_score - second.total_score).toFixed(3)} score points.", evidence: { preferred_option_id: preferred.option_id, preferred_score: preferred.total_score, next_option_id: second.option_id, next_score: second.total_score }, confidence: "calculated", limitation: "Optimization scores are deterministic comparisons, not probabilities." });
+      findings.push({ id: "optimization-sensitivity", title: "Decision preference has measurable ranking sensitivity", conclusion: `The leading analytical option exceeds the next viable option by ${(preferred.total_score - second.total_score).toFixed(3)} score points.`, evidence: { preferred_option_id: preferred.option_id, preferred_score: preferred.total_score, next_option_id: second.option_id, next_score: second.total_score }, confidence: "calculated", limitation: "Optimization scores are deterministic comparisons, not probabilities." });
     }
   }
 
