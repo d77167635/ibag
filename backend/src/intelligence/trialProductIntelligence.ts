@@ -52,7 +52,7 @@ function summarize(product: string, payload: any) {
       return { identity_records: owners.length || (identity ? 1 : 0), identity_response_received: true };
     }
     case "assets": {
-      const reports = arrayAt(payload, ["report"], ["reports"], ["items"]);
+      const reports = arrayAt(payload, ["report", "items"], ["report", "accounts"], ["items"], ["accounts"]);
       return { asset_records: reports.length, asset_value_observed: numericSum(reports, ["value", "current_value", "balance"]) };
     }
     case "liabilities": {
@@ -66,7 +66,7 @@ function summarize(product: string, payload: any) {
     case "investments": {
       const holdings = arrayAt(payload, ["holdings"], ["investment_holdings"]);
       const securities = arrayAt(payload, ["securities"]);
-      return { holding_records: holdings.length, security_records: securities.length, holding_value_observed: numericSum(holdings, ["institution_value", "quantity"]) };
+      return { holding_records: holdings.length, security_records: securities.length, holding_value_observed: numericSum(holdings, ["institution_value", "market_value", "quantity"]) };
     }
     case "statements": {
       const statements = arrayAt(payload, ["statements"], ["items"]);
@@ -77,10 +77,7 @@ function summarize(product: string, payload: any) {
   }
 }
 
-/**
- * Converts real observed Trial-product payloads into bounded intelligence inputs.
- * No product is read unless its current provider observation is certified observed.
- */
+/** Converts certified real Trial-product observations into bounded Iris intelligence inputs. */
 export async function buildTrialProductIntelligence(userId: string) {
   const { data, error } = await supabaseAdmin
     .from("plaid_raw_product_observations")
@@ -92,16 +89,10 @@ export async function buildTrialProductIntelligence(userId: string) {
   if (error) throw error;
 
   const observed = (data ?? []) as RawObservation[];
-  const summaries = observed.map((row) => ({
-    item_id: row.item_id,
-    product: row.product,
-    acquired_at: row.acquired_at,
-    ...summarize(row.product, row.raw_response),
-  }));
-
+  const summaries = observed.map((row) => ({ item_id: row.item_id, product: row.product, acquired_at: row.acquired_at, ...summarize(row.product, row.raw_response) }));
   const consumptionRows: any[] = [];
+
   for (const row of observed) {
-    const analyses = CONSUMPTION[row.product] ?? [];
     const { data: productObservation } = await supabaseAdmin
       .from("plaid_product_observations")
       .select("id")
@@ -113,14 +104,15 @@ export async function buildTrialProductIntelligence(userId: string) {
       .eq("lifecycle_state", "observed")
       .eq("evidence_state", "observed")
       .maybeSingle();
+    if (!productObservation?.id) continue;
 
-    for (const analysisKey of analyses) {
+    for (const analysisKey of CONSUMPTION[row.product] ?? []) {
       consumptionRows.push({
         user_id: userId,
         item_id: row.item_id,
         product: row.product,
         analysis_key: analysisKey,
-        evidence_observation_id: productObservation?.id ?? null,
+        evidence_observation_id: productObservation.id,
         raw_observation_id: row.id,
         details: { evidence_state: row.evidence_state, acquired_at: row.acquired_at },
       });
@@ -130,20 +122,17 @@ export async function buildTrialProductIntelligence(userId: string) {
   if (consumptionRows.length) {
     const { error: consumptionError } = await supabaseAdmin
       .from("iris_product_consumption")
-      .insert(consumptionRows);
+      .upsert(consumptionRows, { onConflict: "user_id,item_id,product,analysis_key,raw_observation_id", ignoreDuplicates: true });
     if (consumptionError) throw consumptionError;
   }
 
   const byProduct = Object.fromEntries(summaries.map((s) => [s.product, s]));
-  const consumedProducts = [...new Set(consumptionRows.map((r) => r.product))];
-  const consumedAnalyses = [...new Set(consumptionRows.map((r) => r.analysis_key))];
-
   return {
     observed_products: [...new Set(observed.map((r) => r.product))],
     summaries,
     by_product: byProduct,
-    consumed_products: consumedProducts,
-    consumed_analyses: consumedAnalyses,
+    consumed_products: [...new Set(consumptionRows.map((r) => r.product))],
+    consumed_analyses: [...new Set(consumptionRows.map((r) => r.analysis_key))],
     evidence_rule: "Only current Plaid raw observations with evidence_state=observed and matching current product observation authority are eligible for consumption.",
   };
 }
