@@ -15,15 +15,8 @@ export const COMBINATION_LIBRARY=[
  {key:"behavior_and_forecast",products:["transactions","balance","statements"],analyses:["behavior","forecasting","history"]},
  {key:"full_financial_state",products:["transactions","balance","assets","investments","liabilities","statements","auth","identity"],analyses:["financial_state","net_worth","cash_flow","spending","debt_health","portfolio","history","account_integrity"]}
 ] as const;
-
-/**
- * These are the only analysis paths currently allowed to write consumption proof.
- * COMBINATION_LIBRARY is a capability declaration; it is intentionally not treated
- * as proof that every higher-order analysis has executed. A combination becomes
- * "consumed" only through an actual request intent below with concrete evidence IDs.
- */
+/** Capability declarations are not execution proof. Only request paths below write consumption proof. */
 const ACTUAL_CONSUMPTION:Record<IrisProductIntent,Record<string,string[]>>={overview:{transactions:["cash_flow","spending"],balance:["liquidity"]},cash_flow:{transactions:["cash_flow"]},spending:{transactions:["spending"]},liquidity:{transactions:["cash_flow"],balance:["liquidity"]},debt:{liabilities:["debt_health"],balance:["debt_health","liquidity"],transactions:["debt_trend","cash_flow"]},roundups:{transactions:["roundups"]},anomaly:{transactions:["anomalies"]},explanation:{},provider_data:{},unknown:{}};
-
 export type ObservedByItem=Map<string,Set<string>>;
 export function chooseIrisCombinations(observedByItem:ObservedByItem,intent:IrisProductIntent){
  const requiredGroups=REQUIRED[intent]??[];
@@ -36,8 +29,17 @@ export function chooseIrisCombinations(observedByItem:ObservedByItem,intent:Iris
 }
 function arrayAt(value:any,...paths:string[][]):any[]{for(const path of paths){let c=value;for(const key of path)c=c?.[key];if(Array.isArray(c))return c;}return[];}
 function numericSum(rows:any[],fields:string[]):number|null{const values=rows.map(row=>{for(const field of fields){const value=Number(row?.[field]);if(Number.isFinite(value))return value;}return null;}).filter((v):v is number=>v!==null);return values.length?values.reduce((a,b)=>a+b,0):null;}
-function summarize(product:string,payload:any){switch(product){case"auth":{const a=arrayAt(payload,["accounts"]);return{account_records:a.length,auth_response_received:true};}case"identity":{const i=payload?.identity??payload,o=arrayAt(i,["owners"],["accounts"]);return{identity_records:o.length||(i?1:0),identity_response_received:true};}case"assets":{const a=arrayAt(payload,["report","items"],["report","accounts"],["items"],["accounts"]);return{asset_records:a.length,asset_value_observed:numericSum(a,["value","current_value","balance"])};}case"liabilities":{const l=[...arrayAt(payload,["liabilities","credit"],["credit"]),...arrayAt(payload,["liabilities","student"],["student"]),...arrayAt(payload,["liabilities","mortgage"],["mortgage"])];return{liability_records:l.length,liability_balance_observed:numericSum(l,["last_statement_balance","current_balance","balance"])};case"investments":{const h=arrayAt(payload,["holdings"],["investment_holdings"]),s=arrayAt(payload,["securities"]);return{holding_records:h.length,security_records:s.length,holding_value_observed:numericSum(h,["institution_value","market_value","quantity"])};case"statements":{const s=arrayAt(payload,["statements"],["items"]);return{statement_records:s.length,statement_response_received:true};}default:return{response_received:true};}}
-
+function summarize(product:string,payload:any){
+ switch(product){
+  case "auth":{const a=arrayAt(payload,["accounts"]);return{account_records:a.length,auth_response_received:true};}
+  case "identity":{const i=payload?.identity??payload,o=arrayAt(i,["owners"],["accounts"]);return{identity_records:o.length||(i?1:0),identity_response_received:true};}
+  case "assets":{const a=arrayAt(payload,["report","items"],["report","accounts"],["items"],["accounts"]);return{asset_records:a.length,asset_value_observed:numericSum(a,["value","current_value","balance"])};}
+  case "liabilities":{const l=[...arrayAt(payload,["liabilities","credit"],["credit"]),...arrayAt(payload,["liabilities","student"],["student"]),...arrayAt(payload,["liabilities","mortgage"],["mortgage"])];return{liability_records:l.length,liability_balance_observed:numericSum(l,["last_statement_balance","current_balance","balance"])};}
+  case "investments":{const h=arrayAt(payload,["holdings"],["investment_holdings"]),s=arrayAt(payload,["securities"]);return{holding_records:h.length,security_records:s.length,holding_value_observed:numericSum(h,["institution_value","market_value","quantity"])};}
+  case "statements":{const s=arrayAt(payload,["statements"],["items"]);return{statement_records:s.length,statement_response_received:true};}
+  default:return{response_received:true};
+ }
+}
 export async function buildTrialProductIntelligence(userId:string,intent:IrisProductIntent="unknown"){
  const [{data:authorityRows,error:authorityError},{data:rawProducts,error:rawProductError},{data:rawTransactions,error:transactionError},{data:rawBalances,error:balanceError},{data:rawLiabilities,error:liabilityError}]=await Promise.all([
   supabaseAdmin.from("plaid_product_observations").select("id,item_id,product,acquired_at").eq("user_id",userId).eq("provider","plaid").eq("is_current",true).eq("lifecycle_state","observed").eq("evidence_state","observed"),
