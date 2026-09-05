@@ -17,17 +17,34 @@ function money(value: unknown): string {
   return `${value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], intel: any, accountCount: number, evidencePlan: ReturnType<typeof planIrisEvidence>, providerAnswer?: string | null) {
+function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], intel: any, accountCount: number, evidencePlan: ReturnType<typeof planIrisEvidence>, providerAnswer?: string | null, trialProducts?: any) {
   const metrics = intel?.layer_metrics ?? {};
   const limitations = evidencePlan.limitations;
   const evidence = intel?.layer_max_intelligence?.provenance ?? [];
-  const base = { intent, evidence_state: evidencePlan.evidenceState, account_count: accountCount, evidence: evidence.slice(0, 12), evidence_plan: evidencePlan, limitations, financial_state: intel?.financial_state ?? null, uncertainty: intel?.uncertainty ?? null, causal_analysis: intel?.causal_analysis ?? null };
+  const productSelection = trialProducts?.selection ?? null;
+  const base = {
+    intent,
+    evidence_state: evidencePlan.evidenceState,
+    account_count: accountCount,
+    evidence: evidence.slice(0, 12),
+    evidence_plan: evidencePlan,
+    limitations,
+    financial_state: intel?.financial_state ?? null,
+    uncertainty: intel?.uncertainty ?? null,
+    causal_analysis: intel?.causal_analysis ?? null,
+    product_evidence: {
+      observed_products: trialProducts?.observed_products ?? [],
+      consumed_products: trialProducts?.consumed_products ?? [],
+      consumed_analyses: trialProducts?.consumed_analyses ?? [],
+      selection: productSelection,
+    },
+  };
 
   switch (intent) {
     case "liquidity": {
       const s = metrics.cash_flow_safety;
       if (s?.safeToSpend == null) return { ...base, evidence_state: "insufficient_evidence", answer: "I can't responsibly give you a safe-to-spend amount from the evidence currently available. The required liquidity inputs are incomplete or insufficient." };
-      return { ...base, answer: `Iris currently calculates ${money(s.safeToSpend)} as the safe-to-spend amount over the current ${s.horizonDays ?? "available"}-day horizon. This is a calculated view of observed evidence, not a guarantee of future cash.` };
+      return { ...base, answer: `Iris currently calculates ${money(s.safeToSpend)} as the safe-to-spend amount over the current ${s.horizonDays ?? "available"}-day horizon. This combines the canonical transaction and balance evidence that is certified for this question; it is a calculated view, not a guarantee of future cash.` };
     }
     case "cash_flow": {
       const c = metrics.cash_flow;
@@ -38,7 +55,7 @@ function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], inte
       const domains = Array.isArray(metrics.spending_by_domain) ? metrics.spending_by_domain : [];
       if (!domains.length) return { ...base, evidence_state: "insufficient_evidence", answer: "I don't have enough categorized spending evidence to explain your spending yet." };
       const top = domains.slice().sort((a: any, b: any) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, 3);
-      return { ...base, answer: `Your largest observed spending domains in the current analysis are ${top.map((d: any) => `${d.label ?? d.key} (${money(d.amount)})`).join(", ")}. I can drill into merchants, transactions, changes over time, and the evidence behind any one of these.` };
+      return { ...base, answer: `Your largest observed spending domains in the current analysis are ${top.map((d: any) => `${d.label ?? d.key} (${money(d.amount)})`).join(", ")}. Iris can combine transaction evidence with certified balance, statement, liability, asset, or investment evidence only when those provider observations are actually current and observed.` };
     }
     case "debt": {
       const d = metrics.debt_health;
@@ -58,7 +75,7 @@ function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], inte
     case "provider_data":
       return { ...base, evidence_state: providerAnswer ? "observed" : "limited", answer: providerAnswer ?? "Provider facts remain read-only source information. Iris can explain or analyze information supplied by Plaid, but it does not rewrite provider facts. I retrieved the current provider evidence snapshot, but the question needs a narrower source query to answer without guessing." };
     case "explanation":
-      return { ...base, answer: `${evidenceSummary(evidencePlan)} Iris separates provider observations from Iris calculations and inferences. A specific explanation should trace the relevant observation, calculation, time window, evidence state, provenance, and limitations.` };
+      return { ...base, answer: `${evidenceSummary(evidencePlan)} Iris separates provider observations from Iris calculations and inferences. A specific explanation should trace the relevant observation, calculation, time window, evidence state, provenance, limitations, and—when applicable—the exact combination of certified Plaid product evidence used.` };
     case "overview":
       return { ...base, answer: intel?.narrative ?? "Iris does not have enough evidence to produce a complete financial interpretation yet." };
     default:
@@ -80,13 +97,13 @@ irisRouter.post("/iris/ask", requireAuth, async (req: AuthedRequest, res) => {
       computeFullIntelligence(userId),
       verifyProviderLineage(supabaseAdmin, userId),
       retrieveProviderEvidence(supabaseAdmin, userId, suppliedContext),
-      buildTrialProductIntelligence(userId),
+      buildTrialProductIntelligence(userId, resolved.intent),
     ]);
     if (accountError) return res.status(500).json({ error: accountError.message });
     const evidencePlan = planIrisEvidence(resolved.intent, intelligence);
     const reasoningTrace = buildReasoningTrace(resolved.intent, intelligence.evidence_graph);
     const providerAnswer = answerProviderQuestion(question, providerEvidence);
-    const answer = answerFor(resolved.intent, intelligence, accounts?.length ?? 0, evidencePlan, providerAnswer);
+    const answer = answerFor(resolved.intent, intelligence, accounts?.length ?? 0, evidencePlan, providerAnswer, trialProductIntelligence);
     res.json({
       question: resolved.normalizedQuestion,
       context: resolved.context,
