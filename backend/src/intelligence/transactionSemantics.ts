@@ -55,10 +55,7 @@ export function isEconomicOutflow(tx: Pick<CanonicalTransaction, "amount" | "tra
 }
 
 export function isEligibleRoundup(tx: Pick<CanonicalTransaction, "amount" | "transaction_class" | "classification_evidence">) {
-  return tx.amount > 0 &&
-    tx.amount < ROUNDUP_RENT_SIZED_THRESHOLD &&
-    tx.transaction_class === "purchase" &&
-    ["observed", "calculated"].includes(tx.classification_evidence);
+  return tx.amount > 0 && tx.amount < ROUNDUP_RENT_SIZED_THRESHOLD && tx.transaction_class === "purchase" && ["observed", "calculated"].includes(tx.classification_evidence);
 }
 
 export function roundupAmount(amount: number) {
@@ -101,12 +98,7 @@ export function computeSpendingByDomainFromTransactions(transactions: CanonicalT
     else entry.prior += tx.amount;
     groups.set(key, entry);
   }
-  return Array.from(groups.entries()).map(([key, v]) => ({
-    key,
-    label: v.label,
-    amount: v.current,
-    changePct: v.prior > 0 ? ((v.current - v.prior) / v.prior) * 100 : null,
-  })).sort((a, b) => b.amount - a.amount);
+  return Array.from(groups.entries()).map(([key, v]) => ({ key, label: v.label, amount: v.current, changePct: v.prior > 0 ? ((v.current - v.prior) / v.prior) * 100 : null })).sort((a, b) => b.amount - a.amount);
 }
 
 export function computeCanonicalSpendingHierarchy(transactions: CanonicalTransaction[], windowDays = 30) {
@@ -127,13 +119,35 @@ export function computeCanonicalSpendingHierarchy(transactions: CanonicalTransac
     byDomain.set(domainKey, entry);
   }
   const total = spending.reduce((sum, tx) => sum + tx.amount, 0);
-  return Array.from(byDomain.values()).map(d => ({
-    key: d.key,
-    label: d.label,
-    amount: d.amount,
-    pctOfTotal: total > 0 ? (d.amount / total) * 100 : 0,
-    subdomains: Array.from(d.subdomains.entries()).map(([key, v]) => ({ key, label: v.label, amount: v.amount })).sort((a, b) => b.amount - a.amount),
-  })).sort((a, b) => b.amount - a.amount);
+  return Array.from(byDomain.values()).map(d => ({ key: d.key, label: d.label, amount: d.amount, pctOfTotal: total > 0 ? (d.amount / total) * 100 : 0, subdomains: Array.from(d.subdomains.entries()).map(([key, v]) => ({ key, label: v.label, amount: v.amount })).sort((a, b) => b.amount - a.amount) })).sort((a, b) => b.amount - a.amount);
+}
+
+export async function computeCanonicalForwardProjection(userId: string, days = 30) {
+  const [{ data: checkingAccounts, error: balanceError }, { data: series, error: seriesError }] = await Promise.all([
+    supabaseAdmin.from("plaid_accounts").select("available_balance").eq("user_id", userId).eq("type", "depository").eq("subtype", "checking").not("available_balance", "is", null),
+    supabaseAdmin.from("recurring_series").select("typical_amount, next_expected_date, occurrence_count, merchants(canonical_name)").eq("user_id", userId).eq("is_essential", true).gte("occurrence_count", 2).not("typical_amount", "is", null).not("next_expected_date", "is", null),
+  ]);
+  if (balanceError) throw balanceError;
+  if (seriesError) throw seriesError;
+  if (!checkingAccounts?.length) return { series: [], basis: "no_checking_balance", evidence_state: "insufficient_evidence" as const, limitations: ["No observed checking available balance."] };
+  const startBalance = checkingAccounts.reduce((sum, a) => sum + Number(a.available_balance), 0);
+  const horizon = new Date(Date.now() + days * 86_400_000);
+  const projected: { date: string; balance: number; event: string | null }[] = [];
+  let balance = startBalance;
+  for (let i = 0; i <= days; i++) {
+    const date = new Date(Date.now() + i * 86_400_000).toISOString().slice(0, 10);
+    const dueToday = (series ?? []).filter((s: any) => s.next_expected_date === date && Number(s.typical_amount) > 0);
+    let event: string | null = null;
+    for (const bill of dueToday) {
+      balance -= Number(bill.typical_amount);
+      const merchant = bill.merchants?.canonical_name ?? "Known essential bill";
+      event = event ? `${event}, ${merchant}` : merchant;
+    }
+    projected.push({ date, balance, event });
+  }
+  const observedSeriesCount = (series ?? []).length;
+  const limitations = ["Projection models only recurring essential bills with at least two observed occurrences; it does not model unobserved income or discretionary spending."];
+  return { series: projected, basis: "observed_checking_balance_plus_recurring_essential_series", evidence_state: observedSeriesCount ? "calculated" as const : "limited" as const, recurring_series_count: observedSeriesCount, horizon_days: days, limitations };
 }
 
 export function computeCanonicalWindowFlows(transactions: CanonicalTransaction[], windows: readonly number[]) {
@@ -141,13 +155,6 @@ export function computeCanonicalWindowFlows(transactions: CanonicalTransaction[]
     const start = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
     const rows = transactions.filter(tx => tx.posted_date >= start);
     const flow = computeEconomicCashFlow(rows);
-    return {
-      windowDays,
-      ...flow,
-      purchaseTotal: rows.filter(tx => tx.transaction_class === "purchase" && tx.amount > 0).reduce((s, tx) => s + tx.amount, 0),
-      debtPaymentTotal: rows.filter(tx => tx.transaction_class === "debt_payment" && tx.amount > 0).reduce((s, tx) => s + tx.amount, 0),
-      txCount: rows.length,
-      economicTxCount: rows.filter(tx => isEconomicInflow(tx) || isEconomicOutflow(tx)).length,
-    };
+    return { windowDays, ...flow, purchaseTotal: rows.filter(tx => tx.transaction_class === "purchase" && tx.amount > 0).reduce((s, tx) => s + tx.amount, 0), debtPaymentTotal: rows.filter(tx => tx.transaction_class === "debt_payment" && tx.amount > 0).reduce((s, tx) => s + tx.amount, 0), txCount: rows.length, economicTxCount: rows.filter(tx => isEconomicInflow(tx) || isEconomicOutflow(tx)).length };
   });
 }
