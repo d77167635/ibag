@@ -2,10 +2,10 @@ import { Router } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
-import { computeScenario } from "../services/intelligence.js";
 import { getPlaidAccessToken } from "../services/tokenStore.js";
 import { plaidClient } from "../plaid/client.js";
 import { computeFullIntelligence } from "../intelligence/orchestrator.js";
+import { computeCanonicalScenario } from "../intelligence/canonicalScenario.js";
 
 export const dashboardRouter = Router();
 
@@ -131,6 +131,6 @@ dashboardRouter.get("/dashboard/plaid", requireAuth, async (req: AuthedRequest, 
 dashboardRouter.post("/dashboard/scenario", requireAuth, async (req: AuthedRequest, res) => {
   const { type, amount } = req.body as { type?: "spending_change" | "bill_change" | "income_change"; amount?: number };
   if (!type || !["spending_change", "bill_change", "income_change"].includes(type) || typeof amount !== "number") return res.status(400).json({ error: "type must be spending_change/bill_change/income_change, amount must be a number" });
-  try { res.json(await computeScenario(req.userId!, type, amount)); }
+  try { res.json(await computeCanonicalScenario(req.userId!, type, amount)); }
   catch (err) { console.error("dashboard/scenario error:", err); res.status(500).json({ error: "Failed to compute scenario" }); }
 });
