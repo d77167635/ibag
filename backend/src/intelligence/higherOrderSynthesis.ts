@@ -33,6 +33,7 @@ export function buildHigherOrderSynthesis(input: SynthesisInput) {
   const liquid = input.liquidAssets;
   const safe = input.safeToSpend;
   const projected = input.forwardProjected;
+  const roundupProjected = input.roundupProjected;
 
   if (finite(debt) && debt > 0 && finite(utilization) && utilization >= 0.30 && finite(cashFlow) && cashFlow < 0) {
     findings.push({
