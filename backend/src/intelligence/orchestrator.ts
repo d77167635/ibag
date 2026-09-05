@@ -8,6 +8,7 @@ import {
   computeSpendingHierarchy,
 } from "../services/intelligence.js";
 import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions } from "./transactionSemantics.js";
+import { validateCanonicalIntelligenceInput } from "./integrity.js";
 import { getFeatureFlags } from "../services/features.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { computeDebtCostIntelligence } from "./liabilities.js";
@@ -30,6 +31,7 @@ import { buildGoalIntelligence, type DeclaredIrisGoal } from "./goals.js";
 export async function computeFullIntelligence(userId: string) {
   const canonical90Start = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
   const canonical = await getCanonicalTransactions(userId, canonical90Start);
+  const integrity = validateCanonicalIntelligenceInput(canonical);
   const current30Start = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
   const current30 = canonical.filter(tx => tx.posted_date >= current30Start);
   const economicCurrent = computeEconomicCashFlow(current30);
@@ -79,5 +81,5 @@ export async function computeFullIntelligence(userId: string) {
   const goals = buildGoalIntelligence(financialState, decisionIntelligence, optimization, declaredGoals);
   goals.limitations = [...new Set([...goals.limitations, ...goalDataLimitations])];
   recordExplainabilityTrace(userId, reasoning).catch((err) => console.error("explainability trace failed:", err));
-  return { ...baseResult, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals };
+  return { ...baseResult, integrity, evidence_graph: evidenceGraph, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals };
 }
