@@ -25,6 +25,13 @@ function isRecoveryUrl() {
   return params.get("type") === "recovery" || hash.get("type") === "recovery" || params.has("code");
 }
 
+const AUTHENTICATED_KEY = "ibag.authenticated";
+
+function clearAuthMarker() {
+  window.sessionStorage.removeItem(AUTHENTICATED_KEY);
+  window.sessionStorage.removeItem("iris.authenticated");
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checkedAuth, setCheckedAuth] = useState(false);
@@ -36,7 +43,7 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    const authEntered = window.sessionStorage.getItem("ibag.authenticated") === "1";
+    const authEntered = window.sessionStorage.getItem(AUTHENTICATED_KEY) === "1" || window.sessionStorage.getItem("iris.authenticated") === "1";
     const recoveryUrl = isRecoveryUrl();
 
     supabase.auth.getSession().then(async ({ data }) => {
@@ -44,6 +51,7 @@ export default function App() {
       if (data.session && !authEntered && !recoveryUrl) {
         await supabase.auth.signOut({ scope: "local" });
         if (!active) return;
+        clearAuthMarker();
         setSession(null);
       } else {
         setSession(data.session);
@@ -55,8 +63,8 @@ export default function App() {
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!active) return;
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
-      if (newSession && event !== "PASSWORD_RECOVERY") window.sessionStorage.setItem("ibag.authenticated", "1");
-      else if (!newSession) window.sessionStorage.removeItem("ibag.authenticated");
+      if (newSession && event !== "PASSWORD_RECOVERY") window.sessionStorage.setItem(AUTHENTICATED_KEY, "1");
+      else if (!newSession) clearAuthMarker();
       setSession(newSession);
     });
 
@@ -80,14 +88,14 @@ export default function App() {
     setSigningOut(true);
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) { setSigningOut(false); return; }
-    window.sessionStorage.removeItem("ibag.authenticated");
+    clearAuthMarker();
     window.history.replaceState(null, "", "/");
     setRecovery(false);
     setWorkspace("iris"); setIrisPage("iris");
   };
 
   if (!checkedAuth) return null;
-  if (recovery && session) return <Auth recovery onRecoveryComplete={() => setRecovery(false)} />;
+  if (recovery && session) return <Auth recovery onRecoveryComplete={() => { clearAuthMarker(); window.sessionStorage.setItem(AUTHENTICATED_KEY, "1"); setRecovery(false); }} />;
   if (!session) return <Auth />;
 
   const accountControl = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Sign out of Iris" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
