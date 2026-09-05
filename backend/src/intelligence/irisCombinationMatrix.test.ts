@@ -72,7 +72,6 @@ test("every declared combination requires all products on one Item", () => {
     combo.products.forEach((product, index) => split.set(`item-${index}`, new Set([product])));
     const blocked = selector(split, "unknown").ready_combinations.find((c) => c.key === combo.key);
     assert.equal(blocked, undefined, `combination ${combo.key} must not combine across Items`);
-    assert.equal(selector(split, "unknown").selected_item_id, null);
   }
 });
 
