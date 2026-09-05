@@ -17,6 +17,8 @@ function money(value: unknown): string {
   return `${value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const PRODUCT_GATED_INTENTS = new Set(["overview", "cash_flow", "spending", "liquidity", "debt", "roundups", "anomaly"]);
+
 function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], intel: any, accountCount: number, evidencePlan: ReturnType<typeof planIrisEvidence>, providerAnswer?: string | null, trialProducts?: any) {
   const metrics = intel?.layer_metrics ?? {};
   const limitations = evidencePlan.limitations;
@@ -34,11 +36,24 @@ function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], inte
     causal_analysis: intel?.causal_analysis ?? null,
     product_evidence: {
       observed_products: trialProducts?.observed_products ?? [],
+      observed_by_item: trialProducts?.observed_by_item ?? {},
       consumed_products: trialProducts?.consumed_products ?? [],
       consumed_analyses: trialProducts?.consumed_analyses ?? [],
       selection: productSelection,
     },
   };
+
+  // A financial answer may not run merely because a downstream metric happens
+  // to exist. Its required Plaid product evidence must be certified, current,
+  // provider-backed, and compatible on the same Item first.
+  if (PRODUCT_GATED_INTENTS.has(intent) && productSelection && productSelection.evidence_ready === false) {
+    const blocked = (productSelection.blocked_combinations ?? []).slice(0, 4).map((x: any) => `${x.key}${x.missing_products?.length ? ` (missing: ${x.missing_products.join(", ")})` : ""}`).join("; ");
+    return {
+      ...base,
+      evidence_state: "insufficient_evidence",
+      answer: `Iris cannot responsibly answer this financial question from the currently certified Plaid evidence. Required product evidence is incomplete or not available on the same Plaid Item${blocked ? `. Blocked combinations: ${blocked}` : "."}`,
+    };
+  }
 
   switch (intent) {
     case "liquidity": {
@@ -104,16 +119,7 @@ irisRouter.post("/iris/ask", requireAuth, async (req: AuthedRequest, res) => {
     const reasoningTrace = buildReasoningTrace(resolved.intent, intelligence.evidence_graph);
     const providerAnswer = answerProviderQuestion(question, providerEvidence);
     const answer = answerFor(resolved.intent, intelligence, accounts?.length ?? 0, evidencePlan, providerAnswer, trialProductIntelligence);
-    res.json({
-      question: resolved.normalizedQuestion,
-      context: resolved.context,
-      generated_at: new Date().toISOString(),
-      provider_lineage: providerLineage,
-      provider_evidence: providerEvidence,
-      trial_product_intelligence: trialProductIntelligence,
-      reasoning_trace: reasoningTrace,
-      ...answer,
-    });
+    res.json({ question: resolved.normalizedQuestion, context: resolved.context, generated_at: new Date().toISOString(), provider_lineage: providerLineage, provider_evidence: providerEvidence, trial_product_intelligence: trialProductIntelligence, reasoning_trace: reasoningTrace, ...answer });
   } catch (error) {
     console.error("Iris question failed", error);
     res.status(500).json({ error: "Iris could not complete the question from the current evidence" });
