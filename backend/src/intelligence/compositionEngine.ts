@@ -5,7 +5,8 @@ type CanonicalLike = {
   id: string;
   account_id?: string | null;
   merchant_name?: string | null;
-  subdomain?: { label?: string | null; domains?: { key?: string | null; label?: string | null } | null } | null;
+  domain?: { key?: string | null; label?: string | null } | null;
+  subdomain?: { key?: string | null; label?: string | null } | null;
   plaid_category_primary?: string | null;
   plaid_category_detailed?: string | null;
   transaction_class?: string | null;
@@ -30,15 +31,32 @@ export type IrisComposition = {
   rank: number;
 };
 
-const STANDARD_NAMES = [
-  "Financial State", "Cash Flow", "Spending", "Behavior", "Trends", "Liquidity", "Debt",
-  "Anomalies", "Round-Ups", "Forecast", "Causality", "Decisions", "Consequences",
-  "Optimization", "Goals", "Evidence", "Education", "Investigation", "Relationships", "Synthesis",
-] as const;
+const STANDARD_CATALOG: Array<{ name: string; description: string; match: (d: IrisAnalysisDefinition) => boolean }> = [
+  { name: "Financial State", description: "Understand where you actually stand financially.", match: d => d.name === "Financial State" },
+  { name: "Cash Flow", description: "Understand money entering, leaving, and changing over time.", match: d => d.name === "Cash-flow analysis" },
+  { name: "Spending", description: "Understand where observed money is going.", match: d => d.name === "Spending analysis" },
+  { name: "Behavior", description: "Understand recurring and changing financial behavior.", match: d => d.name === "Behavior analysis" },
+  { name: "Trends", description: "Understand what is changing and whether it persists.", match: d => d.name === "Multi-window comparison" },
+  { name: "Liquidity", description: "Understand available financial capacity and pressure.", match: d => d.name === "Liquidity position" },
+  { name: "Debt", description: "Understand debt pressure, cost, utilization, and trajectory.", match: d => d.family === "debt" && d.name === "Debt trajectory" },
+  { name: "Anomalies", description: "Find unusual observed financial activity worth examining.", match: d => d.name === "Anomaly analysis" },
+  { name: "Round-Ups", description: "Understand observed round-up opportunity and behavior.", match: d => d.name === "Round-Up opportunity" },
+  { name: "Forecast", description: "Understand what the evidence supports about what may happen next.", match: d => d.name === "Forward balance projection" },
+  { name: "Causality", description: "Separate evidence-linked drivers from correlation and unknowns.", match: d => d.name === "Causal analysis" },
+  { name: "Decisions", description: "Compare evidence-linked choices and their implications.", match: d => d.name === "Decision analysis" },
+  { name: "Consequences", description: "Understand modeled downstream consequences of choices.", match: d => d.name === "Consequence analysis" },
+  { name: "Optimization", description: "Identify evidence-supported opportunities to improve outcomes.", match: d => d.name === "Optimization analysis" },
+  { name: "Goals", description: "Connect financial intelligence to declared objectives.", match: d => d.name === "Goal intelligence" },
+  { name: "Evidence", description: "See exactly what evidence supports Iris's conclusions.", match: d => d.name === "Evidence graph" },
+  { name: "Education", description: "Learn what the observed financial evidence means.", match: d => d.name === "Personalized education" },
+  { name: "Investigation", description: "Discover the next question most likely to improve intelligence.", match: d => d.name === "Iris investigation" },
+  { name: "Relationships", description: "Understand connections across financial entities and layers.", match: d => d.name === "Relational reasoning" },
+  { name: "Synthesis", description: "Combine multiple intelligence layers into a coherent picture.", match: d => d.name === "Financial intelligence map" },
+];
 
-export const IRIS_STANDARD_SELECTION = STANDARD_NAMES.map((name) => {
-  const definition = IRIS_ANALYSIS_ATLAS.find((entry) => entry.name === name || entry.family === name.toLowerCase());
-  return { name, description: definition?.purpose ?? `Iris intelligence focused on ${name.toLowerCase()}.`, analysis_id: definition?.id ?? null };
+export const IRIS_STANDARD_SELECTION = STANDARD_CATALOG.map(({ name, description, match }) => {
+  const definition = IRIS_ANALYSIS_ATLAS.find(match);
+  return { name, description, analysis_id: definition?.id ?? null };
 });
 
 function unique(values: Array<string | null | undefined>) {
@@ -49,14 +67,16 @@ function windowsFor(canonical: CanonicalLike[]) {
   if (!canonical.length) return [];
   const dates = canonical.map((tx) => tx.posted_date).filter((d): d is string => Boolean(d)).sort();
   if (!dates.length) return [];
+  const oldest = new Date(`${dates[0]}T00:00:00Z`).getTime();
   const newest = new Date(`${dates[dates.length - 1]}T00:00:00Z`).getTime();
-  return [30, 60, 90].filter((days) => newest - new Date(`${dates[0]}T00:00:00Z`).getTime() >= Math.min(days - 1, 1) * 86_400_000).map(String);
+  const spanDays = Math.floor((newest - oldest) / 86_400_000);
+  return [30, 60, 90].filter((days) => spanDays >= days - 1).map(String);
 }
 
 export function buildIrisDimensions(canonical: CanonicalLike[]): IrisDimension[] {
   const accounts = unique(canonical.map((tx) => tx.account_id));
   const merchants = unique(canonical.map((tx) => tx.merchant_name));
-  const domains = unique(canonical.map((tx) => tx.subdomain?.domains?.key ?? tx.subdomain?.domains?.label));
+  const domains = unique(canonical.map((tx) => tx.domain?.key ?? tx.domain?.label));
   const categories = unique(canonical.map((tx) => tx.plaid_category_detailed ?? tx.plaid_category_primary));
   const classes = unique(canonical.map((tx) => tx.transaction_class));
   const windows = windowsFor(canonical);
@@ -71,25 +91,26 @@ export function buildIrisDimensions(canonical: CanonicalLike[]): IrisDimension[]
 }
 
 function dimensionKeys(definition: IrisAnalysisDefinition) {
-  const family = definition.family;
   const common = ["window_days"];
-  if (family === "state") return ["account", "window_days"];
-  if (family === "cash_flow") return ["account", "transaction_class", ...common];
-  if (family === "spending") return ["account", "merchant", "domain", "category", ...common];
-  if (family === "temporal") return ["account", "domain", "category", ...common];
-  if (family === "behavior") return ["account", "merchant", "category", ...common];
-  if (family === "debt") return ["account", ...common];
-  if (family === "roundups") return ["account", "merchant", "category", ...common];
-  if (family === "forecast") return ["account", ...common];
-  if (family === "causal") return ["account", "merchant", "domain", "category", ...common];
-  if (family === "decisions") return ["account", "domain", "category", ...common];
-  if (family === "evidence") return ["account", "merchant", "domain", "category", ...common];
-  return ["account", "domain", "category", ...common];
+  switch (definition.family) {
+    case "state": return ["account", ...common];
+    case "cash_flow": return ["account", "transaction_class", ...common];
+    case "spending": return ["account", "merchant", "domain", "category", ...common];
+    case "temporal": return ["account", "domain", "category", ...common];
+    case "behavior": return ["account", "merchant", "category", ...common];
+    case "debt": return ["account", ...common];
+    case "roundups": return ["account", "merchant", "category", ...common];
+    case "forecast": return ["account", ...common];
+    case "causal": return ["account", "merchant", "domain", "category", ...common];
+    case "decisions": return ["account", "domain", "category", ...common];
+    case "evidence": return ["account", "merchant", "domain", "category", ...common];
+    default: return ["account", "domain", "category", ...common];
+  }
 }
 
 function cardinality(definition: IrisAnalysisDefinition, dimensions: IrisDimension[]) {
   const byKey = new Map(dimensions.map((d) => [d.key, d]));
-  return dimensionKeys(definition).reduce((total, key) => total * Math.max(1, byKey.get(key)?.cardinality ?? 0), 1);
+  return dimensionKeys(definition).reduce((total, key) => total * (byKey.get(key)?.cardinality ?? 0), 1);
 }
 
 function rankComposition(definition: IrisAnalysisDefinition, context: Record<string, string>) {
@@ -102,9 +123,8 @@ function rankComposition(definition: IrisAnalysisDefinition, context: Record<str
 }
 
 /**
- * Generates the size and highest-value portion of Iris's compositional search
- * space without materializing every possible combination. The count is derived
- * from real canonical evidence cardinalities; no financial values are created.
+ * Calculates Iris's compositional intelligence space from real canonical
+ * evidence. It intentionally counts the space without materializing it.
  */
 export function buildIrisCompositionEngine(
   canonical: CanonicalLike[],
@@ -119,23 +139,14 @@ export function buildIrisCompositionEngine(
   const possibleCombinations = counts.reduce((sum, item) => sum + item.combinations, 0);
   const preview: IrisComposition[] = [];
 
-  for (const { definition } of counts.sort((a, b) => b.combinations - a.combinations)) {
+  for (const { definition } of [...counts].sort((a, b) => b.combinations - a.combinations)) {
     if (preview.length >= maxPreview) break;
-    const keys = dimensionKeys(definition);
     const context: Record<string, string> = {};
-    for (const key of keys) {
+    for (const key of dimensionKeys(definition)) {
       const dimension = dimensionMap.get(key);
       if (dimension?.values[0]) context[key] = dimension.values[0];
     }
-    preview.push({
-      analysis_id: definition.id,
-      analysis_name: definition.name,
-      family: definition.family,
-      output: definition.output,
-      context,
-      evidence_ready: true,
-      rank: rankComposition(definition, context),
-    });
+    preview.push({ analysis_id: definition.id, analysis_name: definition.name, family: definition.family, output: definition.output, context, evidence_ready: true, rank: rankComposition(definition, context) });
   }
 
   const familyCounts = new Map<string, number>();
