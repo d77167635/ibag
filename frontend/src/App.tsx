@@ -51,7 +51,11 @@ export default function App() {
       setSession(newSession);
     });
 
-    const syncFromUrl = () => { const next = readWorkspace(); setWorkspace(next.workspace); setIrisPage(next.irisPage); };
+    const syncFromUrl = () => {
+      const next = readWorkspace();
+      setWorkspace(next.workspace);
+      setIrisPage(next.irisPage);
+    };
     window.addEventListener("hashchange", syncFromUrl);
     window.addEventListener("popstate", syncFromUrl);
     return () => { active = false; listener.subscription.unsubscribe(); window.removeEventListener("hashchange", syncFromUrl); window.removeEventListener("popstate", syncFromUrl); };
@@ -59,11 +63,16 @@ export default function App() {
 
   const navigate = (nextWorkspace: string, nextIrisPage = "iris") => {
     const hash = nextWorkspace === "plaid" ? "#workspace/plaid" : `#workspace/${nextIrisPage}`;
-    const target = `${window.location.pathname}${window.location.search}${hash}`;
-    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== target) window.history.pushState({ workspace: nextWorkspace, irisPage: nextIrisPage }, "", target);
-    setWorkspace(nextWorkspace);
-    setIrisPage(nextIrisPage);
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    if (window.location.hash !== hash) {
+      // Assigning the hash lets the browser fire the native hashchange event.
+      // This is more reliable on mobile browsers than pushState plus a manually
+      // constructed HashChangeEvent, and keeps back/forward navigation native.
+      window.location.hash = hash.slice(1);
+    } else {
+      const next = readWorkspace();
+      setWorkspace(next.workspace);
+      setIrisPage(next.irisPage);
+    }
   };
 
   const signOut = async () => {
@@ -71,9 +80,6 @@ export default function App() {
     setSigningOut(true);
     const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) { setSigningOut(false); return; }
-    // Full navigation prevents browser history from restoring a protected
-    // workspace after an explicit sign-out. Supabase local session storage is
-    // cleared by signOut(scope=local), so a later visit requires authentication.
     window.location.replace("/");
   };
 
