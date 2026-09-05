@@ -94,7 +94,9 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       if (accountError) throw accountError;
       accountMap.set(acct.account_id, row.id);
       const now = new Date().toISOString();
-      const { error: balanceError } = await supabaseAdmin.from("plaid_raw_balances").insert({ user_id: userId, account_id: row.id, raw_response: acct, provider_object_id: acct.account_id, effective_at: now, acquired_at: now, evidence_state: "observed", provenance: { source: "plaid.accountsGet", item_id: itemDbId } });
+      const { error: retireBalanceError } = await supabaseAdmin.from("plaid_raw_balances").update({ is_current: false }).eq("user_id", userId).eq("account_id", row.id).eq("is_current", true);
+      if (retireBalanceError) throw retireBalanceError;
+      const { error: balanceError } = await supabaseAdmin.from("plaid_raw_balances").insert({ user_id: userId, account_id: row.id, raw_response: acct, provider_object_id: acct.account_id, effective_at: now, acquired_at: now, evidence_state: "observed", provenance: { source: "plaid.accountsGet", item_id: itemDbId }, is_current: true });
       if (balanceError) throw balanceError;
     }
     await markProductObserved(userId, itemDbId, "balance", "plaid.accountsGet");
