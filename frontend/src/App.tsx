@@ -17,6 +17,12 @@ function readWorkspace() {
   if (hash === "workspace/plaid") return { workspace: "plaid", irisPage: "iris" };
   if (hash.startsWith("workspace/iris/")) return { workspace: "iris", irisPage: hash.slice("workspace/".length) || "iris" };
   if (hash === "workspace/iris") return { workspace: "iris", irisPage: "iris" };
+
+  // Legacy Iris hashes are deliberately promoted into the canonical deep-Iris
+  // workspace. This prevents the old IrisApplication renderer from ever
+  // becoming a competing Iris experience while preserving old bookmarks.
+  if (hash === "iris" || hash.startsWith("iris/")) return { workspace: "iris", irisPage: hash || "iris" };
+
   return { workspace: "ibag", irisPage: "iris" };
 }
 
