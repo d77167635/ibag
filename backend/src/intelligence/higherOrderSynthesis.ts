@@ -24,6 +24,7 @@ type SynthesisInput = {
   decision?: DecisionIntelligence;
   consequences?: ConsequenceModel;
   optimization?: OptimizationIntelligence;
+  evidenceReady?: boolean;
 };
 
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
@@ -31,8 +32,26 @@ const finite = (value: unknown): value is number => typeof value === "number" &&
 /**
  * Highest-order deterministic synthesis over already-certified Iris analytical outputs.
  * It never creates observations, provider facts, predictions, or executable financial actions.
+ * When the source-fidelity gate is closed, it returns no higher-order findings rather than
+ * allowing downstream UI consumers to accidentally surface ungated conclusions.
  */
 export function buildHigherOrderSynthesis(input: SynthesisInput) {
+  if (input.evidenceReady === false) {
+    return {
+      engine_version: "IRIS_HIGHER_ORDER_SYNTHESIS_V3",
+      findings: [] as HigherOrderFinding[],
+      lifecycle: ["Evidence", "Synthesis", "Prediction", "Simulation", "Decision", "Outcome", "Validation", "Learning", "Adaptation"],
+      generation: {
+        source: "certified Iris analytical outputs, evidence-bounded cross-domain findings, decision alternatives, consequence models, and optimization rankings",
+        financial_values_created: false,
+        fake_mock_or_seeded_data: false,
+        findings_are_calculated_not_observed: true,
+        execution_capability: false,
+        evidence_gate: "closed",
+      },
+    };
+  }
+
   const findings: HigherOrderFinding[] = [];
   const utilization = input.creditUtilization;
   const debt = input.revolvingDebt;
@@ -89,6 +108,7 @@ export function buildHigherOrderSynthesis(input: SynthesisInput) {
       fake_mock_or_seeded_data: false,
       findings_are_calculated_not_observed: true,
       execution_capability: false,
+      evidence_gate: "open",
     }
   };
 }
