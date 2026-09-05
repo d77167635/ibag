@@ -54,7 +54,9 @@ export async function selectPlaidProducts(userId: string) {
   if (observationsError) throw observationsError;
   const observedByItemProduct = new Map<string, any>();
   for (const row of observations ?? []) {
-    if (row.lifecycle_state === "observed" && ["observed", "calculated"].includes(row.evidence_state ?? "observed")) {
+    // Intelligence authority is evidence-state strict. A calculated/limited
+    // row cannot be promoted to provider observation merely by selection.
+    if (row.lifecycle_state === "observed" && row.evidence_state === "observed") {
       observedByItemProduct.set(`${row.item_id}:${row.product}`, row);
     }
   }
