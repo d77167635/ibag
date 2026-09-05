@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
     "test": "tsx --test src/intelligence/*.test.ts",
+    "prebuild": "npm test",
+    "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js"
   },
   "dependencies": {
