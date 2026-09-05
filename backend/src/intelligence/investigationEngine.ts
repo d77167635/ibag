@@ -18,7 +18,7 @@ function unique(values: string[]) { return [...new Set(values)]; }
 export function buildInvestigationEngine(
   graph: IntelligenceGraph,
   definitions: IrisAnalysisDefinition[],
-): { architecture_version: "IRIS_INVESTIGATION_ENGINE_V2"; investigations: IrisInvestigation[]; counts: { generated: number; ready: number; evidence_limited: number; graph_paths: number } } {
+): { architecture_version: "IRIS_INVESTIGATION_ENGINE_V3"; investigations: IrisInvestigation[]; counts: { generated: number; ready: number; evidence_limited: number; graph_paths: number } } {
   const definitionById = new Map(definitions.map(definition => [definition.id, definition]));
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
   const outgoing = new Map<string, IntelligenceGraphEdge[]>();
@@ -60,24 +60,29 @@ export function buildInvestigationEngine(
     for (const context of contexts.slice(0, 24)) {
       const labels = context.map(node => node.label);
       const families = unique(defs.map(definition => definition.family));
+      const titles = defs.map(definition => definition.title).filter(Boolean);
       const ready = path.states.every(state => nodeById.get(`state:${encodeURIComponent(state)}`)?.observed === true);
       const contextSuffix = labels.length ? ` for ${labels.join(" / ")}` : "";
       const idContext = context.map(node => node.id).join("|") || "global";
       const id = `investigation:path:${path.analysisIds.join("+")}:${idContext}`;
+      const analysisSummary = titles.length ? titles.join(" → ") : families.join(" + ");
+      const missingStates = path.states.filter(state => nodeById.get(`state:${encodeURIComponent(state)}`)?.observed !== true);
       investigations.push({
         id,
-        question: `What relationship can Iris establish${contextSuffix}, what evidence supports it, and what should be investigated next?`,
-        purpose: `${families.join(" + ")} analysis path across observed evidence dependencies.`,
+        question: `What does ${analysisSummary} establish${contextSuffix}, which observed evidence supports the relationship, and what unresolved condition should Iris test next?`,
+        purpose: `${families.join(" + ")} analysis path across explicit evidence dependencies${labels.length ? ` in the ${labels.join(" / ")} context` : ""}.`,
         analysis_ids: path.analysisIds,
         entity_context: context.map(node => node.id),
         evidence_required: path.states,
         status: ready ? "ready" : "evidence_limited",
-        rationale: ready ? `This investigation follows ${path.analysisIds.length} connected analytical step${path.analysisIds.length === 1 ? "" : "s"} through the current evidence graph.` : `The graph exposes this analytical path, but one or more required states are not currently observed or evidenced.`,
+        rationale: ready
+          ? `This investigation follows ${path.analysisIds.length} connected analytical step${path.analysisIds.length === 1 ? "" : "s"} through the current evidence graph; all required states are currently observed.`
+          : `The graph exposes this analytical path, but required state evidence is incomplete: ${missingStates.join(", ") || "provider evidence is not certified"}. Iris must not treat the relationship as established beyond the available evidence.`,
       });
     }
   }
 
   const deduped = [...new Map(investigations.map(item => [item.id, item])).values()];
   const ready = deduped.filter(item => item.status === "ready").length;
-  return { architecture_version: "IRIS_INVESTIGATION_ENGINE_V2", investigations: deduped, counts: { generated: deduped.length, ready, evidence_limited: deduped.length - ready, graph_paths: paths.length } };
+  return { architecture_version: "IRIS_INVESTIGATION_ENGINE_V3", investigations: deduped, counts: { generated: deduped.length, ready, evidence_limited: deduped.length - ready, graph_paths: paths.length } };
 }
