@@ -60,12 +60,12 @@ export function buildInvestigationEngine(
     for (const context of contexts.slice(0, 24)) {
       const labels = context.map(node => node.label);
       const families = unique(defs.map(definition => definition.family));
-      const titles = defs.map(definition => definition.title).filter(Boolean);
+      const names = defs.map(definition => definition.name).filter(Boolean);
       const ready = path.states.every(state => nodeById.get(`state:${encodeURIComponent(state)}`)?.observed === true);
       const contextSuffix = labels.length ? ` for ${labels.join(" / ")}` : "";
       const idContext = context.map(node => node.id).join("|") || "global";
       const id = `investigation:path:${path.analysisIds.join("+")}:${idContext}`;
-      const analysisSummary = titles.length ? titles.join(" → ") : families.join(" + ");
+      const analysisSummary = names.length ? names.join(" → ") : families.join(" + ");
       const missingStates = path.states.filter(state => nodeById.get(`state:${encodeURIComponent(state)}`)?.observed !== true);
       investigations.push({
         id,
