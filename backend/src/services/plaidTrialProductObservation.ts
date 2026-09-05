@@ -6,9 +6,8 @@ function endpointFor(product: string, accessToken: string) {
   switch (product) {
     case "auth": return () => (plaidClient as any).authGet(args);
     case "identity": return () => (plaidClient as any).identityGet(args);
-    case "assets": return () => (plaidClient as any).assetsGet(args);
     case "investments": return () => (plaidClient as any).investmentsHoldingsGet(args);
-    case "statements": return () => (plaidClient as any).statementsGet(args);
+    case "statements": return () => (plaidClient as any).statementsList(args);
     default: return null;
   }
 }
@@ -24,14 +23,15 @@ async function markObserved(userId: string, itemId: string, product: string) {
     p_user_id: userId, p_item_id: itemId, p_product: product, p_lifecycle_state: "observed",
     p_billed: !!data.billed, p_available: !!data.available, p_authorized: !!data.authorized,
     p_requested: !!data.requested, p_provider_added: !!data.provider_added,
-    p_provenance: { source: `plaid.${product}`, observation: "live", provider: "plaid" },
+    p_provenance: { source: `plaid.${product}`, observation: "live", provider: "plaid", response_received: true },
+    p_evidence_state: "observed",
   });
   if (observationError) throw observationError;
 }
 
 export async function observeActivatedTrialProducts(userId: string, itemId: string, accessToken: string, activated: Set<string>) {
   const results: Array<{ product: string; observed: boolean; error?: string }> = [];
-  for (const product of ["auth", "identity", "assets", "investments", "statements"]) {
+  for (const product of ["auth", "identity", "investments", "statements"]) {
     if (!activated.has(product)) {
       results.push({ product, observed: false });
       continue;
@@ -44,8 +44,8 @@ export async function observeActivatedTrialProducts(userId: string, itemId: stri
       if (!payload || typeof payload !== "object") throw new Error(`Plaid returned no ${product} response payload`);
       const { error } = await supabaseAdmin.from("plaid_raw_product_observations").insert({
         user_id: userId, item_id: itemId, product, raw_response: payload,
-        provider_object_id: itemId, acquired_at: new Date().toISOString(),
-        evidence_state: "observed", provenance: { source: `plaid.${product}`, observation: "live", provider: "plaid", item_id: itemId },
+        provider_object_id: itemId, acquired_at: new Date().toISOString(), effective_at: new Date().toISOString(),
+        evidence_state: "observed", provenance: { source: `plaid.${product}`, observation: "live", provider: "plaid", item_id: itemId, response_received: true },
         is_current: true,
       });
       if (error) throw error;
