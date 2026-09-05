@@ -54,9 +54,9 @@ linkRouter.post("/link/upgrade-token", requireAuth, async (req: AuthedRequest, r
       base.statements = { start_date: start.toISOString().slice(0, 10), end_date: end.toISOString().slice(0, 10) };
     } else {
       const itemState = await plaidClient.itemGet({ access_token: accessToken });
-      const available = new Set(itemState.data.item.available_products ?? []);
-      const alreadyAdded = new Set(itemState.data.item.products ?? []);
-      const consented = new Set(itemState.data.item.consented_products ?? []);
+      const available = new Set<string>(itemState.data.item.available_products ?? []);
+      const alreadyAdded = new Set<string>(itemState.data.item.products ?? []);
+      const consented = new Set<string>(itemState.data.item.consented_products ?? []);
       // Liabilities is not a Plaid Link `Products` enum value; it is observed by
       // calling the Liabilities endpoints after the Item's supported/consented
       // data access is available. Only request actual additional-consent products.
