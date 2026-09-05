@@ -48,6 +48,24 @@ export async function getCanonicalTransactions(userId: string, since?: string): 
   }));
 }
 
+/** Latest acquisition boundary for provider evidence available to Iris. */
+export async function getEvidenceObservationBoundary(userId: string): Promise<string | null> {
+  const [tx, balances, products] = await Promise.all([
+    supabaseAdmin.from("plaid_raw_transactions").select("acquired_at").eq("user_id", userId).not("acquired_at", "is", null).order("acquired_at", { ascending: false }).limit(1),
+    supabaseAdmin.from("plaid_raw_balances").select("acquired_at").eq("user_id", userId).not("acquired_at", "is", null).order("acquired_at", { ascending: false }).limit(1),
+    supabaseAdmin.from("plaid_product_observations").select("acquired_at").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).not("acquired_at", "is", null).order("acquired_at", { ascending: false }).limit(1),
+  ]);
+  const errors = [tx, balances, products].filter(q => q.error).map(q => q.error!.message);
+  if (errors.length) throw new Error(`Evidence boundary query failed: ${errors.join("; ")}`);
+  const values = [tx.data?.[0]?.acquired_at, balances.data?.[0]?.acquired_at, products.data?.[0]?.acquired_at].filter((v): v is string => Boolean(v));
+  return values.length ? values.sort().at(-1)! : null;
+}
+
+function boundaryDate(asOf?: string | Date | null) {
+  const date = asOf ? new Date(asOf) : new Date();
+  return Number.isFinite(date.getTime()) ? date : new Date();
+}
+
 export function isEconomicInflow(tx: Pick<CanonicalTransaction, "amount" | "transaction_class">) {
   return tx.amount < 0 && ECONOMIC_INFLOW.has(tx.transaction_class);
 }
@@ -86,10 +104,10 @@ export function computeRoundupProjectionFromTransactions(transactions: Canonical
   return { total, dailyRate, projected, projectedAmount: projected, projectedTotal: projected, basisDays: spanDays, projectDays, eligibleTransactionCount: eligible.length, calculation_version: ROUNDUP_RULE_VERSION };
 }
 
-export function computeSpendingByDomainFromTransactions(transactions: CanonicalTransaction[], windowDays = 30) {
-  const now = Date.now();
-  const currentStart = new Date(now - windowDays * 86_400_000).toISOString().slice(0, 10);
-  const priorStart = new Date(now - 2 * windowDays * 86_400_000).toISOString().slice(0, 10);
+export function computeSpendingByDomainFromTransactions(transactions: CanonicalTransaction[], windowDays = 30, asOf?: string | Date | null) {
+  const boundary = boundaryDate(asOf).getTime();
+  const currentStart = new Date(boundary - windowDays * 86_400_000).toISOString().slice(0, 10);
+  const priorStart = new Date(boundary - 2 * windowDays * 86_400_000).toISOString().slice(0, 10);
   const spending = transactions.filter(tx => isEconomicOutflow(tx) && tx.posted_date >= priorStart);
   const groups = new Map<string, { label: string; current: number; prior: number }>();
   for (const tx of spending) {
@@ -103,8 +121,8 @@ export function computeSpendingByDomainFromTransactions(transactions: CanonicalT
   return Array.from(groups.entries()).map(([key, v]) => ({ key, label: v.label, amount: v.current, changePct: v.prior > 0 ? ((v.current - v.prior) / v.prior) * 100 : null })).sort((a, b) => b.amount - a.amount);
 }
 
-export function computeCanonicalSpendingHierarchy(transactions: CanonicalTransaction[], windowDays = 30) {
-  const windowStart = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+export function computeCanonicalSpendingHierarchy(transactions: CanonicalTransaction[], windowDays = 30, asOf?: string | Date | null) {
+  const windowStart = new Date(boundaryDate(asOf).getTime() - windowDays * 86_400_000).toISOString().slice(0, 10);
   const spending = transactions.filter(tx => isEconomicOutflow(tx) && tx.posted_date >= windowStart);
   type DomainAcc = { key: string; label: string; amount: number; subdomains: Map<string, { label: string; amount: number }> };
   const byDomain = new Map<string, DomainAcc>();
@@ -124,7 +142,7 @@ export function computeCanonicalSpendingHierarchy(transactions: CanonicalTransac
   return Array.from(byDomain.values()).map(d => ({ key: d.key, label: d.label, amount: d.amount, pctOfTotal: total > 0 ? (d.amount / total) * 100 : 0, subdomains: Array.from(d.subdomains.entries()).map(([key, v]) => ({ key, label: v.label, amount: v.amount })).sort((a, b) => b.amount - a.amount) })).sort((a, b) => b.amount - a.amount);
 }
 
-export async function computeCanonicalForwardProjection(userId: string, days = 30) {
+export async function computeCanonicalForwardProjection(userId: string, days = 30, asOf?: string | Date | null) {
   const [{ data: checkingAccounts, error: balanceError }, { data: series, error: seriesError }] = await Promise.all([
     supabaseAdmin.from("plaid_accounts").select("available_balance").eq("user_id", userId).eq("type", "depository").eq("subtype", "checking").not("available_balance", "is", null),
     supabaseAdmin.from("recurring_series").select("typical_amount, next_expected_date, occurrence_count, merchants(canonical_name)").eq("user_id", userId).eq("is_essential", true).gte("occurrence_count", 2).not("typical_amount", "is", null).not("next_expected_date", "is", null),
@@ -135,8 +153,9 @@ export async function computeCanonicalForwardProjection(userId: string, days = 3
   const startBalance = checkingAccounts.reduce((sum, a) => sum + Number(a.available_balance), 0);
   const projected: { date: string; balance: number; event: string | null }[] = [];
   let balance = startBalance;
+  const boundary = boundaryDate(asOf);
   for (let i = 0; i <= days; i++) {
-    const date = new Date(Date.now() + i * 86_400_000).toISOString().slice(0, 10);
+    const date = new Date(boundary.getTime() + i * 86_400_000).toISOString().slice(0, 10);
     const dueToday = (series ?? []).filter((s: any) => s.next_expected_date === date && Number(s.typical_amount) > 0);
     let event: string | null = null;
     for (const bill of dueToday) {
@@ -152,9 +171,10 @@ export async function computeCanonicalForwardProjection(userId: string, days = 3
   return { series: projected, basis: "observed_checking_balance_plus_recurring_essential_series", evidence_state: observedSeriesCount ? "calculated" as const : "limited" as const, recurring_series_count: observedSeriesCount, horizon_days: days, limitations };
 }
 
-export function computeCanonicalWindowFlows(transactions: CanonicalTransaction[], windows: readonly number[]) {
+export function computeCanonicalWindowFlows(transactions: CanonicalTransaction[], windows: readonly number[], asOf?: string | Date | null) {
+  const boundary = boundaryDate(asOf).getTime();
   return [...windows].sort((a, b) => a - b).map(windowDays => {
-    const start = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+    const start = new Date(boundary - windowDays * 86_400_000).toISOString().slice(0, 10);
     const rows = transactions.filter(tx => tx.posted_date >= start);
     const flow = computeEconomicCashFlow(rows);
     return { windowDays, ...flow, purchaseTotal: rows.filter(tx => tx.transaction_class === "purchase" && tx.amount > 0).reduce((s, tx) => s + tx.amount, 0), debtPaymentTotal: rows.filter(tx => tx.transaction_class === "debt_payment" && tx.amount > 0).reduce((s, tx) => s + tx.amount, 0), txCount: rows.length, economicTxCount: rows.filter(tx => isEconomicInflow(tx) || isEconomicOutflow(tx)).length };
