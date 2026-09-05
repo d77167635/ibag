@@ -7,15 +7,10 @@ export async function syncLiabilitiesForItem(userId: string, itemId: string, acc
   try {
     response = await plaidClient.liabilitiesGet({ access_token: accessToken });
   } catch (err: any) {
-    // An unavailable/not-ready product is not evidence. Do not manufacture an
-    // "observed" state merely because the product was requested.
     console.warn("liabilitiesGet unavailable for item:", err?.response?.data?.error_code ?? err?.code ?? err?.message ?? err);
     return { observed: false, liabilityCount: 0 };
   }
 
-  // A successful provider endpoint response is provider evidence even when the
-  // payload contains zero liabilities. Persist the complete provider response
-  // so Iris can distinguish "observed and empty" from "never observed".
   let itemEvidence: any = null;
   try {
     const itemResp = await plaidClient.itemGet({ access_token: accessToken });
@@ -31,46 +26,28 @@ export async function syncLiabilitiesForItem(userId: string, itemId: string, acc
   const { error: rawProductRetireError } = await supabaseAdmin
     .from("plaid_raw_product_observations")
     .update({ is_current: false })
-    .eq("user_id", userId)
-    .eq("item_id", itemId)
-    .eq("product", "liabilities")
-    .eq("is_current", true);
+    .eq("user_id", userId).eq("item_id", itemId).eq("product", "liabilities").eq("is_current", true);
   if (rawProductRetireError) throw rawProductRetireError;
 
   const { error: rawProductError } = await supabaseAdmin.from("plaid_raw_product_observations").insert({
-    user_id: userId,
-    item_id: itemId,
-    product: "liabilities",
-    raw_response: response.data,
-    provider_object_id: itemId,
-    acquired_at: now,
-    effective_at: now,
-    evidence_state: "observed",
+    user_id: userId, item_id: itemId, product: "liabilities", raw_response: response.data,
+    provider_object_id: itemId, acquired_at: now, effective_at: now, evidence_state: "observed",
     provenance: { source: "plaid.liabilitiesGet", observation: "live", provider: "plaid", item_id: itemId, response_received: true },
     is_current: true,
   });
   if (rawProductError) throw rawProductError;
 
   const { error: observationError } = await supabaseAdmin.rpc("record_plaid_product_observation", {
-    p_user_id: userId,
-    p_item_id: itemId,
-    p_product: "liabilities",
-    p_lifecycle_state: "observed",
-    p_billed: billed.has("liabilities"),
-    p_available: available.has("liabilities"),
-    p_authorized: true,
-    p_requested: false,
-    p_provider_added: providerAdded.has("liabilities"),
+    p_user_id: userId, p_item_id: itemId, p_product: "liabilities", p_lifecycle_state: "observed",
+    p_billed: billed.has("liabilities"), p_available: available.has("liabilities"), p_authorized: true,
+    p_requested: false, p_provider_added: providerAdded.has("liabilities"),
     p_provenance: { source: "plaid.liabilitiesGet", observation: "live", provider: "plaid", response_received: true },
     p_evidence_state: "observed",
   });
   if (observationError) throw observationError;
 
   const { data: accountIdRows, error: accountError } = await supabaseAdmin
-    .from("plaid_accounts")
-    .select("id, plaid_account_id")
-    .eq("user_id", userId)
-    .eq("item_id", itemId);
+    .from("plaid_accounts").select("id, plaid_account_id").eq("user_id", userId).eq("item_id", itemId);
   if (accountError) throw accountError;
   const idMap = new Map((accountIdRows ?? []).map((a) => [a.plaid_account_id, a.id]));
 
@@ -82,14 +59,15 @@ export async function syncLiabilitiesForItem(userId: string, itemId: string, acc
 
   for (const { type, raw } of allLiabilityAccounts) {
     const localAccountId = idMap.get((raw as any).account_id);
-    // Never write provider liability evidence into an account belonging to a
-    // different Item. Missing lineage is an evidence-integrity failure.
     if (!localAccountId) continue;
 
+    const { error: retireError } = await supabaseAdmin.from("plaid_raw_liabilities")
+      .update({ is_current: false }).eq("user_id", userId).eq("account_id", localAccountId).eq("is_current", true);
+    if (retireError) throw retireError;
+
     const { error: rawError } = await supabaseAdmin.from("plaid_raw_liabilities").insert({
-      user_id: userId,
-      account_id: localAccountId,
-      raw_response: raw,
+      user_id: userId, account_id: localAccountId, raw_response: raw, provider_object_id: (raw as any).account_id,
+      acquired_at: now, effective_at: now, evidence_state: "observed", provenance: { source: "plaid.liabilitiesGet", item_id: itemId, provider: "plaid" }, is_current: true,
     });
     if (rawError) throw rawError;
 
@@ -97,31 +75,27 @@ export async function syncLiabilitiesForItem(userId: string, itemId: string, acc
       const l = raw as any;
       const purchaseApr = (l.aprs ?? []).find((a: any) => a.apr_type === "purchase_apr");
       const { error } = await supabaseAdmin.from("liability_details").upsert({
-        user_id: userId, account_id: localAccountId, liability_type: "credit",
-        apr_percentage: purchaseApr?.apr_percentage ?? null, apr_type: purchaseApr?.apr_type ?? null,
-        is_overdue: l.is_overdue ?? null, last_statement_balance: l.last_statement_balance ?? null,
+        user_id: userId, account_id: localAccountId, liability_type: "credit", apr_percentage: purchaseApr?.apr_percentage ?? null,
+        apr_type: purchaseApr?.apr_type ?? null, is_overdue: l.is_overdue ?? null, last_statement_balance: l.last_statement_balance ?? null,
         last_payment_amount: l.last_payment_amount ?? null, last_payment_date: l.last_payment_date ?? null,
-        minimum_payment_amount: l.minimum_payment_amount ?? null, next_payment_due_date: l.next_payment_due_date ?? null,
-        updated_at: new Date().toISOString(),
+        minimum_payment_amount: l.minimum_payment_amount ?? null, next_payment_due_date: l.next_payment_due_date ?? null, updated_at: now,
       }, { onConflict: "account_id,liability_type,apr_type" });
       if (error) throw error;
     } else if (type === "student") {
       const l = raw as any;
       const { error } = await supabaseAdmin.from("liability_details").upsert({
-        user_id: userId, account_id: localAccountId, liability_type: "student",
-        apr_percentage: l.interest_rate_percentage ?? null, apr_type: "interest_rate",
-        is_overdue: l.is_overdue ?? null, last_payment_amount: l.last_payment_amount ?? null,
+        user_id: userId, account_id: localAccountId, liability_type: "student", apr_percentage: l.interest_rate_percentage ?? null,
+        apr_type: "interest_rate", is_overdue: l.is_overdue ?? null, last_payment_amount: l.last_payment_amount ?? null,
         last_payment_date: l.last_payment_date ?? null, minimum_payment_amount: l.minimum_payment_amount ?? null,
-        next_payment_due_date: l.next_payment_due_date ?? null, updated_at: new Date().toISOString(),
+        next_payment_due_date: l.next_payment_due_date ?? null, updated_at: now,
       }, { onConflict: "account_id,liability_type,apr_type" });
       if (error) throw error;
     } else {
       const l = raw as any;
       const { error } = await supabaseAdmin.from("liability_details").upsert({
-        user_id: userId, account_id: localAccountId, liability_type: "mortgage",
-        apr_percentage: l.interest_rate?.percentage ?? null, apr_type: l.interest_rate?.type ?? null,
-        last_payment_amount: l.last_payment_amount ?? null, last_payment_date: l.last_payment_date ?? null,
-        next_payment_due_date: null, updated_at: new Date().toISOString(),
+        user_id: userId, account_id: localAccountId, liability_type: "mortgage", apr_percentage: l.interest_rate?.percentage ?? null,
+        apr_type: l.interest_rate?.type ?? null, last_payment_amount: l.last_payment_amount ?? null,
+        last_payment_date: l.last_payment_date ?? null, next_payment_due_date: null, updated_at: now,
       }, { onConflict: "account_id,liability_type,apr_type" });
       if (error) throw error;
     }
@@ -145,13 +119,12 @@ export async function computeDebtCostIntelligence(userId: string): Promise<DebtC
   const { data: rows, error } = await supabaseAdmin
     .from("liability_details")
     .select("apr_percentage, minimum_payment_amount, plaid_accounts!liability_details_account_user_fk(current_balance)")
-    .eq("user_id", userId)
-    .eq("liability_type", "credit");
+    .eq("user_id", userId).eq("liability_type", "credit");
   if (error) throw error;
   if (!rows || rows.length === 0) return {
-    totalRevolvingBalance: null, weightedAvgApr: null, estimatedMonthlyInterestCost: null,
-    minimumPaymentTotal: null, accountsWithKnownApr: 0, accountsWithoutAprData: 0,
-    evidence: "insufficient_evidence", basis: "No liability data has been observed for this user's credit accounts yet."
+    totalRevolvingBalance: null, weightedAvgApr: null, estimatedMonthlyInterestCost: null, minimumPaymentTotal: null,
+    accountsWithKnownApr: 0, accountsWithoutAprData: 0, evidence: "insufficient_evidence",
+    basis: "No liability data has been observed for this user's credit accounts yet."
   };
   const withApr = (rows as any[]).filter(r => r.apr_percentage !== null && r.plaid_accounts?.current_balance !== null);
   const withoutApr = rows.length - withApr.length;
@@ -168,8 +141,7 @@ export async function computeDebtCostIntelligence(userId: string): Promise<DebtC
   const estimatedMonthlyInterestCost = withApr.reduce((sum, r) => sum + (Number(r.apr_percentage) / 100 / 12) * Number(r.plaid_accounts.current_balance), 0);
   return {
     totalRevolvingBalance, weightedAvgApr, estimatedMonthlyInterestCost,
-    minimumPaymentTotal: minimumPaymentTotal || null, accountsWithKnownApr: withApr.length,
-    accountsWithoutAprData: withoutApr, evidence: "calculated",
-    basis: `Balance-weighted average APR across ${withApr.length} account(s) with reported APR; simple monthly-rate approximation, not compounded daily accrual.`
+    minimumPaymentTotal: minimumPaymentTotal || null, accountsWithKnownApr: withApr.length, accountsWithoutAprData: withoutApr,
+    evidence: "calculated", basis: `Balance-weighted average APR across ${withApr.length} account(s) with reported APR; simple monthly-rate approximation, not compounded daily accrual.`
   };
 }
