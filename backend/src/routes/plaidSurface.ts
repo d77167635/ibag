@@ -50,10 +50,10 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
         else if (definition.plaidProductStates.some((p) => available.has(p))) state.available += 1;
         else state.unavailable += 1;
       }
-      summaries.push({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, billed_products: [...active], available_products: [...available], consented_products: [...consented], observed_products: [...observed] });
+      summaries.push({ item_id: item.id, institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, billed_products: [...active], available_products: [...available], consented_products: [...consented], observed_products: [...observed] });
     } catch (err) {
       console.error(`Plaid surface itemGet failed for ${item.id}:`, err);
-      summaries.push({ institution_name: item.institution_name, status: "provider_state_unavailable", last_synced_at: item.last_synced_at, billed_products: [], available_products: [], consented_products: [], observed_products: [...(observedByItem.get(item.id) ?? [])] });
+      summaries.push({ item_id: item.id, institution_name: item.institution_name, status: "provider_state_unavailable", last_synced_at: item.last_synced_at, billed_products: [], available_products: [], consented_products: [], observed_products: [...(observedByItem.get(item.id) ?? [])] });
     }
   }
 
