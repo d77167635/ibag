@@ -1,21 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+process.env.PLAID_CLIENT_ID ??= "test-client-id";
+process.env.PLAID_SECRET ??= "test-secret";
+process.env.SUPABASE_URL ??= "https://example.supabase.co";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+process.env.TOKEN_ENCRYPTION_KEY ??= "test-token-encryption-key";
+
+const { chooseIrisCombinations: selector, COMBINATION_LIBRARY: combinations } = await import("./trialProductIntelligence.js");
 const PRODUCTS = ["transactions", "balance", "auth", "identity", "assets", "liabilities", "investments", "statements"] as const;
 const mapFor = (items: readonly string[]) => new Map([["item-a", new Set(items)]]);
-let selector: typeof import("./trialProductIntelligence.js").chooseIrisCombinations;
-let combinations: typeof import("./trialProductIntelligence.js").COMBINATION_LIBRARY;
-
-test("load production selector", async () => {
-  process.env.PLAID_CLIENT_ID ??= "test-client-id";
-  process.env.PLAID_SECRET ??= "test-secret";
-  process.env.SUPABASE_URL ??= "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
-  process.env.TOKEN_ENCRYPTION_KEY ??= "test-token-encryption-key";
-  const mod = await import("./trialProductIntelligence.js");
-  selector = mod.chooseIrisCombinations;
-  combinations = mod.COMBINATION_LIBRARY;
-});
 
 test("overview rejects split required evidence and accepts same-item evidence", () => {
   assert.equal(selector(new Map([["a", new Set(["transactions"])], ["b", new Set(["balance"])]]) , "overview").evidence_ready, false);
