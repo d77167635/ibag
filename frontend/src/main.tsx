@@ -10,6 +10,7 @@ import "./iris-spatial-upgrade.css";
 import "./iris-screen-system.css";
 import "./iris-screen-modes.css";
 import "./iris-accessibility.css";
+import "./iris-assistant-accessibility.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
