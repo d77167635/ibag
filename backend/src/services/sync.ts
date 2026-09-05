@@ -111,8 +111,16 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       await updateSyncRun(runId, { state: "provider_fetching", cursor });
       const response = await plaidClient.transactionsSync({ access_token: accessToken, cursor });
       await updateSyncRun(runId, { state: "validating" });
-      for (const tx of response.data.added ?? []) { const accountId = accountMap.get(tx.account_id); if (accountId) { await normalizeTransaction(userId, accountId, tx); added++; } }
-      for (const tx of response.data.modified ?? []) { const accountId = accountMap.get(tx.account_id); if (accountId) { await normalizeTransaction(userId, accountId, tx); modified++; } }
+      for (const tx of response.data.added ?? []) {
+        const accountId = accountMap.get(tx.account_id);
+        if (!accountId) throw new Error(`Plaid transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`);
+        await normalizeTransaction(userId, accountId, tx); added++;
+      }
+      for (const tx of response.data.modified ?? []) {
+        const accountId = accountMap.get(tx.account_id);
+        if (!accountId) throw new Error(`Plaid modified transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`);
+        await normalizeTransaction(userId, accountId, tx); modified++;
+      }
       for (const tx of response.data.removed ?? []) {
         if (!tx.transaction_id) continue;
         const { error: rawError } = await supabaseAdmin.rpc("retire_plaid_transaction_observation", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id });
