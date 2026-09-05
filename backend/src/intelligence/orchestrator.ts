@@ -1,5 +1,6 @@
 import { computeBalanceMetrics, computeCashFlowSafety, computeBalanceHistory, computeDebtTrend } from "../services/intelligence.js";
-import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy, computeCanonicalForwardProjection, getEvidenceObservationBoundary } from "./transactionSemantics.js";
+import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy, computeCanonicalForwardProjection } from "./transactionSemantics.js";
+import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
 import { validateCanonicalIntelligenceInput } from "./integrity.js";
 import { getFeatureFlags } from "../services/features.js";
@@ -32,7 +33,7 @@ import { recordIntelligenceSnapshot } from "./validationSnapshots.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string) {
-  const [evidenceBoundary, sourceFidelity] = await Promise.all([getEvidenceObservationBoundary(userId), assessSourceFidelity(userId)]);
+  const [evidenceBoundary, sourceFidelity] = await Promise.all([getCertifiedEvidenceBoundary(userId), assessSourceFidelity(userId)]);
   const canonical90Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 90 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
   const canonical = await getCanonicalTransactions(userId, canonical90Start);
   const integrity = validateCanonicalIntelligenceInput(canonical);
