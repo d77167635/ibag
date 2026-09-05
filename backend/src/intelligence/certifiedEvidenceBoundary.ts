@@ -1,16 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 
-/**
- * Returns the latest common evidence boundary that every active Plaid Item can
- * support for core financial reasoning. A global max timestamp is unsafe: one
- * fresh Item must not cause another Item's older evidence to appear current.
- *
- * Raw evidence queries intentionally avoid PostgREST relationship embedding.
- * This database has multiple foreign-key paths between these tables, so an
- * embedded plaid_accounts relation is ambiguous and can turn a valid query
- * into a runtime 500.
- */
-export async function getCertifiedEvidenceBoundary(userId: string): Promise<string | null> {
+/** Return active Plaid Items that independently possess current observed Transactions + Balance evidence. */
+export async function getCertifiedCoreItemIds(userId: string): Promise<string[]> {
   const { data: items, error: itemError } = await supabaseAdmin
     .from("plaid_items")
     .select("id")
@@ -18,118 +9,82 @@ export async function getCertifiedEvidenceBoundary(userId: string): Promise<stri
     .in("status", ["active", "healthy"]);
   if (itemError) throw itemError;
 
-  const itemIds = (items ?? [])
-    .map((row: any) => row.id)
-    .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
-  if (!itemIds.length) return null;
+  const itemIds = (items ?? []).map((row: any) => row.id).filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+  if (!itemIds.length) return [];
 
   const [products, balances, transactions] = await Promise.all([
-    supabaseAdmin
-      .from("plaid_product_observations")
-      .select("item_id, product, acquired_at, lifecycle_state, evidence_state, is_current")
-      .eq("user_id", userId)
-      .eq("provider", "plaid")
-      .eq("is_current", true)
-      .in("item_id", itemIds)
-      .in("product", ["transactions", "balance"]),
-    supabaseAdmin
-      .from("plaid_raw_balances")
-      .select("account_id, acquired_at, is_current, evidence_state")
-      .eq("user_id", userId)
-      .eq("is_current", true)
-      .eq("evidence_state", "observed")
-      .not("acquired_at", "is", null),
-    supabaseAdmin
-      .from("plaid_raw_transactions")
-      .select("account_id, acquired_at, is_current, evidence_state")
-      .eq("user_id", userId)
-      .eq("is_current", true)
-      .eq("evidence_state", "observed")
-      .not("acquired_at", "is", null),
+    supabaseAdmin.from("plaid_product_observations")
+      .select("item_id, product, lifecycle_state, evidence_state, is_current")
+      .eq("user_id", userId).eq("provider", "plaid").eq("is_current", true)
+      .in("item_id", itemIds).in("product", ["transactions", "balance"]),
+    supabaseAdmin.from("plaid_raw_balances")
+      .select("account_id, is_current, evidence_state")
+      .eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
+    supabaseAdmin.from("plaid_raw_transactions")
+      .select("account_id, is_current, evidence_state")
+      .eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
   ]);
+  const errors = [products, balances, transactions].filter(q => q.error).map(q => q.error!.message);
+  if (errors.length) throw new Error(`Certified core Item query failed: ${errors.join("; ")}`);
 
-  const errors = [products, balances, transactions]
-    .filter((q) => q.error)
-    .map((q) => q.error!.message);
-  if (errors.length) {
-    throw new Error(`Certified evidence boundary query failed: ${errors.join("; ")}`);
-  }
-
-  const accountIds = [
-    ...new Set([
-      ...(balances.data ?? []).map((row: any) => row.account_id),
-      ...(transactions.data ?? []).map((row: any) => row.account_id),
-    ]),
-  ].filter((id): id is string => typeof id === "string" && id.length > 0);
-
-  const { data: accounts, error: accountsError } = accountIds.length
-    ? await supabaseAdmin
-        .from("plaid_accounts")
-        .select("id, item_id")
-        .eq("user_id", userId)
-        .in("id", accountIds)
+  const accountIds = [...new Set([
+    ...(balances.data ?? []).map((r: any) => r.account_id),
+    ...(transactions.data ?? []).map((r: any) => r.account_id),
+  ])].filter((id): id is string => typeof id === "string" && id.length > 0);
+  const { data: accounts, error: accountError } = accountIds.length
+    ? await supabaseAdmin.from("plaid_accounts").select("id, item_id").eq("user_id", userId).in("id", accountIds)
     : { data: [], error: null };
+  if (accountError) throw accountError;
+  const accountToItem = new Map<string, string>((accounts ?? []).map((r: any) => [r.id, r.item_id]));
+  const txItems = new Set((transactions.data ?? []).map((r: any) => accountToItem.get(r.account_id)).filter(Boolean));
+  const balanceItems = new Set((balances.data ?? []).map((r: any) => accountToItem.get(r.account_id)).filter(Boolean));
+  const txProducts = new Set((products.data ?? []).filter((r: any) => r.product === "transactions" && r.lifecycle_state === "observed" && r.evidence_state === "observed").map((r: any) => r.item_id));
+  const balanceProducts = new Set((products.data ?? []).filter((r: any) => r.product === "balance" && r.lifecycle_state === "observed" && r.evidence_state === "observed").map((r: any) => r.item_id));
+  return itemIds.filter(id => txProducts.has(id) && balanceProducts.has(id) && txItems.has(id) && balanceItems.has(id));
+}
 
-  if (accountsError) {
-    throw new Error(`Certified evidence boundary account lineage query failed: ${accountsError.message}`);
-  }
+/**
+ * Returns the latest common evidence boundary across certified core Items only.
+ * An unrelated active Item that lacks Balance must not invalidate a different
+ * Item that independently has certified Transactions + Balance evidence.
+ */
+export async function getCertifiedEvidenceBoundary(userId: string): Promise<string | null> {
+  const certifiedItemIds = await getCertifiedCoreItemIds(userId);
+  if (!certifiedItemIds.length) return null;
 
-  const accountToItem = new Map<string, string>(
-    (accounts ?? [])
-      .filter((row: any) => typeof row.id === "string" && typeof row.item_id === "string")
-      .map((row: any) => [row.id, row.item_id]),
-  );
+  const [products, balances, transactions] = await Promise.all([
+    supabaseAdmin.from("plaid_product_observations")
+      .select("item_id, product, acquired_at, lifecycle_state, evidence_state, is_current")
+      .eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).in("item_id", certifiedItemIds).in("product", ["transactions", "balance"]),
+    supabaseAdmin.from("plaid_raw_balances")
+      .select("account_id, acquired_at, is_current, evidence_state")
+      .eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed").not("acquired_at", "is", null),
+    supabaseAdmin.from("plaid_raw_transactions")
+      .select("account_id, acquired_at, is_current, evidence_state")
+      .eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed").not("acquired_at", "is", null),
+  ]);
+  const errors = [products, balances, transactions].filter(q => q.error).map(q => q.error!.message);
+  if (errors.length) throw new Error(`Certified evidence boundary query failed: ${errors.join("; ")}`);
 
-  const currentProducts = products.data ?? [];
-  const currentBalances = balances.data ?? [];
-  const currentTransactions = transactions.data ?? [];
+  const accountIds = [...new Set([
+    ...(balances.data ?? []).map((r: any) => r.account_id),
+    ...(transactions.data ?? []).map((r: any) => r.account_id),
+  ])].filter((id): id is string => typeof id === "string" && id.length > 0);
+  const { data: accounts, error: accountsError } = accountIds.length
+    ? await supabaseAdmin.from("plaid_accounts").select("id, item_id").eq("user_id", userId).in("id", accountIds)
+    : { data: [], error: null };
+  if (accountsError) throw new Error(`Certified evidence boundary account lineage query failed: ${accountsError.message}`);
+  const accountToItem = new Map<string, string>((accounts ?? []).map((r: any) => [r.id, r.item_id]));
+  const parseTimes = (rows: any[]): number[] => rows.map(r => new Date(r.acquired_at).getTime()).filter(Number.isFinite);
   const boundaries: number[] = [];
-  const parseTimes = (rows: any[]): number[] =>
-    rows
-      .map((row) => new Date(row.acquired_at).getTime())
-      .filter((time) => Number.isFinite(time));
-
-  for (const itemId of itemIds) {
-    const txProduct = currentProducts.filter(
-      (row: any) =>
-        row.item_id === itemId &&
-        row.product === "transactions" &&
-        row.lifecycle_state === "observed" &&
-        row.evidence_state === "observed",
-    );
-    const balanceProduct = currentProducts.filter(
-      (row: any) =>
-        row.item_id === itemId &&
-        row.product === "balance" &&
-        row.lifecycle_state === "observed" &&
-        row.evidence_state === "observed",
-    );
-    if (!txProduct.length || !balanceProduct.length) return null;
-
-    const txProductTimes = parseTimes(txProduct);
-    const balanceProductTimes = parseTimes(balanceProduct);
-    if (!txProductTimes.length || !balanceProductTimes.length) return null;
-
-    const itemBalances = currentBalances.filter(
-      (row: any) => accountToItem.get(row.account_id) === itemId,
-    );
-    const itemTransactions = currentTransactions.filter(
-      (row: any) => accountToItem.get(row.account_id) === itemId,
-    );
-    const balanceEvidenceTimes = parseTimes(itemBalances);
-    const transactionEvidenceTimes = parseTimes(itemTransactions);
-    if (!balanceEvidenceTimes.length || !transactionEvidenceTimes.length) return null;
-
-    const itemBoundary = Math.min(
-      Math.max(...txProductTimes),
-      Math.max(...balanceProductTimes),
-      Math.max(...balanceEvidenceTimes),
-      Math.max(...transactionEvidenceTimes),
-    );
-    if (!Number.isFinite(itemBoundary)) return null;
-    boundaries.push(itemBoundary);
+  for (const itemId of certifiedItemIds) {
+    const txProductTimes = parseTimes((products.data ?? []).filter((r: any) => r.item_id === itemId && r.product === "transactions" && r.lifecycle_state === "observed" && r.evidence_state === "observed"));
+    const balanceProductTimes = parseTimes((products.data ?? []).filter((r: any) => r.item_id === itemId && r.product === "balance" && r.lifecycle_state === "observed" && r.evidence_state === "observed"));
+    const balanceTimes = parseTimes((balances.data ?? []).filter((r: any) => accountToItem.get(r.account_id) === itemId));
+    const transactionTimes = parseTimes((transactions.data ?? []).filter((r: any) => accountToItem.get(r.account_id) === itemId));
+    if (!txProductTimes.length || !balanceProductTimes.length || !balanceTimes.length || !transactionTimes.length) continue;
+    boundaries.push(Math.min(Math.max(...txProductTimes), Math.max(...balanceProductTimes), Math.max(...balanceTimes), Math.max(...transactionTimes)));
   }
-
-  const common = Math.min(...boundaries);
+  const common = boundaries.length ? Math.min(...boundaries) : NaN;
   return Number.isFinite(common) ? new Date(common).toISOString() : null;
 }
