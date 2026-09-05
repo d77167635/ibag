@@ -53,10 +53,10 @@ export function Auth({ recovery = false, onRecoveryComplete }: { recovery?: bool
     setFieldErrors({}); setLoading(true);
     const result = mode === "sign_in"
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}#workspace/plaid` } });
+      : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
     setLoading(false);
     if (result.error) { setError(friendlyError(result.error.message)); return; }
-    if (mode === "sign_up" && !result.data.session) setNotice("Check your inbox — confirm your email to finish creating your account. You'll return to the Plaid control plane when verification is complete.");
+    if (mode === "sign_up" && !result.data.session) setNotice("Check your inbox — confirm your email to finish creating your account.");
   }
 
   const heading = mode === "sign_in" ? "Welcome back" : mode === "sign_up" ? "Enter the Iris environment" : recovery ? "Choose a new password" : "Reset your password";
