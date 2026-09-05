@@ -2,7 +2,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 
 type RawObservation = { id:string; item_id:string; product:string; raw_response:any; evidence_state:string; acquired_at:string };
 type ProductAuthority = { id:string; item_id:string; product:string; acquired_at:string };
-type CoreRawRow = { id:string; account_id:string; acquired_at:string };
+type CoreRawRow = { id:string; account_id:string; acquired_at:string; item_id:string };
 export type IrisProductIntent = "overview"|"cash_flow"|"spending"|"liquidity"|"debt"|"roundups"|"anomaly"|"explanation"|"provider_data"|"unknown";
 const CORE_PRODUCTS=new Set(["transactions","balance"]);
 const REQUIRED:Record<IrisProductIntent,string[][]>={overview:[["transactions"],["balance"]],cash_flow:[["transactions"]],spending:[["transactions"]],liquidity:[["balance"],["transactions"]],debt:[["liabilities"],["balance"],["transactions"]],roundups:[["transactions"]],anomaly:[["transactions"]],explanation:[],provider_data:[],unknown:[]};
@@ -59,38 +59,40 @@ export async function buildTrialProductIntelligence(userId:string,intent:IrisPro
  if(authorityError)throw authorityError;if(rawProductError)throw rawProductError;if(transactionError)throw transactionError;if(balanceError)throw balanceError;if(liabilityError)throw liabilityError;if(accountError)throw accountError;
  const authorities=(authorityRows??[])as ProductAuthority[],rawObserved=(rawProducts??[])as RawObservation[];
  const accountToItem=new Map<string,string>((accounts??[]).map((a:any)=>[a.id,a.item_id]));
- const attachItem=(rows:any[]):CoreRawRow[]=>rows.map(r=>({id:r.id,account_id:r.account_id,acquired_at:r.acquired_at})).filter(r=>accountToItem.has(r.account_id));
+ const attachItem=(rows:any[]):CoreRawRow[]=>rows.map(r=>({id:r.id,account_id:r.account_id,acquired_at:r.acquired_at,item_id:accountToItem.get(r.account_id)!})).filter(r=>accountToItem.has(r.account_id));
  const txRows=attachItem(rawTransactions??[]),balRows=attachItem(rawBalances??[]),liabilityRows=attachItem(rawLiabilities??[]);
- const txWithItem=txRows.map(r=>({...r,item_id:accountToItem.get(r.account_id)!}));
- const balWithItem=balRows.map(r=>({...r,item_id:accountToItem.get(r.account_id)!}));
- const liabilityWithItem=liabilityRows.map(r=>({...r,item_id:accountToItem.get(r.account_id)!}));
  const evidenceKeys=new Set<string>();
  for(const r of rawObserved)evidenceKeys.add(`${r.item_id}:${r.product}`);
- for(const r of txWithItem)evidenceKeys.add(`${r.item_id}:transactions`);
- for(const r of balWithItem)evidenceKeys.add(`${r.item_id}:balance`);
- for(const r of liabilityWithItem)evidenceKeys.add(`${r.item_id}:liabilities`);
+ for(const r of txRows)evidenceKeys.add(`${r.item_id}:transactions`);
+ for(const r of balRows)evidenceKeys.add(`${r.item_id}:balance`);
+ for(const r of liabilityRows)evidenceKeys.add(`${r.item_id}:liabilities`);
  const eligibleAuthorities=authorities.filter(a=>evidenceKeys.has(`${a.item_id}:${a.product}`)),observedByItem=new Map<string,Set<string>>();
  for(const a of eligibleAuthorities){const s=observedByItem.get(a.item_id)??new Set<string>();s.add(a.product);observedByItem.set(a.item_id,s);}
  const observedProducts=[...new Set(eligibleAuthorities.map(r=>r.product))];
- const summaries:any[]=rawObserved.map(r=>({item_id:r.item_id,product:r.product,acquired_at:r.acquired_at,...summarize(r.product,r.raw_response)}));
+ const summaries:any[]=rawObserved.filter(r=>!["transactions","balance","liabilities"].includes(r.product)).map(r=>({item_id:r.item_id,product:r.product,acquired_at:r.acquired_at,...summarize(r.product,r.raw_response)}));
  for(const authority of eligibleAuthorities){
-   if(authority.product==="transactions")summaries.push({item_id:authority.item_id,product:"transactions",acquired_at:authority.acquired_at,transaction_raw_observation_count:txWithItem.filter((r:any)=>r.item_id===authority.item_id).length});
-   if(authority.product==="balance")summaries.push({item_id:authority.item_id,product:"balance",acquired_at:authority.acquired_at,balance_raw_observation_count:balWithItem.filter((r:any)=>r.item_id===authority.item_id).length});
-   if(authority.product==="liabilities")summaries.push({item_id:authority.item_id,product:"liabilities",acquired_at:authority.acquired_at,liability_raw_observation_count:liabilityWithItem.filter((r:any)=>r.item_id===authority.item_id).length});
+   if(authority.product==="transactions")summaries.push({item_id:authority.item_id,product:"transactions",acquired_at:authority.acquired_at,transaction_raw_observation_count:txRows.filter(r=>r.item_id===authority.item_id).length});
+   if(authority.product==="balance")summaries.push({item_id:authority.item_id,product:"balance",acquired_at:authority.acquired_at,balance_raw_observation_count:balRows.filter(r=>r.item_id===authority.item_id).length});
+   if(authority.product==="liabilities")summaries.push({item_id:authority.item_id,product:"liabilities",acquired_at:authority.acquired_at,liability_raw_observation_count:liabilityRows.filter(r=>r.item_id===authority.item_id).length});
  }
  const selection=chooseIrisCombinations(observedByItem,intent),consumableItemIds=new Set(selection.selected_item_id?[selection.selected_item_id]:[]),actualConsumption=selection.evidence_ready?(ACTUAL_CONSUMPTION[intent]??{}):{},consumptionRows:any[]=[];
  const combinationKeys=selection.selected_combinations.map(c=>c.key);
- const sourceRowsByProduct:Record<string,any[]>={transactions:txWithItem,balance:balWithItem,liabilities:liabilityWithItem};
+ const sourceRowsByProduct:Record<string,CoreRawRow[]>={transactions:txRows,balance:balRows,liabilities:liabilityRows};
  for(const[product,analysisKeys]of Object.entries(actualConsumption)){
    const authoritiesForProduct=eligibleAuthorities.filter(a=>a.product===product&&consumableItemIds.has(a.item_id));
    for(const authority of authoritiesForProduct){
-     const rawProduct=rawObserved.find(r=>r.product===product&&r.item_id===authority.item_id);
      const specialized=sourceRowsByProduct[product]?.filter(r=>r.item_id===authority.item_id)??[];
-     if(!rawProduct&&!specialized.length)continue;
-     const sourceKind=rawProduct?"plaid_raw_product_observations":product==="transactions"?"plaid_raw_transactions":product==="balance"?"plaid_raw_balances":product==="liabilities"?"plaid_raw_liabilities":"plaid_product_observations";
-     const sourceIds=rawProduct?[rawProduct.id]:specialized.map(r=>r.id);
+     const rawProduct=rawObserved.find(r=>r.product===product&&r.item_id===authority.item_id);
+     // Account-scoped raw mirrors are authoritative for transactions, balances, and liabilities.
+     // Generic product mirrors remain available for provenance/display but can never replace the
+     // concrete account-scoped source in a consumption proof.
+     const authoritativeSpecialized=["transactions","balance","liabilities"].includes(product);
+     if(authoritativeSpecialized && !specialized.length)continue;
+     if(!authoritativeSpecialized && !rawProduct)continue;
+     const sourceKind=authoritativeSpecialized?product==="transactions"?"plaid_raw_transactions":product==="balance"?"plaid_raw_balances":"plaid_raw_liabilities":"plaid_raw_product_observations";
+     const sourceIds=authoritativeSpecialized?specialized.map(r=>r.id):[rawProduct!.id];
      for(const analysisKey of analysisKeys){
-       consumptionRows.push({user_id:userId,item_id:authority.item_id,product,analysis_key:analysisKey,evidence_observation_id:authority.id,raw_observation_id:rawProduct?.id??null,details:{evidence_state:"observed",acquired_at:rawProduct?.acquired_at??authority.acquired_at,source_kind:sourceKind,source_observation_ids:sourceIds,intent,combination_keys:combinationKeys,selected_item_id:selection.selected_item_id,consumption:"request_path"}});
+       consumptionRows.push({user_id:userId,item_id:authority.item_id,product,analysis_key:analysisKey,evidence_observation_id:authority.id,raw_observation_id:authoritativeSpecialized?(specialized[0]?.id??null):(rawProduct?.id??null),dedupe_observation_id:authoritativeSpecialized?(specialized[0]?.id??authority.id):(rawProduct?.id??authority.id),details:{evidence_state:"observed",acquired_at:authoritativeSpecialized?(specialized.map(r=>r.acquired_at).sort().at(-1)??authority.acquired_at):(rawProduct?.acquired_at??authority.acquired_at),source_kind:sourceKind,source_observation_ids:sourceIds,intent,combination_keys:combinationKeys,selected_item_id:selection.selected_item_id,consumption:"request_path",authoritative_source:true}});
      }
    }
  }
