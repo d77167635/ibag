@@ -47,6 +47,7 @@ export async function retrieveProviderEvidence(
         .eq("user_id", userId)
         .eq("provider", "plaid")
         .eq("is_current", true)
+        .eq("lifecycle_state", "observed")
         .order("observed_at", { ascending: false })
         .limit(limit);
       if (options?.product) query = query.eq("product", options.product);
