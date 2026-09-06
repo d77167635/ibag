@@ -1,3 +1,5 @@
+import { IRIS_ARCHITECTURE_VERSION, IRIS_DATA_PLANE } from "./irisArchitecture.js";
+
 export type IrisGovernorPolicy = {
   architecture_version: "IRIS_GOVERNOR_V5";
   customer_access: true;
@@ -32,7 +34,7 @@ export type IrisGovernorAssembly = {
   architecture_version: "IRIS_GOVERNOR_V5";
   iris: { available_on_every_screen: true; supreme_intelligence: true; governs_all_intelligence: true; customer_facing_governance_controls: false };
   evidence_gate: { status: string; ready: boolean; financial_facts_created: false };
-  data_plane: { connection: "Plaid Link"; ingestion: "Plaid authorized data"; source_of_truth: "Supabase"; presentation: "Iris" };
+  data_plane: typeof IRIS_DATA_PLANE;
   inputs: { data_domains: string[]; intelligence_layers: string[]; intelligence_outputs: string[]; composition_outputs: string[]; validation_outputs: string[] };
   composition_engine: { version: string; max_path_depth: number; max_compositions: number; generated: number; multi_layer_paths: number; evidence_ready_paths: number; candidate_features: number; intelligence_depth_ceiling: null; path_generation: "lazy_recursive_cycle_safe" };
   validation: { architecture_version: string; validated_predictions: number; calibration: string; metrics: Record<string, number | null> };
@@ -76,9 +78,9 @@ export function buildIrisGovernorAssembly(input: {
     architecture_version: "IRIS_GOVERNOR_V5",
     iris: { available_on_every_screen: true, supreme_intelligence: true, governs_all_intelligence: true, customer_facing_governance_controls: false },
     evidence_gate: { status: input.evidenceGate.status, ready: input.evidenceGate.ready, financial_facts_created: false },
-    data_plane: { connection: "Plaid Link", ingestion: "Plaid authorized data", source_of_truth: "Supabase", presentation: "Iris" },
+    data_plane: IRIS_DATA_PLANE,
     inputs: { data_domains: dataDomains, intelligence_layers: uniq(input.layers), intelligence_outputs: uniq(input.intelligenceOutputs), composition_outputs: uniq(input.compositionOutputs), validation_outputs: uniq(input.validationOutputs) },
-    composition_engine: { version: input.composition.engine_version, max_path_depth: input.composition.max_path_depth ?? 0, max_compositions: input.composition.max_compositions ?? compositions.length, generated: compositions.length, multi_layer_paths: multiLayerPaths, evidence_ready_paths: evidenceReadyPaths, candidate_features: (input.composition.new_analysis_features ?? []).length, intelligence_depth_ceiling: null, path_generation: "lazy_recursive_cycle_safe" },
+    composition_engine: { version: `${IRIS_ARCHITECTURE_VERSION}:${input.composition.engine_version}`, max_path_depth: input.composition.max_path_depth ?? 0, max_compositions: input.composition.max_compositions ?? compositions.length, generated: compositions.length, multi_layer_paths: multiLayerPaths, evidence_ready_paths: evidenceReadyPaths, candidate_features: (input.composition.new_analysis_features ?? []).length, intelligence_depth_ceiling: null, path_generation: "lazy_recursive_cycle_safe" },
     validation: { architecture_version: input.validation.architecture_version, validated_predictions: input.validation.validated_predictions, calibration: input.validation.calibration, metrics: input.validation.metrics },
     capabilities: { arbitrary_ordered_composition: true, cross_domain_composition: dataDomains.length > 1, cross_layer_composition: multiLayerPaths > 0 || input.layers.length > 1, recursive_unbounded_depth: true, reusable_outputs: true, new_analysis_candidates: true, bidirectional_learning: true, reverse_lineage: true, external_knowledge_separated_from_financial_evidence: true, production_self_promotion: false, money_movement: false },
     governance: { candidate_requires_validation: true, validated_requires_governed_promotion: true, customer_admin_role_required: false, lineage_required: true, double_counting_prohibited: true, cycles_prohibited: true, evidence_gate_precedes_promotion: true, source_truth_mutation_by_intelligence: false },
