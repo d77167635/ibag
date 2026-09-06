@@ -1,63 +1,111 @@
-# Iris — Phase 1 (Intelligence & Reporting Only)
+# iBag / Iris
 
-No money moves in this codebase. See `iris-architecture.md` (project docs) for
-the full design rationale. This repo contains:
+Iris is the user-facing financial intelligence system. **Supabase is the canonical application source of truth. Plaid is only the authorized connection/ingestion mechanism.** Users connect accounts through Plaid Link from the Iris dashboard and return to Iris; there is no separate Plaid dashboard or Plaid data-screen experience.
 
+## Data plane
+
+```text
+User → Iris dashboard → Plaid Link → Plaid → Supabase raw evidence
+                                      ↓
+                              Supabase canonical model
+                                      ↓
+                              Iris data presentation
+                                      ↓
+                              Iris intelligence
 ```
-backend/    Express + TypeScript API — Plaid Link, webhooks, sync, round-up
-            simulation engine, dashboard read endpoints. Holds all secrets.
-frontend/   React + Vite app — auth (Supabase), Plaid Link UI, dashboard.
-            Never talks to Plaid or Supabase's service role directly.
-supabase/
-  migrations/001_init_schema.sql   Full schema: raw Plaid mirror tables,
-            normalized transactions, domain/subdomain/category hierarchy,
-            round-up simulation ledger, audit log, RLS on every table.
+
+The system must never manufacture, seed, mock, or hardcode financial facts. Provider observations are preserved as evidence; Supabase canonical records are the application source of truth; Iris derives intelligence without silently rewriting source truth.
+
+## Intelligence plane
+
+Iris is the supreme intelligence and supervisory control plane over a hybrid intelligence substrate:
+
+```text
+                         IRIS
+              supreme intelligence
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+      GOVERNANCE    COMPOSITION      LEARNING
+          └──────────────┼──────────────┘
+                         ↓
+                 INTELLIGENCE GRAPH
+                         ↓
+        hierarchy · graph · recursion
+        composition · cross-domain
+                         ↓
+                    VALIDATION
+                         ↓
+                    USER OUTPUT
 ```
 
-## Core rule
+The hierarchy is progressive rather than a fixed execution pipeline. The graph permits lateral relationships. The composition engine chooses valid intelligence combinations and execution order. Recursive paths may reuse validated outputs. Outcome, learning, adaptation, discovery, and meta-intelligence feed back into Iris governance.
 
-Every number shown anywhere in the app must trace to a row in a `plaid_raw_*`
-table (an untouched Plaid API response) or a row in `calculation_audit_log`
-(a logged, reproducible calculation on stored data). No seeded data, no
-hardcoded fixtures, no client-side invented numbers — enforced structurally:
-`backend/src/services/sync.ts` is the only code path allowed to write
-transaction/account/balance rows.
+### Intelligence capability families
 
-## First-time setup
+The registry is extensible and is not a hard intelligence-depth ceiling. Current architecture covers data integrity, semantics, relationships, temporal reasoning, behavior, patterns/anomalies, explanation, causal/mechanistic reasoning, prediction, scenarios/counterfactuals, decisions, recommendations, action planning, outcomes, learning, adaptation, emergent discovery, and meta-intelligence.
 
-1. **Supabase**: open the SQL editor in your Supabase project and run
-   `supabase/migrations/001_init_schema.sql`.
-2. **Backend**: `cd backend && cp .env.example .env`, fill in your Plaid
-   sandbox credentials and Supabase service-role key, then `npm install && npm run dev`.
-3. **Frontend**: `cd frontend && cp .env.example .env.local`, fill in your
-   Supabase URL/anon key, then `npm install && npm run dev`.
-4. Sign up in the app (Supabase Auth), connect a sandbox card via Plaid
-   Link, and confirm the dashboard populates from real synced data —
-   an empty dashboard before connecting is correct behavior, not a bug.
+Every operation is evidence-gated and lineage-aware. Observed facts, calculated values, inferences, limitations, and insufficient evidence remain distinct.
 
-## Deploying (Render)
+## 100% data integrity contract
 
-- **Backend** → Render Web Service, runtime Node, build `npm install && npm run build`,
-  start `npm start`, pointed at this repo's `backend/` directory, with the
-  same env vars as `.env.example` set in the Render dashboard (never commit `.env`).
-- **Frontend** → Render Static Site, build `npm install && npm run build`,
-  publish path `dist`, pointed at `frontend/`, with `VITE_*` env vars set
-  at build time.
-- Set `PLAID_WEBHOOK_URL` on the backend to `https://<your-backend>.onrender.com/webhooks/plaid`
-  once the backend has a stable Render URL, and register that same URL in
-  the Plaid dashboard.
+Intelligence certification is downstream of data certification. The implementation must prove, in order:
 
-## What's intentionally not built yet
+1. Plaid transmitted the authorized data expected for the connected institution/account.
+2. Supabase received the transmitted observations.
+3. Supabase preserved the observations without unexplained loss, duplication, or corruption.
+4. Supabase canonicalization mapped source observations correctly.
+5. Supabase supplied all required canonical data to Iris.
+6. Iris received the required canonical fields.
+7. Every applicable user-data field is mapped to the Iris presentation model.
+8. Every applicable displayed value reconciles to Supabase or to an explicitly declared deterministic derivation.
+9. Every intelligence input and output is traceable through bidirectional lineage.
+10. Known integrity failures are surfaced, constrained, or blocked; Iris never guesses through an evidence failure.
 
-- `category_mapping` table is seeded empty — the Plaid PFC → subdomain
-  mapping is real taxonomy work for the team, not something to auto-generate.
-- Liabilities/Income/Investments sync and the cross-product intelligence
-  features (interest-cost attribution, safe-to-spend, etc.) — `sync.ts`
-  currently pulls Accounts, Balance, and Transactions; extend it product by
-  product, following the same raw-mirror-then-normalize pattern.
-- Iris inline explanations and the LLM-backed conversational assistant —
-  by design, built last, once the Intelligence Engine has enough surface
-  area for it to answer from (per the build sequence in the architecture doc).
-- Encryption at rest for `plaid_access_token` — currently stored plaintext
-  in Supabase for scaffold simplicity; before any real user data, wrap this
-  in Supabase Vault or app-layer envelope encryption.
+“All data” means all applicable user financial data represented by the canonical Supabase model, not irrelevant implementation metadata or protected credentials.
+
+## Lineage contract
+
+```text
+provider observation
+  → Supabase raw evidence
+  → Supabase canonical field/record
+  → Iris input
+  → intelligence node(s)
+  → derived result
+  → validation
+  → Iris output
+  → rendered value
+```
+
+The reverse path must also be possible:
+
+```text
+rendered value → API output → intelligence → inputs → canonical Supabase field → raw observation
+```
+
+No intelligence result may be presented as a provider observation when it is actually calculated or inferred.
+
+## Governance contract
+
+Iris governs selection, composition, ordering, evidence sufficiency, contradiction handling, validation, explanation, monitoring, learning, improvement discovery, and revalidation. There is no separate customer-facing or admin-only intelligence system.
+
+Learning can propose improvements, but production intelligence cannot silently self-modify. Candidate changes require validation and governed promotion. Intelligence cannot mutate Supabase source truth merely because a derived conclusion changed.
+
+## Connection
+
+The only financial-provider interaction exposed to the user is the connection flow in the Iris dashboard. Plaid Link creates the authorized connection; backend ingestion persists provider observations into Supabase. Users then return to Iris for all data, intelligence, evidence, and explanations.
+
+## Safety boundary
+
+This remains read-only financial intelligence. No money movement is enabled by the intelligence engine. No fake/mock/seeded financial values are permitted. External knowledge is never silently treated as user financial evidence.
+
+## Development
+
+Backend: `backend/` — Express + TypeScript, provider ingestion, Supabase persistence, canonicalization, intelligence orchestration, lineage, validation, and Iris APIs.
+
+Frontend: `frontend/` — React + Vite, Supabase authentication, Iris dashboard, Plaid Link connection control, financial data presentation, and intelligence presentation.
+
+Database: `supabase/` — PostgreSQL schema and migrations.
+
+Before declaring the system 100% live, execute the runtime proof across the real authorized ingestion path and then perform the full line-by-line system audit and final Iris-top-layer audit.
