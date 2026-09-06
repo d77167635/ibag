@@ -1,36 +1,7 @@
 import { useMemo, useState } from "react";
 
-const TIER_ROOTS: Record<string, string[]> = {
-  "01 · Command": ["narrative", "generated_at", "intelligence_gate", "integrity"],
-  "02 · Financial State": ["layer_metrics.net_worth", "layer_metrics.debt_health", "financial_state"],
-  "03 · Cash Flow": ["layer_metrics.cash_flow", "layer_metrics.cash_flow_safety", "layer_metrics.forward_projection", "layer_temporal"],
-  "04 · Spending": ["layer_metrics.spending_by_domain", "layer_metrics.spending_hierarchy", "layer_metrics.anomalies", "layer_behavioral"],
-  "05 · iBag": ["layer_metrics.roundup_projection"],
-  "06 · Evidence": ["evidence_boundary", "source_fidelity", "provider_lineage", "evidence_graph", "uncertainty", "validation", "plaid_iris_field_map"],
-  "07 · Intelligence": ["intelligence_atlas", "intelligence_composition", "layer_composition", "layer_metrics.provider_domains", "plaid_iris_field_map"],
-  "08 · Behavior": ["layer_behavioral", "layer_temporal", "layer_metrics.anomalies"],
-  "09 · Reasoning": ["layer_reasoning", "causal_analysis", "intelligence_graph", "investigations"],
-  "10 · Decisions": ["decision_graph", "decision_intelligence", "consequence_model", "optimization_intelligence", "goal_intelligence"],
-  "11 · Simulation": ["counterfactual_intelligence"],
-  "12 · Maximum Intelligence": ["layer_max_intelligence", "higher_order_synthesis", "adversarial_reasoning", "meta_intelligence", "iris_governor", "iris_feature_registry"],
-};
-
-const SHARED_ROOTS = new Set(["layer_behavioral", "layer_temporal", "layer_metrics.anomalies", "plaid_iris_field_map"]);
-
-function getAt(root: any, path: string) { return path.split(".").reduce((value, key) => value == null ? undefined : value[key], root); }
-function flatten(value: any, path: string, inheritedEvidence?: string): Array<{ path: string; value: any; evidence?: string; type: string }> {
-  const evidence = value && typeof value === "object" && typeof value.evidence_state === "string" ? value.evidence_state : inheritedEvidence;
-  if (value === null || value === undefined || typeof value !== "object") return [{ path, value, evidence, type: value === null ? "null" : typeof value }];
-  if (Array.isArray(value)) {
-    const rows: Array<{ path: string; value: any; evidence?: string; type: string }> = [{ path, value: `[${value.length} items]`, evidence, type: "array" }];
-    value.forEach((item, index) => rows.push(...flatten(item, `${path}[${index}]`, evidence)));
-    return rows;
-  }
-  const rows: Array<{ path: string; value: any; evidence?: string; type: string }> = [{ path, value: "{object}", evidence, type: "object" }];
-  Object.keys(value).sort().forEach(key => rows.push(...flatten(value[key], path ? `${path}.${key}` : key, evidence)));
-  return rows;
-}
 function formatExact(value: any) { if (typeof value === "string") return value; if (value === undefined) return "undefined"; return JSON.stringify(value); }
+
 function FieldTree({ value, path, evidence }: { value: any; path: string; evidence?: string }) {
   const [open, setOpen] = useState(false);
   const currentEvidence = value && typeof value === "object" && typeof value.evidence_state === "string" ? value.evidence_state : evidence;
@@ -39,38 +10,51 @@ function FieldTree({ value, path, evidence }: { value: any; path: string; eviden
   return <details className="iris-field-node" open={open} onToggle={e => setOpen(e.currentTarget.open)}><summary><code>{path}</code><span>{Array.isArray(value) ? `[${value.length}]` : `{${entries.length}}`}</span>{currentEvidence && <small>{currentEvidence}</small>}</summary><div className="iris-field-children">{entries.map(([key, child]) => <FieldTree key={`${path}.${key}`} value={child} path={`${path}.${key}`} evidence={currentEvidence}/>)}</div></details>;
 }
 
-function PlaidFieldExplorer({ map }: { map: any }) {
-  const [product, setProduct] = useState<string>("all");
-  const [onlyMapped, setOnlyMapped] = useState(false);
-  const products = Object.keys(map?.mapping ?? {});
-  const fields = (map?.fields ?? []).filter((field: any) => product === "all" || field.product === product).filter((field: any) => !onlyMapped || (field.iris_layers?.length ?? 0) > 0);
+function SourceFieldExplorer({ architecture }: { architecture: any }) {
+  const [product, setProduct] = useState("all");
+  const [query, setQuery] = useState("");
+  const [showProtected, setShowProtected] = useState(false);
+  const fields = (architecture?.provider_payload_fields ?? []).filter((field: any) => {
+    if (product !== "all" && field.product !== product) return false;
+    if (!showProtected && field.protected) return false;
+    return !query || `${field.product} ${field.path} ${field.field_name}`.toLowerCase().includes(query.toLowerCase());
+  });
+  const products = architecture?.products_and_capabilities ?? [];
   return <div className="iris-plaid-field-explorer">
-    <div className="iris-complete-field-controls"><strong>Plaid → Iris exact field lineage</strong><span>{map?.counts?.unique_fields ?? 0} unique fields · {map?.counts?.field_occurrences ?? 0} occurrences · {map?.counts?.data_records ?? 0} data records</span></div>
-    <div className="iris-complete-field-controls"><select value={product} onChange={e => setProduct(e.target.value)}><option value="all">All 8 Plaid products</option>{products.map(p => <option key={p} value={p}>{p}</option>)}</select><button type="button" onClick={() => setOnlyMapped(v => !v)}>{onlyMapped ? "Show all fields" : "Show mapped fields only"}</button></div>
-    <div className="iris-field-tier"><summary><strong>Every exact provider field</strong><span>{fields.length}</span></summary><div>{fields.map((field: any) => <details key={field.field_id} className="iris-field-node"><summary><code>{field.product}:{field.path}</code><span>{field.field_id}</span><small>{field.evidence_state}</small></summary><div className="iris-field-children"><div className="iris-field-row"><code>data_id</code><span className="iris-field-value">{field.data_id}</span></div><div className="iris-field-row"><code>source_observation_id</code><span className="iris-field-value">{field.source_observation_id}</span></div><div className="iris-field-row"><code>item_id</code><span className="iris-field-value">{field.item_id}</span></div><div className="iris-field-row"><code>value</code><span className="iris-field-value">{formatExact(field.value)}</span></div><div className="iris-field-row"><code>iris_layers</code><span className="iris-field-value">{(field.iris_layers ?? []).join(" · ")}</span></div><div className="iris-field-row"><code>lineage</code><span className="iris-field-value">{field.lineage}</span></div></div></details>)}</div></div>
+    <div className="iris-complete-field-controls"><strong>Complete Plaid source-field universe</strong><span>{architecture?.counts?.unique_provider_fields ?? 0} unique provider fields · {architecture?.counts?.records ?? 0} current records · max payload depth {architecture?.counts?.max_payload_depth ?? 0}</span></div>
+    <div className="iris-complete-field-controls"><select value={product} onChange={e => setProduct(e.target.value)}><option value="all">All observed products / capabilities</option>{products.map((p: string) => <option key={p} value={p}>{p}</option>)}</select><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search exact provider field name or path"/><button type="button" onClick={() => setShowProtected(v => !v)}>{showProtected ? "Hide protected fields" : "Show protected-field metadata"}</button></div>
+    <div className="iris-field-tier"><summary><strong>Provider fields — unchanged names</strong><span>{fields.length}</span></summary><div>{fields.map((field: any) => <details key={field.field_id} className="iris-field-node"><summary><code>{field.product}:{field.path}</code><span>{field.field_name}</span><small>{field.evidence_state}</small></summary><div className="iris-field-children"><div className="iris-field-row"><code>exact_provider_field_name</code><span className="iris-field-value">{field.exact_provider_field_name}</span></div><div className="iris-field-row"><code>source_table</code><span className="iris-field-value">{field.source_table}</span></div><div className="iris-field-row"><code>source_record_id</code><span className="iris-field-value">{field.source_record_id}</span></div><div className="iris-field-row"><code>item_id</code><span className="iris-field-value">{field.item_id}</span></div><div className="iris-field-row"><code>value</code><span className="iris-field-value">{field.protected ? "[protected field value not exposed]" : formatExact(field.value)}</span></div><div className="iris-field-row"><code>canonical_path</code><span className="iris-field-value">{field.canonical_path}</span></div><div className="iris-field-row"><code>lineage</code><span className="iris-field-value">{field.lineage}</span></div></div></details>)}</div></div>
+  </div>;
+}
+
+function DerivedFieldExplorer({ architecture }: { architecture: any }) {
+  const [domain, setDomain] = useState("all");
+  const fields = (architecture?.derived_fields ?? []).filter((field: any) => domain === "all" || field.domain === domain);
+  const domains = architecture?.domains ?? [];
+  return <div className="iris-plaid-field-explorer">
+    <div className="iris-complete-field-controls"><strong>Iris additive intelligence fields</strong><span>{architecture?.derived_field_count ?? 0} derived fields · {architecture?.domains?.length ?? 0} domains · {architecture?.subdomains?.length ?? 0} domain/analysis paths · operations: {(architecture?.operations ?? []).join(", ") || "none"}</span></div>
+    <div className="iris-complete-field-controls"><select value={domain} onChange={e => setDomain(e.target.value)}><option value="all">All Iris intelligence domains</option>{domains.map((d: string) => <option key={d} value={d}>{d}</option>)}</select></div>
+    <div className="iris-field-tier"><summary><strong>Derived fields</strong><span>{fields.length}</span></summary><div>{fields.map((field: any) => <details key={field.field_id} className="iris-field-node"><summary><code>{field.path}</code><span>{field.domain}</span><small>{field.evidence_state}</small></summary><div className="iris-field-children"><div className="iris-field-row"><code>field_name</code><span className="iris-field-value">{field.field_name}</span></div><div className="iris-field-row"><code>subdomain / analysis</code><span className="iris-field-value">{field.subdomain}</span></div><div className="iris-field-row"><code>analysis_id</code><span className="iris-field-value">{field.analysis_id ?? "not mapped"}</span></div><div className="iris-field-row"><code>operation</code><span className="iris-field-value">{field.operation}</span></div><div className="iris-field-row"><code>value</code><span className="iris-field-value">{formatExact(field.value)}</span></div><div className="iris-field-row"><code>lineage</code><span className="iris-field-value">{formatExact(field.lineage)}</span></div></div></details>)}</div></div>
   </div>;
 }
 
 export function IrisCompleteFieldMap({ intel }: { intel: any }) {
-  const [showAll, setShowAll] = useState(false);
-  const mapping = useMemo(() => {
-    const assigned = new Set<string>();
-    const tiers = Object.entries(TIER_ROOTS).map(([tier, prefixes]) => {
-      const entries = prefixes.filter(prefix => getAt(intel, prefix) !== undefined).map(prefix => { assigned.add(prefix); return { prefix, value: getAt(intel, prefix) }; });
-      return { tier, entries };
-    });
-    const allPaths = Object.keys(intel ?? {});
-    const mappedTopLevel = new Set<string>(Array.from(assigned).map(path => path.split(".")[0]));
-    const unmapped = allPaths.filter(path => !mappedTopLevel.has(path));
-    return { tiers, unmapped };
-  }, [intel]);
-  const flattenedCount = useMemo(() => mapping.tiers.reduce((sum, tier) => sum + tier.entries.reduce((n, entry) => n + flatten(entry.value, entry.prefix).length, 0), 0), [mapping]);
-  const sharedCount = mapping.tiers.reduce((n, tier) => n + tier.entries.filter(entry => SHARED_ROOTS.has(entry.prefix)).length, 0);
-  const plaidMap = intel?.plaid_iris_field_map;
+  const plaidArchitecture = intel?.plaid_iris_field_map?.provider_field_universe;
+  const irisArchitecture = intel?.iris_field_architecture;
+  const sourceCount = plaidArchitecture?.counts?.total_fields ?? plaidArchitecture?.counts?.unique_provider_fields ?? 0;
+  const derivedCount = irisArchitecture?.derived_field_count ?? 0;
+  const integrity = useMemo(() => ({
+    sourceFieldsPreserved: Boolean(plaidArchitecture?.exact_provider_field_names),
+    sourceValuesExact: Boolean(plaidArchitecture?.exact_provider_values),
+    noFabricatedValues: plaidArchitecture?.fabricated_values === false,
+    additiveDerivedFields: irisArchitecture?.source_model === "Plaid fields are Iris input fields; Iris-derived fields are additive.",
+    dynamicDepth: plaidArchitecture?.tier_policy?.includes("dynamic") === true,
+  }), [plaidArchitecture, irisArchitecture]);
   return <section className="iris-complete-field-map">
-    <div className="iris-complete-field-header"><div><span className="eyebrow">COMPLETE INTELLIGENCE FIELD MAP</span><h2>Plaid provider evidence → Iris, field by field</h2><p>Iris now consumes the current observed Plaid evidence and preserves the exact provider value while attaching stable data IDs, field IDs, source-observation IDs, Item lineage, and Iris-layer mappings. Provider values are not replaced by interpretations.</p></div><div className="iris-complete-field-stats"><b>{flattenedCount.toLocaleString()}</b><span>mapped Iris fields / nodes</span><b>{mapping.unmapped.length}</b><span>unmapped top-level roots</span></div></div>
-    {plaidMap && <PlaidFieldExplorer map={plaidMap}/>} 
-    <div className="iris-complete-field-controls"><button type="button" onClick={() => setShowAll(v => !v)}>{showAll ? "Hide Iris exact field explorer" : "Open Iris exact field explorer"}</button><span>{sharedCount ? `${sharedCount} shared mapping${sharedCount === 1 ? "" : "s"}` : "No shared mappings"}</span></div>
-    {showAll && <div className="iris-complete-field-body">{mapping.tiers.map(({ tier, entries }) => <details key={tier} className="iris-field-tier"><summary><strong>{tier}</strong><span>{entries.length} mapped source group{entries.length === 1 ? "" : "s"}</span></summary><div>{entries.map(entry => <FieldTree key={entry.prefix} value={entry.value} path={entry.prefix}/>)}</div></details>)}<details className="iris-field-tier iris-field-unmapped"><summary><strong>Coverage check · unmapped roots</strong><span>{mapping.unmapped.length}</span></summary>{mapping.unmapped.length ? <div>{mapping.unmapped.map(root => <FieldTree key={root} value={intel[root]} path={root}/>)}</div> : <p>PASS — every top-level field returned by the current Iris intelligence payload is assigned to at least one governing tier.</p>}</details></div>}
+    <div className="iris-complete-field-header"><div><span className="eyebrow">FIELD-FIRST INTELLIGENCE ARCHITECTURE</span><h2>Plaid fields → Iris fields → intelligence domains → products</h2><p>Plaid is the complete provider/source field architecture. Iris preserves every applicable Plaid source field and adds new derived fields produced by evidence-gated intelligence domains and analyses. Products consume this field universe; products are not architecture tiers.</p></div><div className="iris-complete-field-stats"><b>{sourceCount.toLocaleString()}</b><span>Plaid source fields</span><b>{derivedCount.toLocaleString()}</b><span>Iris-derived fields</span></div></div>
+    <div className="iris-field-tier"><summary><strong>Architecture integrity</strong><span>{Object.values(integrity).every(Boolean) ? "PASS" : "LIMITED"}</span></summary><div>{Object.entries(integrity).map(([key, value]) => <div className="iris-field-row" key={key}><code>{key}</code><span className="iris-field-value">{value ? "PASS" : "LIMITED"}</span></div>)}</div></div>
+    {plaidArchitecture && <SourceFieldExplorer architecture={plaidArchitecture}/>} 
+    {irisArchitecture && <DerivedFieldExplorer architecture={irisArchitecture}/>} 
+    {!plaidArchitecture && <div className="iris-field-tier"><summary><strong>Source field architecture unavailable</strong></summary><p>Current intelligence did not return the complete provider field universe.</p></div>}
   </section>;
 }
