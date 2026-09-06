@@ -40,12 +40,13 @@ export async function computeFullIntelligence(userId: string) {
   const canonical = await getCanonicalTransactions(userId, canonical90Start);
   const integrity = validateCanonicalIntelligenceInput(canonical);
   const current30Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 30 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const prior30Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 60 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
   const current30 = canonical.filter(tx => tx.posted_date >= current30Start);
+  const prior30 = canonical.filter(tx => tx.posted_date >= prior30Start && tx.posted_date < current30Start);
   const economicCurrent = computeEconomicCashFlow(current30);
   const roundupProjection = computeRoundupProjectionFromTransactions(canonical);
   const spendingByDomain = computeSpendingByDomainFromTransactions(canonical, 30, evidenceBoundary);
   const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical, 30, evidenceBoundary);
-  const prior30 = canonical.filter(tx => tx.posted_date < current30Start);
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
   const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: evidenceBoundary, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
