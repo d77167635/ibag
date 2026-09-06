@@ -1,11 +1,6 @@
 import type { IrisAnalysisDefinition } from "./analysisAtlas.js";
 
-export type IrisFormalLevel = {
-  level: number;
-  name: string;
-  responsibility: string;
-  governs: string[];
-};
+export type IrisFormalLevel = { level: number; name: string; responsibility: string; governs: string[] };
 
 export const IRIS_FORMAL_LEVELS: IrisFormalLevel[] = [
   { level: 1, name: "IRIS", responsibility: "Master intelligence, governance, evidence, composition, validation, and final synthesis", governs: ["all"] },
@@ -22,12 +17,25 @@ export const IRIS_FORMAL_LEVELS: IrisFormalLevel[] = [
   { level: 12, name: "Meta-Intelligence", responsibility: "Reason about Iris itself: capability, limitations, evidence quality, strategy, and intelligence-generation quality", governs: ["meta"] },
 ];
 
+/** Capability taxonomy only. A listed subdomain is never evidence of a user's data. */
+export const IRIS_DOMAIN_SUBDOMAINS: Record<string, string[]> = {
+  auth: ["institution_connection", "item_state", "account_access", "consent_context", "provider_status", "refresh_state", "connection_integrity"],
+  transactions: ["transaction_identity", "lifecycle", "date_time", "amount", "currency", "merchant", "category", "payment_channel", "pending_posted", "purchase", "refund", "income", "transfer", "withdrawal", "fee", "loan_payment", "recurring", "cash_flow", "roundup", "behavior", "anomaly", "transaction_relationships"],
+  balance: ["current_balance", "available_balance", "cash_position", "historical_balance", "balance_change", "liquidity", "overdraft", "balance_integrity", "balance_transaction_relationships"],
+  identity: ["owner", "account_holder", "identity_match", "profile_context", "identity_consistency", "identity_lineage"],
+  assets: ["asset_inventory", "asset_value", "cash_assets", "reported_assets", "asset_change", "asset_concentration", "asset_liquidity", "asset_relationships"],
+  liabilities: ["liability_inventory", "credit", "mortgage", "student", "balance", "interest_cost", "utilization", "payment", "maturity", "debt_change", "debt_burden", "debt_relationships"],
+  investments: ["portfolio", "holding", "security", "quantity", "market_value", "institution_value", "allocation", "concentration", "performance", "investment_change", "investment_risk", "investment_relationships"],
+  statements: ["statement_identity", "statement_period", "statement_account", "statement_balance", "statement_transaction", "statement_reconciliation", "statement_history", "document_availability", "statement_relationships"],
+};
+
 export type RecursiveIntelligenceNode = {
   id: string;
   parent_id: string | null;
   level: number;
   level_name: string;
   domain: string | null;
+  subdomain: string | null;
   family: string;
   name: string;
   purpose: string;
@@ -39,31 +47,33 @@ export type RecursiveIntelligenceNode = {
   reusable_source_access: true;
 };
 
-const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const domainFor = (definition: IrisAnalysisDefinition): string | null => {
-  const known = new Set(["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"]);
-  return known.has(definition.family) ? definition.family : null;
-};
-
-function formalLevelFor(definition: IrisAnalysisDefinition): number {
-  if (domainFor(definition)) return 2;
+const domainFor = (definition: IrisAnalysisDefinition): string | null => IRIS_FORMAL_LEVELS[1].governs.includes(definition.family) ? definition.family : null;
+const formalLevelFor = (definition: IrisAnalysisDefinition): number => {
+  const domain = domainFor(definition);
+  if (domain) return 2;
   if (["relationship", "causal", "integrity", "evidence", "explainability"].includes(definition.output)) return 4;
   if (["forecast", "projection", "trajectory"].includes(definition.output)) return 5;
   if (["scenario", "simulation", "counterfactual"].includes(definition.output)) return 6;
   if (["decision", "optimization", "goal"].includes(definition.output)) return 7;
   if (["outcome", "validation"].includes(definition.output)) return 8;
-  if (["learning"].includes(definition.output)) return 9;
-  if (["adaptive"].includes(definition.output)) return 10;
-  if (["emergent"].includes(definition.output)) return 11;
-  if (["meta"].includes(definition.output)) return 12;
+  if (definition.output === "learning") return 9;
+  if (definition.output === "adaptive") return 10;
+  if (definition.output === "emergent") return 11;
+  if (definition.output === "meta") return 12;
   return 3;
+};
+
+function subdomainFor(definition: IrisAnalysisDefinition): string | null {
+  const domain = domainFor(definition);
+  if (!domain) return null;
+  const text = `${definition.name} ${definition.purpose}`.toLowerCase();
+  return IRIS_DOMAIN_SUBDOMAINS[domain].find(s => text.includes(s.replace(/_/g, " "))) ?? IRIS_DOMAIN_SUBDOMAINS[domain][0] ?? null;
 }
 
 /**
- * Builds an explicit 12-level governance hierarchy while allowing unlimited
- * subordinate analytical depth. Runtime limits are resource safeguards, not
- * semantic intelligence-level limits. Source evidence remains reusable at
- * every node; derived intelligence never replaces original provider evidence.
+ * Maximum-depth hierarchy: twelve formal governance levels plus unlimited
+ * subordinate branches. A resource budget may stop materialization, but it
+ * never declares that intelligence beyond that point is impossible.
  */
 export function buildRecursiveIntelligenceHierarchy(
   definitions: Array<IrisAnalysisDefinition & { evidence_ready?: boolean }>,
@@ -71,19 +81,20 @@ export function buildRecursiveIntelligenceHierarchy(
 ) {
   const maxGeneratedNodes = Math.max(1000, options.maxGeneratedNodes ?? 20000);
   const nodes: RecursiveIntelligenceNode[] = [];
-  const byParent = new Map<string, string[]>();
+  const byPath = new Set<string>();
+  const base: RecursiveIntelligenceNode[] = [];
 
   for (const definition of definitions) {
     if (nodes.length >= maxGeneratedNodes) break;
     const level = formalLevelFor(definition);
     const domain = domainFor(definition);
-    const id = `L${level}:${definition.id}`;
-    nodes.push({
-      id,
-      parent_id: level === 2 ? "L1:IRIS" : `L${level - 1}:governor`,
+    const node: RecursiveIntelligenceNode = {
+      id: `L${level}:${definition.id}`,
+      parent_id: level === 2 ? "L1:IRIS" : null,
       level,
       level_name: IRIS_FORMAL_LEVELS[level - 1]?.name ?? "Analytical Intelligence",
       domain,
+      subdomain: subdomainFor(definition),
       family: definition.family,
       name: definition.name,
       purpose: definition.purpose,
@@ -91,26 +102,24 @@ export function buildRecursiveIntelligenceHierarchy(
       output: definition.output,
       evidence_ready: definition.evidence_ready === true,
       depth: 1,
-      path: ["IRIS", IRIS_FORMAL_LEVELS[level - 1]?.name ?? "Analytical Intelligence", definition.name],
+      path: ["IRIS", IRIS_FORMAL_LEVELS[level - 1]?.name ?? "Analytical Intelligence", ...(domain ? [domain] : []), definition.name],
       reusable_source_access: true,
-    });
+    };
+    nodes.push(node); base.push(node); byPath.add(node.id);
   }
 
-  const base = [...nodes];
-  let generatedDepth = 0;
-  // Recursively compose compatible analytical definitions. Each generated node
-  // is a distinct intelligence branch; cycles are prevented by canonical path.
+  let deepestGeneratedPath = 1;
   const walk = (parent: RecursiveIntelligenceNode, source: RecursiveIntelligenceNode[], depth: number) => {
-    if (nodes.length >= maxGeneratedNodes || depth > definitions.length) return;
+    if (nodes.length >= maxGeneratedNodes || depth > source.length + 1) return;
     for (const candidate of source) {
       if (nodes.length >= maxGeneratedNodes) break;
-      if (candidate.id === parent.id || candidate.path.includes(candidate.name)) continue;
+      if (candidate.id === parent.id || parent.path.includes(candidate.name)) continue;
       const shared = parent.inputs.filter(input => candidate.inputs.includes(input));
       const outputFeeds = parent.output === candidate.inputs[0] || candidate.inputs.includes(parent.output);
       const crossDomain = parent.domain !== null && candidate.domain !== null && parent.domain !== candidate.domain;
       if (!shared.length && !outputFeeds && !crossDomain) continue;
       const childId = `${parent.id}>${candidate.id}`;
-      if (nodes.some(n => n.id === childId)) continue;
+      if (byPath.has(childId)) continue;
       const child: RecursiveIntelligenceNode = {
         ...candidate,
         id: childId,
@@ -121,33 +130,31 @@ export function buildRecursiveIntelligenceHierarchy(
         path: [...parent.path, candidate.name],
         inputs: [...new Set([...parent.inputs, ...candidate.inputs])],
       };
-      nodes.push(child);
-      const children = byParent.get(parent.id) ?? [];
-      children.push(child.id);
-      byParent.set(parent.id, children);
-      generatedDepth = Math.max(generatedDepth, depth);
+      nodes.push(child); byPath.add(childId); deepestGeneratedPath = Math.max(deepestGeneratedPath, depth);
       walk(child, source, depth + 1);
     }
   };
   for (const node of base) walk(node, base, 2);
 
   return {
-    hierarchy_version: "IRIS_MAXIMUM_INTELLIGENCE_HIERARCHY_V1",
+    hierarchy_version: "IRIS_MAXIMUM_INTELLIGENCE_HIERARCHY_V2",
     formal_levels: IRIS_FORMAL_LEVELS,
-    semantic_depth_policy: "Unlimited subordinate depth until no additional meaningful evidence-supported intelligence can be derived; no fixed semantic level ceiling.",
+    domain_subdomains: IRIS_DOMAIN_SUBDOMAINS,
+    semantic_depth_policy: "Unlimited subordinate depth until no additional meaningful intelligence can be derived from available evidence and validated intelligence.",
     runtime_safeguard: { max_generated_nodes: maxGeneratedNodes, safeguard_type: "resource_budget_only", does_not_define_intelligence_depth: true },
-    source_reuse_policy: "Every level may access original observed provider evidence, canonical data, and validated intelligence from any prior level; provenance must remain attached.",
-    evidence_policy: "Generated compatibility is never evidence. An intelligence node is evidence-ready only when every required input is evidence-ready.",
+    source_reuse_policy: "Every level and branch may access original observed provider evidence, canonical data, and validated intelligence from any prior level; provenance remains attached.",
+    evidence_policy: "Capability, compatibility, and theoretical composition are never evidence. A branch is evidence-ready only when every required input is evidence-ready.",
     feedback_loop: "Outcome → Learning → Adaptive → Emergent → Meta → Iris governance",
     nodes,
     counts: {
       formal_levels: IRIS_FORMAL_LEVELS.length,
+      domains: Object.keys(IRIS_DOMAIN_SUBDOMAINS).length,
+      subdomains: Object.values(IRIS_DOMAIN_SUBDOMAINS).reduce((n, values) => n + values.length, 0),
       nodes: nodes.length,
       base_nodes: base.length,
       generated_nodes: Math.max(0, nodes.length - base.length),
-      deepest_generated_path: generatedDepth,
+      deepest_generated_path: deepestGeneratedPath,
       evidence_ready: nodes.filter(n => n.evidence_ready).length,
-      domains: new Set(nodes.map(n => n.domain).filter(Boolean)).size,
     },
     generated_without_financial_mutation: true,
     generated_without_provider_mutation: true,
