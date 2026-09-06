@@ -4,11 +4,11 @@ import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
 import { IrisAssistant } from "./components/IrisAssistant";
 import { IrisCommandSurface } from "./components/IrisCommandSurface";
+import { IrisSourceDataExplorer } from "./components/IrisSourceDataExplorer";
 import { PlaidDeepSurface } from "./components/PlaidDeepSurface";
 import "./iris-command-deck.css";
 import "./iris-hd.css";
 import "./styles/data-semantics.css";
-
 const accountControlStyle: React.CSSProperties={position:"fixed",right:20,bottom:18,zIndex:120,display:"flex",alignItems:"center",gap:9,padding:"7px 9px 7px 11px",border:"1px solid rgba(255,255,255,.11)",borderRadius:10,background:"rgba(7,9,14,.92)",boxShadow:"0 10px 30px rgba(0,0,0,.28)"};
 const accountEmailStyle:React.CSSProperties={maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#778198",font:"600 8px/1 Inter,system-ui,sans-serif"};
 const signOutStyle:React.CSSProperties={border:"1px solid rgba(255,255,255,.12)",borderRadius:7,padding:"6px 9px",background:"rgba(255,255,255,.035)",color:"#c5ccda",font:"700 8px/1 Inter,system-ui,sans-serif",letterSpacing:".06em",cursor:"pointer"};
@@ -22,5 +22,5 @@ export default function App(){const[session,setSession]=useState<Session|null>(n
  const account=<div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email??"Signed in"}</span><button aria-label="Sign out" style={signOutStyle} onClick={()=>void signOut()} disabled={signingOut}>{signingOut?"Signing out…":"Sign out"}</button></div>;
  const switcher=<div className="ia-mode-switch" role="navigation" aria-label="Workspace switcher"><button type="button" className={workspace==="iris"?"active":""} onClick={()=>navigate("iris")}>Iris</button><button type="button" className={workspace==="plaid"?"active":""} onClick={()=>navigate("plaid")}>Plaid</button></div>;
  if(workspace==="plaid")return <div className="app-workspace app-workspace-plaid"><PlaidDeepSurface/>{switcher}{account}<IrisAssistant/></div>;
- return <div className="app-workspace app-workspace-iris"><IrisCommandSurface page={irisPage} go={(p)=>navigate("iris",p)}/>{switcher}{account}<IrisAssistant/></div>;
+ return <div className="app-workspace app-workspace-iris"><IrisCommandSurface page={irisPage} go={(p)=>navigate("iris",p)}/>{irisPage==="iris/source"&&<IrisSourceDataExplorer/>}{switcher}{account}<IrisAssistant/></div>;
 }
