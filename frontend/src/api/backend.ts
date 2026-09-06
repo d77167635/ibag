@@ -29,6 +29,7 @@ export const api = {
   exchangePublicToken: (publicToken: string) => authedFetch("/link/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken }) }),
   getOverview: () => authedFetch("/dashboard/overview"),
   getIntelligence: getCanonicalIntelligence,
+  getIntelligenceValidation: () => authedFetch("/dashboard/intelligence/validation"),
   getIrisCatalog: () => authedFetch("/iris/catalog"),
   saveIrisCatalogSelection: (capabilityIds: string[]) => authedFetch("/iris/catalog/selection", { method: "PUT", body: JSON.stringify({ capability_ids: capabilityIds }) }),
   askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
