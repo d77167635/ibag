@@ -11,7 +11,7 @@ irisAdminRouter.use(requireAuth, requireIrisAdmin);
 irisAdminRouter.get("/iris/admin/status", async (req: AuthedRequest, res) => {
   try {
     const intelligence = await computeFullIntelligence(req.userId!);
-    const governor = intelligence?.layer_iris_governor ?? null;
+    const governor = intelligence?.iris_governor ?? null;
     res.json({
       admin: true,
       user_id: req.userId,
