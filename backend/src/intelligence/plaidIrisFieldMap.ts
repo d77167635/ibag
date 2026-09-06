@@ -52,6 +52,9 @@ export async function buildPlaidIrisFieldMap(userId: string) {
     tier_definitions: architecture.tier_definitions,
     counts: {
       ...architecture.counts,
+      data_records: architecture.counts.records,
+      unique_fields: architecture.counts.unique_provider_fields,
+      field_occurrences: architecture.counts.provider_payload_field_occurrences,
       canonical_products: canonicalProducts.length,
       canonical_products_with_current_fields: observedCanonical.length,
     },
