@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
-import { IrisWorkspaceV2 } from "./components/IrisWorkspaceV2";
+import { IrisWorkspaceV3 } from "./components/IrisWorkspaceV3";
 import "./iris-command-deck.css";
 import "./iris-hd.css";
 import "./styles/data-semantics.css";
@@ -32,15 +32,11 @@ export default function App() {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
       setSession(newSession);
     });
-    return () => {
-      active = false;
-      listener.subscription.unsubscribe();
-    };
+    return () => { active = false; listener.subscription.unsubscribe(); };
   }, []);
 
   if (!checkedAuth) return null;
   if (recovery && session) return <Auth recovery onRecoveryComplete={() => setRecovery(false)} />;
   if (!session) return <Auth />;
-
-  return <IrisWorkspaceV2 />;
+  return <IrisWorkspaceV3 />;
 }
