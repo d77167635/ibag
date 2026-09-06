@@ -12,101 +12,94 @@ export type IrisLayerComposition = {
   rationale: string;
   creates_new_analysis: boolean;
   proposed_analysis: { name: string; purpose: string; inputs: string[]; output: string } | null;
+  order: string[];
 };
 
-function unique(values: string[]) { return [...new Set(values.filter(Boolean))]; }
-function overlap(a: string[], b: string[]) { return a.filter(x => b.includes(x)); }
+const MAX_PATH_DEPTH = 6;
+const MAX_COMPOSITIONS = 192;
+const unique = (values: string[]) => [...new Set(values.filter(Boolean))];
+const overlap = (a: string[], b: string[]) => a.filter(x => b.includes(x));
+
 function compatible(a: IrisAnalysisDefinition, b: IrisAnalysisDefinition) {
-  const shared = overlap(a.inputs, b.inputs);
-  const related = a.family === b.family || shared.length >= 1 || a.output === b.output;
-  const forbidden = a.id === b.id;
-  return !forbidden && related;
-}
-function score(a: IrisAnalysisDefinition, b: IrisAnalysisDefinition, shared: string[], ready: boolean) {
-  let value = shared.length * 12;
-  if (a.family !== b.family) value += 18;
-  if (a.output !== b.output) value += 8;
-  if (ready) value += 20;
-  if (a.family === "synthesis" || b.family === "synthesis") value += 10;
-  return Math.min(100, value);
+  return a.id !== b.id && (a.family === b.family || overlap(a.inputs, b.inputs).length > 0 || a.output === b.output);
 }
 
-/**
- * Chooses analytical layers dynamically instead of assuming one layer is the
- * complete intelligence path. Compositions are proposals over real evidence;
- * they never create provider observations or financial facts.
- */
+function score(path: IrisAnalysisDefinition[], ready: Set<string>) {
+  const families = unique(path.map(d => d.family));
+  const outputs = unique(path.map(d => d.output));
+  const shared = path.reduce((sum, d, i) => sum + (i === 0 ? d.inputs.length : overlap(path[i - 1].inputs, d.inputs).length), 0);
+  const readyCount = path.filter(d => ready.has(d.id)).length;
+  return Math.min(100, shared * 8 + Math.max(0, families.length - 1) * 14 + Math.min(outputs.length, 4) * 5 + readyCount * 7 + Math.max(0, path.length - 1) * 3);
+}
+
+/** Bounded ordered path planner. It constructs real paths rather than claiming arbitrary composition in metadata. */
 export function buildLayerCompositionEngine(atlas: { definitions: IrisAnalysisDefinition[] }) {
   const definitions = atlas.definitions;
   const ready = new Set(definitions.filter((d: IrisAnalysisDefinition & { evidence_ready?: boolean }) => d.evidence_ready === true).map(d => d.id));
   const candidates: IrisLayerComposition[] = [];
-
-  for (let i = 0; i < definitions.length; i += 1) {
-    const a = definitions[i];
-    const singleReady = ready.has(a.id);
+  const seen = new Set<string>();
+  const add = (path: IrisAnalysisDefinition[]) => {
+    if (!path.length || path.length > MAX_PATH_DEPTH) return;
+    const ids = path.map(d => d.id);
+    const id = `path:${ids.join("->")}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    const families = unique(path.map(d => d.family));
+    const outputs = unique(path.map(d => d.output));
+    const sharedInputs = unique(path.flatMap((d, i) => i === 0 ? d.inputs : overlap(path[i - 1].inputs, d.inputs)));
+    const evidenceReady = path.every(d => ready.has(d.id));
+    const creates = path.length > 1 && families.length > 1 && outputs.length > 1;
     candidates.push({
-      id: `layer1:${a.id}`,
-      layer_ids: [a.id],
-      layer_names: [a.name],
-      families: [a.family],
-      shared_inputs: a.inputs,
-      outputs: [a.output],
-      evidence_ready: singleReady,
-      analytical_value: singleReady ? 55 : 20,
-      rationale: singleReady ? `${a.name} is directly evaluable from the currently certified evidence inputs.` : `${a.name} is a defined analytical capability but remains limited by missing evidence: ${a.inputs.join(", ")}.`,
-      creates_new_analysis: false,
-      proposed_analysis: null,
+      id,
+      layer_ids: ids,
+      layer_names: path.map(d => d.name),
+      families,
+      shared_inputs: sharedInputs,
+      outputs,
+      evidence_ready: evidenceReady,
+      analytical_value: score(path, ready),
+      rationale: evidenceReady ? `Ordered composition ${path.map(d => d.name).join(" → ")} is evaluable from currently ready analytical inputs.` : `Ordered composition is defined, but one or more required analytical layers remain evidence-limited.`,
+      creates_new_analysis: creates,
+      proposed_analysis: creates ? { name: path.map(d => d.name).join(" × "), purpose: `Cross-layer ordered analysis combining ${path.map(d => d.purpose.toLowerCase()).join("; ")}.`, inputs: unique(path.flatMap(d => d.inputs)), output: `${path[path.length - 1].output}_ordered_relationship` } : null,
+      order: ids,
     });
-    for (let j = i + 1; j < definitions.length; j += 1) {
-      const b = definitions[j];
-      if (!compatible(a, b)) continue;
-      const shared = overlap(a.inputs, b.inputs);
-      const bothReady = ready.has(a.id) && ready.has(b.id);
-      const families = unique([a.family, b.family]);
-      const outputs = unique([a.output, b.output]);
-      const crossDomain = a.family !== b.family;
-      const creates = crossDomain && shared.length > 0 && outputs.length > 1;
-      candidates.push({
-        id: `layer2:${a.id}+${b.id}`,
-        layer_ids: [a.id, b.id],
-        layer_names: [a.name, b.name],
-        families,
-        shared_inputs: shared,
-        outputs,
-        evidence_ready: bothReady,
-        analytical_value: score(a, b, shared, bothReady),
-        rationale: bothReady ? `Combining ${a.name} with ${b.name} creates a jointly evaluable relationship across ${families.join(" + ")}.` : `The combination is theoretically compatible, but at least one layer is evidence-limited until its required inputs are observed and certified.`,
-        creates_new_analysis: creates,
-        proposed_analysis: creates ? { name: `${a.name} × ${b.name}`, purpose: `Cross-layer analysis connecting ${a.purpose.toLowerCase()} with ${b.purpose.toLowerCase()}.`, inputs: unique([...a.inputs, ...b.inputs]), output: `${a.output}_relationship` } : null,
-      });
+  };
+  const walk = (path: IrisAnalysisDefinition[]) => {
+    if (candidates.length >= MAX_COMPOSITIONS || path.length >= MAX_PATH_DEPTH) return;
+    const last = path[path.length - 1];
+    for (const next of definitions) {
+      if (candidates.length >= MAX_COMPOSITIONS) break;
+      if (path.some(d => d.id === next.id) || !compatible(last, next)) continue;
+      const nextPath = [...path, next];
+      add(nextPath);
+      walk(nextPath);
     }
+  };
+  for (const start of definitions) {
+    if (candidates.length >= MAX_COMPOSITIONS) break;
+    add([start]);
+    walk([start]);
   }
-
   const ranked = candidates.sort((a, b) => b.analytical_value - a.analytical_value || a.id.localeCompare(b.id));
   const readyCompositions = ranked.filter(c => c.evidence_ready);
-  const newFeatureCandidates = ranked.filter(c => c.creates_new_analysis).slice(0, 24);
-  const nextBest = ranked.filter(c => !c.evidence_ready).slice(0, 12).map(c => ({ id: c.id, layer_names: c.layer_names, missing_capability: c.layer_ids.find(id => !ready.has(id)) ?? null, analytical_value: c.analytical_value, rationale: c.rationale }));
-
+  const newFeatureCandidates = ranked.filter(c => c.creates_new_analysis).slice(0, 48);
+  const nextBest = ranked.filter(c => !c.evidence_ready).slice(0, 24).map(c => ({ id: c.id, layer_names: c.layer_names, missing_capability: c.layer_ids.find(id => !ready.has(id)) ?? null, analytical_value: c.analytical_value, rationale: c.rationale }));
   return {
-    engine_version: "IRIS_LAYER_COMPOSITION_ENGINE_V1",
-    selection_policy: "Iris may select one layer, a pair, or a bounded multi-layer pathway according to evidence readiness, compatibility, incremental analytical value, and downstream uncertainty.",
-    compositions: ranked.slice(0, 96),
-    best_ready_compositions: readyCompositions.slice(0, 24),
+    engine_version: "IRIS_LAYER_COMPOSITION_ENGINE_V2",
+    max_path_depth: MAX_PATH_DEPTH,
+    max_compositions: MAX_COMPOSITIONS,
+    selection_policy: "Iris selects bounded ordered paths according to evidence readiness, semantic compatibility, incremental analytical value, and downstream uncertainty.",
+    compositions: ranked.slice(0, MAX_COMPOSITIONS),
+    best_ready_compositions: readyCompositions.slice(0, 48),
     next_best_missing_compositions: nextBest,
     new_analysis_features: newFeatureCandidates,
-    counts: {
-      one_layer: ranked.filter(c => c.layer_ids.length === 1).length,
-      two_layer: ranked.filter(c => c.layer_ids.length === 2).length,
-      evidence_ready: readyCompositions.length,
-      evidence_limited: ranked.length - readyCompositions.length,
-      new_analysis_features: newFeatureCandidates.length,
-    },
+    counts: { one_layer: ranked.filter(c => c.layer_ids.length === 1).length, two_layer: ranked.filter(c => c.layer_ids.length === 2).length, multi_layer: ranked.filter(c => c.layer_ids.length > 2).length, evidence_ready: readyCompositions.length, evidence_limited: ranked.length - readyCompositions.length, new_analysis_features: newFeatureCandidates.length },
     principles: [
       "A single layer may be selected when it answers the question directly.",
-      "Two compatible layers may be combined when their evidence and semantics support a relationship.",
-      "Additional layers should be added only when they contribute incremental analytical value.",
-      "Theoretical compatibility is never represented as observed evidence.",
-      "New analysis features are capability proposals until their required evidence is present.",
+      "Compatible layers may be composed in an explicit ordered path.",
+      "Paths are bounded to prevent uncontrolled combinatorial expansion.",
+      "Theoretical compatibility never becomes observed evidence.",
+      "New analysis remains a candidate until validated and explicitly promoted by an administrator.",
       "No provider observations, financial values, probabilities, or actions are fabricated or executed.",
     ],
     generation: { source: "Iris analysis atlas and evidence readiness", financial_values_created: false, fake_mock_or_seeded_data: false, provider_observations_created: false, execution_capability: false },
