@@ -6,6 +6,7 @@ import { IrisAssistant } from "./components/IrisAssistant";
 import { IrisCommandSurface } from "./components/IrisCommandSurface";
 import { PlaidCommandSurface } from "./components/PlaidCommandSurface";
 import "./iris-command-deck.css";
+import "./iris-hd.css";
 
 const accountControlStyle: React.CSSProperties={position:"fixed",right:20,bottom:18,zIndex:120,display:"flex",alignItems:"center",gap:9,padding:"7px 9px 7px 11px",border:"1px solid rgba(255,255,255,.11)",borderRadius:10,background:"rgba(7,9,14,.92)",boxShadow:"0 10px 30px rgba(0,0,0,.28)"};
 const accountEmailStyle:React.CSSProperties={maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#778198",font:"600 8px/1 Inter,system-ui,sans-serif"};
