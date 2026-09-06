@@ -20,11 +20,16 @@ function canonicalState(definition: (typeof CANONICAL_CATALOG)[number], observed
   return "not_available";
 }
 
-/**
- * Authenticated, read-only Plaid source surface.
- * The dashboard intentionally exposes ONLY the eight canonical Iris evidence
- * domains. The underlying source tables are not rewritten or transformed.
- */
+function topLevelFields(rows: any[]): string[] {
+  const fields = new Set<string>();
+  for (const row of rows) {
+    const payload = row?.raw_response;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) continue;
+    for (const key of Object.keys(payload)) fields.add(key);
+  }
+  return [...fields].sort();
+}
+
 plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: AuthedRequest, res) => {
   const [{ data: items, error }, { data: observations, error: observationError }, { data: rawProducts, error: rawProductError }, { data: rawTransactions, error: rawTransactionError }, { data: rawBalances, error: rawBalanceError }, { data: rawLiabilities, error: rawLiabilityError }, { data: accounts, error: accountError }] = await Promise.all([
     supabaseAdmin.from("plaid_items").select("id, user_id, institution_name, status, last_synced_at, plaid_access_token").eq("user_id", req.userId!),
@@ -46,13 +51,8 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
     observedByItem.set(row.item_id, set);
   }
 
-  // Transactions, balances, and liabilities have authoritative account-scoped
-  // raw tables. Do not also surface their generic product-observation mirrors,
-  // or the same provider evidence would be displayed/counting twice.
   const rawEvidence = [
-    ...(rawProducts ?? [])
-      .filter((r: any) => CANONICAL_SET.has(r.product) && !ACCOUNT_SCOPED_PRODUCTS.has(r.product))
-      .map((r: any) => ({ ...r, source_domain: r.product })),
+    ...(rawProducts ?? []).filter((r: any) => CANONICAL_SET.has(r.product) && !ACCOUNT_SCOPED_PRODUCTS.has(r.product)).map((r: any) => ({ ...r, source_domain: r.product })),
     ...(rawTransactions ?? []).map((r: any) => ({ ...r, product: "transactions", source_domain: "transactions" })),
     ...(rawBalances ?? []).map((r: any) => ({ ...r, product: "balance", source_domain: "balance" })),
     ...(rawLiabilities ?? []).map((r: any) => ({ ...r, product: "liabilities", source_domain: "liabilities" })),
@@ -87,6 +87,13 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
     return { ...definition, status: c.observed ? "observed" : items?.length ? c.active ? "active" : c.consented ? "consented" : c.available ? "available" : "not_available" : "not_connected", item_count: c.items, observed_item_count: c.observed, active_item_count: c.active, consented_item_count: c.consented, available_item_count: c.available, unavailable_item_count: c.unavailable };
   });
 
+  const canonicalEvidenceItem = itemSummaries.find((i) => CANONICAL_PRODUCTS.every((product) => i.products?.some((p: any) => p.key === product && p.status === "observed")))?.item_id ?? null;
+  const fieldInventory = Object.fromEntries(CANONICAL_PRODUCTS.map((product) => {
+    const rows = rawEvidence.filter((r: any) => r.product === product && r.item_id === canonicalEvidenceItem);
+    const fields = topLevelFields(rows);
+    return [product, { product, field_count: fields.length, fields, source_observation_count: rows.length, same_item: true, evidence_state: "observed" }];
+  }));
+
   res.json({
     catalog_version: "2026-09-05-canonical-8",
     source: "plaid_runtime_item_state_and_provider_domain_evidence",
@@ -96,7 +103,8 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
     accounts: accounts ?? [],
     provider_evidence: rawEvidence,
     provider_evidence_counts: Object.fromEntries(CANONICAL_PRODUCTS.map((p) => [p, rawEvidence.filter((r: any) => r.product === p).length])),
+    field_inventory: fieldInventory,
     product_state_legend: { observed: "Direct live Plaid domain response recorded as current evidence.", active: "Plaid reports the product active but a current provider-domain observation is not recorded.", consented: "Plaid reports consent without current observed evidence.", available: "Plaid reports availability without current observed evidence.", not_available: "No current provider state for this canonical domain." },
-    source_boundary: "This surface contains only the eight canonical Plaid/Iris evidence domains. No Iris interpretations, Round-Up controls, calculations, or non-canonical Plaid catalog products are included. Raw source-of-truth records are read only and are not rewritten by this route.",
+    source_boundary: "This surface contains only the eight canonical Plaid/Iris evidence domains. No Iris interpretations, Round-Up controls, calculations, or non-canonical Plaid catalog products are included. Raw source-of-truth records are read only and are not rewritten by this route. Field inventory names observed top-level response fields only; it does not claim that every nested optional field is present on every record.",
   });
 });
