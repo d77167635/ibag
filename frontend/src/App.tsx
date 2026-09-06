@@ -9,7 +9,7 @@ import { PlaidDeepSurface } from "./components/PlaidDeepSurface";
 import "./iris-command-deck.css";
 import "./iris-hd.css";
 import "./styles/data-semantics.css";
-const accountControlStyle: React.CSSProperties={position:"fixed",right:20,bottom:18,zIndex:120,display:"flex",alignItems:"center",gap:9,padding:"7px 9px 7px 11px",border:"1px solid rgba(255,255,255,.11)",borderRadius:10,background:"rgba(7,9,14,.92)",boxShadow:"0 10px 30px rgba(0,0,0,.28)"};
+const accountControlStyle: React.CSSProperties={position:"fixed",right:20,bottom:18,zIndex:2000,display:"flex",alignItems:"center",gap:9,padding:"7px 9px 7px 11px",border:"1px solid rgba(255,255,255,.11)",borderRadius:10,background:"rgba(7,9,14,.96)",boxShadow:"0 10px 30px rgba(0,0,0,.38)"};
 const accountEmailStyle:React.CSSProperties={maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#778198",font:"600 8px/1 Inter,system-ui,sans-serif"};
 const signOutStyle:React.CSSProperties={border:"1px solid rgba(255,255,255,.12)",borderRadius:7,padding:"6px 9px",background:"rgba(255,255,255,.035)",color:"#c5ccda",font:"700 8px/1 Inter,system-ui,sans-serif",letterSpacing:".06em",cursor:"pointer"};
 function readWorkspace(){const hash=window.location.hash.replace(/^#/,"");if(hash==="workspace/plaid")return{workspace:"plaid",irisPage:"iris"};if(hash.startsWith("workspace/iris/"))return{workspace:"iris",irisPage:hash.slice("workspace/".length)||"iris"};if(hash==="workspace/iris")return{workspace:"iris",irisPage:"iris"};return{workspace:"iris",irisPage:"iris"}}
