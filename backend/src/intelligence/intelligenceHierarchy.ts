@@ -80,11 +80,13 @@ function subdomainFor(definition: IrisAnalysisDefinition): string | null {
   return IRIS_DOMAIN_SUBDOMAINS[domain].find(s => text.includes(s.replace(/_/g, " "))) ?? IRIS_DOMAIN_SUBDOMAINS[domain][0] ?? null;
 }
 
+type HierarchyDefinition = IrisAnalysisDefinition & { evidence_ready?: boolean; formal_level?: number };
+
 export function buildRecursiveIntelligenceHierarchy(
   definitions: Array<IrisAnalysisDefinition & { evidence_ready?: boolean }>,
   options: { maxGeneratedNodes?: number } = {},
 ) {
-  const allDefinitions = [...definitions, ...IRIS_HIGHER_ORDER_DEFINITIONS];
+  const allDefinitions: HierarchyDefinition[] = [...definitions, ...IRIS_HIGHER_ORDER_DEFINITIONS];
   const maxGeneratedNodes = Math.max(1000, options.maxGeneratedNodes ?? 20000);
   const nodes: RecursiveIntelligenceNode[] = [];
   const byPath = new Set<string>();
@@ -144,7 +146,7 @@ export function buildRecursiveIntelligenceHierarchy(
   for (const node of base) walk(node, base, 2);
 
   return {
-    hierarchy_version: "IRIS_MAXIMUM_INTELLIGENCE_HIERARCHY_V3",
+    hierarchy_version: "IRIS_MAXIMUM_INTELLIGENCE_HIERARCHY_V4",
     formal_levels: IRIS_FORMAL_LEVELS,
     domain_subdomains: IRIS_DOMAIN_SUBDOMAINS,
     higher_order_capabilities: IRIS_HIGHER_ORDER_DEFINITIONS,
