@@ -1,0 +1,57 @@
+/* Data semantics only: preserve the existing Iris layout and visual system.
+   Color + tiny semantic markers make the displayed value and evidence state read as one unit. */
+
+/* Iris intelligence metrics: the number inherits the meaning of its state badge. */
+.iis-metric:has(.iis-state.observed) strong,
+.iis-row-main:has(.iis-state.observed) strong{color:#57f2e4 !important;text-shadow:0 2px 18px rgba(40,224,208,.16) !important}
+.iis-metric:has(.iis-state.calculated) strong,
+.iis-row-main:has(.iis-state.calculated) strong{color:#6fc2ff !important;text-shadow:0 2px 18px rgba(53,167,255,.16) !important}
+.iis-metric:has(.iis-state.inferred) strong,
+.iis-row-main:has(.iis-state.inferred) strong{color:#ffd875 !important;text-shadow:0 2px 18px rgba(255,200,87,.16) !important}
+.iis-metric:has(.iis-state.limited) strong,
+.iis-row-main:has(.iis-state.limited) strong{color:#ffc857 !important;text-shadow:0 2px 18px rgba(255,200,87,.16) !important}
+.iis-metric:has(.iis-state.insufficient_evidence) strong,
+.iis-row-main:has(.iis-state.insufficient_evidence) strong{color:#ff91a0 !important;text-shadow:0 2px 18px rgba(255,102,122,.16) !important}
+
+/* Tiny visual cue inside the existing state word; no new layout element. */
+.iis-state::before{display:inline-block;margin-right:4px;font-size:.9em;line-height:1}
+.iis-state.observed::before{content:"●"}
+.iis-state.calculated::before{content:"∑"}
+.iis-state.inferred::before{content:"◈"}
+.iis-state.limited::before{content:"△"}
+.iis-state.insufficient_evidence::before{content:"!"}
+
+/* Evidence chips used by the 12-tier surfaces. */
+.iris4-evidence.observed{color:#57f2e4 !important;border-color:#57f2e4 !important;background:rgba(40,224,208,.12) !important}
+.iris4-evidence.calculated{color:#6fc2ff !important;border-color:#6fc2ff !important;background:rgba(53,167,255,.13) !important}
+.iris4-evidence.inferred{color:#ffd875 !important;border-color:#ffd875 !important;background:rgba(255,200,87,.13) !important}
+.iris4-evidence.limited{color:#ffc857 !important;border-color:#ffc857 !important;background:rgba(255,200,87,.10) !important}
+.iris4-evidence.insufficient_evidence{color:#ff91a0 !important;border-color:#ff91a0 !important;background:rgba(255,102,122,.12) !important}
+.iris4-evidence::before{display:inline-block;margin-right:4px;font-size:.9em;line-height:1}
+.iris4-evidence.observed::before{content:"●"}
+.iris4-evidence.calculated::before{content:"∑"}
+.iris4-evidence.inferred::before{content:"◈"}
+.iris4-evidence.limited::before{content:"△"}
+.iris4-evidence.insufficient_evidence::before{content:"!"}
+
+/* Where a 12-tier metric contains an evidence badge, make its displayed value carry the same state. */
+.iris4-metric:has(.iris4-evidence.observed) strong,
+.iris4-metrics > div:has(.iris4-evidence.observed) strong{color:#57f2e4 !important}
+.iris4-metric:has(.iris4-evidence.calculated) strong,
+.iris4-metrics > div:has(.iris4-evidence.calculated) strong{color:#6fc2ff !important}
+.iris4-metric:has(.iris4-evidence.inferred) strong,
+.iris4-metrics > div:has(.iris4-evidence.inferred) strong{color:#ffd875 !important}
+.iris4-metric:has(.iris4-evidence.limited) strong,
+.iris4-metrics > div:has(.iris4-evidence.limited) strong{color:#ffc857 !important}
+.iris4-metric:has(.iris4-evidence.insufficient_evidence) strong,
+.iris4-metrics > div:has(.iris4-evidence.insufficient_evidence) strong{color:#ff91a0 !important}
+
+/* Existing IrisShell evidence badges: synchronize the value immediately before the badge. */
+.iris-shell-state-primary:has(.iris-shell-evidence.observed) strong{color:#57f2e4 !important}
+.iris-shell-state-primary:has(.iris-shell-evidence.calculated) strong{color:#6fc2ff !important}
+.iris-shell-state-primary:has(.iris-shell-evidence.inferred) strong{color:#ffd875 !important}
+.iris-shell-state-primary:has(.iris-shell-evidence.limited) strong{color:#ffc857 !important}
+.iris-shell-state-primary:has(.iris-shell-evidence.insufficient_evidence) strong{color:#ff91a0 !important}
+
+/* Keep the existing financial negative/positive language readable without changing values. */
+.iis-metric strong,.iis-row-main strong,.iris4-metrics strong,.iris-shell-stat strong{font-variant-numeric:tabular-nums !important}
