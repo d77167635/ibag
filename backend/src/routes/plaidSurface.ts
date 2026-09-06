@@ -14,20 +14,21 @@ const CANONICAL_CATALOG = PLAID_PRODUCT_CATALOG_V2.filter((definition) => CANONI
 function canonicalState(definition: (typeof CANONICAL_CATALOG)[number], observed: Set<string>, active: Set<string>, consented: Set<string>, available: Set<string>) { if (definition.plaidProductStates.some((p) => observed.has(p))) return "observed"; if (definition.plaidProductStates.some((p) => active.has(p))) return "active"; if (definition.plaidProductStates.some((p) => consented.has(p))) return "consented"; if (definition.plaidProductStates.some((p) => available.has(p))) return "available"; return "not_available"; }
 
 function nestedFieldInventory(rows: any[]) {
-  const stats = new Map<string, { path: string; present: number; null_count: number; examples: unknown[] }>();
+  const stats = new Map<string, { path: string; occurrences: number; records_present: number; null_records: number; examples: unknown[] }>();
   const recordCount = rows.length;
+  const seenInRecord = new Set<string>();
   const visit = (value: unknown, path: string, depth = 0) => {
     if (!path || depth > 16) return;
-    const current = stats.get(path) ?? { path, present: 0, null_count: 0, examples: [] };
-    current.present += 1;
-    if (value === null) current.null_count += 1;
-    else if (current.examples.length < 3 && typeof value !== "object") current.examples.push(value);
+    const current = stats.get(path) ?? { path, occurrences: 0, records_present: 0, null_records: 0, examples: [] };
+    current.occurrences += 1;
+    if (!seenInRecord.has(path)) { current.records_present += 1; if (value === null) current.null_records += 1; seenInRecord.add(path); }
+    if (value !== null && typeof value !== "object" && current.examples.length < 3) current.examples.push(value);
     stats.set(path, current);
     if (Array.isArray(value)) { value.forEach((v) => visit(v, `${path}[]`, depth + 1)); return; }
     if (value && typeof value === "object") for (const [key, child] of Object.entries(value as Record<string, unknown>)) visit(child, `${path}.${key}`, depth + 1);
   };
-  for (const row of rows) visit(row?.raw_response, "root");
-  return [...stats.values()].sort((a, b) => a.path.localeCompare(b.path)).map((x) => ({ ...x, record_count: recordCount, absent: Math.max(0, recordCount - x.present) }));
+  for (const row of rows) { seenInRecord.clear(); visit(row?.raw_response, "root"); }
+  return [...stats.values()].sort((a, b) => a.path.localeCompare(b.path)).map((x) => ({ ...x, record_count: recordCount, records_absent: Math.max(0, recordCount - x.records_present) }));
 }
 function topLevelFields(rows: any[]) { const fields = new Set<string>(); for (const row of rows) { const payload = row?.raw_response; if (!payload || typeof payload !== "object" || Array.isArray(payload)) continue; for (const key of Object.keys(payload)) fields.add(key); } return [...fields].sort(); }
 
@@ -67,5 +68,5 @@ plaidSurfaceRouter.get("/dashboard/plaid/surface", requireAuth, async (req: Auth
   const canonicalEvidenceItem = itemSummaries.find((i) => CANONICAL_PRODUCTS.every((product) => i.products?.some((p: any) => p.key === product && p.status === "observed")))?.item_id ?? null;
   const fieldInventory = Object.fromEntries(CANONICAL_PRODUCTS.map((product) => { const rows = rawEvidence.filter((r: any) => r.product === product && r.item_id === canonicalEvidenceItem); const fields = topLevelFields(rows); return [product, { product, field_count: fields.length, fields, nested_field_inventory: nestedFieldInventory(rows), source_observation_count: rows.length, same_item: true, evidence_state: "observed" }]; }));
   const evidenceFieldInventory = Object.fromEntries(CANONICAL_PRODUCTS.map((product) => { const rows = rawEvidence.filter((r: any) => r.product === product); return [product, { product, record_count: rows.length, nested_field_inventory: nestedFieldInventory(rows), same_item_required_for_certification: true }]; }));
-  res.json({ catalog_version: "2026-09-06-canonical-8-field-map-v2", source: "plaid_runtime_item_state_and_provider_domain_evidence", canonical_products: [...CANONICAL_PRODUCTS], items: itemSummaries, products, accounts: accounts ?? [], provider_evidence: rawEvidence, provider_evidence_counts: Object.fromEntries(CANONICAL_PRODUCTS.map((p) => [p, rawEvidence.filter((r: any) => r.product === p).length])), field_inventory: fieldInventory, evidence_field_inventory: evidenceFieldInventory, product_state_legend: { observed: "Direct live Plaid domain response recorded as current evidence.", active: "Plaid reports the product active but a current provider-domain observation is not recorded.", consented: "Plaid reports consent without current observed evidence.", available: "Plaid reports availability without current observed evidence.", not_available: "No current provider state for this canonical domain." }, source_boundary: "This surface contains only the eight canonical Plaid/Iris evidence domains. Raw source-of-truth records are read only. Nested field inventory is derived from observed raw provider responses and distinguishes present, null and absent-by-record; it does not claim that an optional field should exist when Plaid did not return it." });
+  res.json({ catalog_version: "2026-09-06-canonical-8-field-map-v3", source: "plaid_runtime_item_state_and_provider_domain_evidence", canonical_products: [...CANONICAL_PRODUCTS], items: itemSummaries, products, accounts: accounts ?? [], provider_evidence: rawEvidence, provider_evidence_counts: Object.fromEntries(CANONICAL_PRODUCTS.map((p) => [p, rawEvidence.filter((r: any) => r.product === p).length])), field_inventory: fieldInventory, evidence_field_inventory: evidenceFieldInventory, product_state_legend: { observed: "Direct live Plaid domain response recorded as current evidence.", active: "Plaid reports the product active but a current provider-domain observation is not recorded.", consented: "Plaid reports consent without current observed evidence.", available: "Plaid reports availability without current observed evidence.", not_available: "No current provider state for this canonical domain." }, source_boundary: "This surface contains only the eight canonical Plaid/Iris evidence domains. Raw source-of-truth records are read only. Nested field inventory distinguishes source-record presence, array occurrences and null values; absence is calculated only at the source-record level and never treated as a provider assertion." });
 });
