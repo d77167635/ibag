@@ -29,6 +29,15 @@ export const IRIS_DOMAIN_SUBDOMAINS: Record<string, string[]> = {
   statements: ["statement_identity", "statement_period", "statement_account", "statement_balance", "statement_transaction", "statement_reconciliation", "statement_history", "document_availability", "statement_relationships"],
 };
 
+/** Formal higher-order capabilities map to existing Iris engines; these are capability definitions, not fabricated observations. */
+export const IRIS_HIGHER_ORDER_DEFINITIONS: Array<IrisAnalysisDefinition & { formal_level: number }> = [
+  { id: "outcome.validation", family: "outcome", name: "Outcome Validation", purpose: "Validate observed outcomes against prior forecasts, scenarios, decisions, and recommendations", inputs: ["validation", "decision_intelligence", "forward_projection"], output: "outcome", formal_level: 8 },
+  { id: "learning.outcome-learning", family: "learning", name: "Outcome Learning", purpose: "Extract reusable learning signals from validated expected-versus-actual comparisons", inputs: ["outcome", "validation", "evidence_graph"], output: "learning", formal_level: 9 },
+  { id: "adaptive.intelligence-adaptation", family: "adaptive", name: "Adaptive Intelligence", purpose: "Adapt intelligence composition, investigation priorities, and evidence acquisition strategy from validated learning", inputs: ["learning", "meta_intelligence", "uncertainty"], output: "adaptive", formal_level: 10 },
+  { id: "emergent.cross-branch-intelligence", family: "emergent", name: "Emergent Cross-Branch Intelligence", purpose: "Detect novel higher-order structures arising from interacting domain and higher-order branches", inputs: ["intelligence_composition", "higher_order_synthesis", "adversarial_reasoning", "counterfactual_intelligence"], output: "emergent", formal_level: 11 },
+  { id: "meta.iris-self-intelligence", family: "meta", name: "Iris Self-Intelligence", purpose: "Evaluate Iris capability, evidence quality, limitations, composition quality, uncertainty, and governance", inputs: ["iris_governor", "validation", "uncertainty", "intelligence_composition"], output: "meta", formal_level: 12 },
+];
+
 export type RecursiveIntelligenceNode = {
   id: string;
   parent_id: string | null;
@@ -48,7 +57,8 @@ export type RecursiveIntelligenceNode = {
 };
 
 const domainFor = (definition: IrisAnalysisDefinition): string | null => IRIS_FORMAL_LEVELS[1].governs.includes(definition.family) ? definition.family : null;
-const formalLevelFor = (definition: IrisAnalysisDefinition): number => {
+const formalLevelFor = (definition: IrisAnalysisDefinition & { formal_level?: number }): number => {
+  if (definition.formal_level) return definition.formal_level;
   const domain = domainFor(definition);
   if (domain) return 2;
   if (["relationship", "causal", "integrity", "evidence", "explainability"].includes(definition.output)) return 4;
@@ -70,21 +80,17 @@ function subdomainFor(definition: IrisAnalysisDefinition): string | null {
   return IRIS_DOMAIN_SUBDOMAINS[domain].find(s => text.includes(s.replace(/_/g, " "))) ?? IRIS_DOMAIN_SUBDOMAINS[domain][0] ?? null;
 }
 
-/**
- * Maximum-depth hierarchy: twelve formal governance levels plus unlimited
- * subordinate branches. A resource budget may stop materialization, but it
- * never declares that intelligence beyond that point is impossible.
- */
 export function buildRecursiveIntelligenceHierarchy(
   definitions: Array<IrisAnalysisDefinition & { evidence_ready?: boolean }>,
   options: { maxGeneratedNodes?: number } = {},
 ) {
+  const allDefinitions = [...definitions, ...IRIS_HIGHER_ORDER_DEFINITIONS];
   const maxGeneratedNodes = Math.max(1000, options.maxGeneratedNodes ?? 20000);
   const nodes: RecursiveIntelligenceNode[] = [];
   const byPath = new Set<string>();
   const base: RecursiveIntelligenceNode[] = [];
 
-  for (const definition of definitions) {
+  for (const definition of allDefinitions) {
     if (nodes.length >= maxGeneratedNodes) break;
     const level = formalLevelFor(definition);
     const domain = domainFor(definition);
@@ -117,7 +123,8 @@ export function buildRecursiveIntelligenceHierarchy(
       const shared = parent.inputs.filter(input => candidate.inputs.includes(input));
       const outputFeeds = parent.output === candidate.inputs[0] || candidate.inputs.includes(parent.output);
       const crossDomain = parent.domain !== null && candidate.domain !== null && parent.domain !== candidate.domain;
-      if (!shared.length && !outputFeeds && !crossDomain) continue;
+      const higherOrderBridge = parent.level >= 8 || candidate.level >= 8;
+      if (!shared.length && !outputFeeds && !crossDomain && !higherOrderBridge) continue;
       const childId = `${parent.id}>${candidate.id}`;
       if (byPath.has(childId)) continue;
       const child: RecursiveIntelligenceNode = {
@@ -137,9 +144,10 @@ export function buildRecursiveIntelligenceHierarchy(
   for (const node of base) walk(node, base, 2);
 
   return {
-    hierarchy_version: "IRIS_MAXIMUM_INTELLIGENCE_HIERARCHY_V2",
+    hierarchy_version: "IRIS_MAXIMUM_INTELLIGENCE_HIERARCHY_V3",
     formal_levels: IRIS_FORMAL_LEVELS,
     domain_subdomains: IRIS_DOMAIN_SUBDOMAINS,
+    higher_order_capabilities: IRIS_HIGHER_ORDER_DEFINITIONS,
     semantic_depth_policy: "Unlimited subordinate depth until no additional meaningful intelligence can be derived from available evidence and validated intelligence.",
     runtime_safeguard: { max_generated_nodes: maxGeneratedNodes, safeguard_type: "resource_budget_only", does_not_define_intelligence_depth: true },
     source_reuse_policy: "Every level and branch may access original observed provider evidence, canonical data, and validated intelligence from any prior level; provenance remains attached.",
@@ -150,11 +158,13 @@ export function buildRecursiveIntelligenceHierarchy(
       formal_levels: IRIS_FORMAL_LEVELS.length,
       domains: Object.keys(IRIS_DOMAIN_SUBDOMAINS).length,
       subdomains: Object.values(IRIS_DOMAIN_SUBDOMAINS).reduce((n, values) => n + values.length, 0),
+      higher_order_capabilities: IRIS_HIGHER_ORDER_DEFINITIONS.length,
       nodes: nodes.length,
       base_nodes: base.length,
       generated_nodes: Math.max(0, nodes.length - base.length),
       deepest_generated_path: deepestGeneratedPath,
       evidence_ready: nodes.filter(n => n.evidence_ready).length,
+      formal_levels_materialized: new Set(nodes.map(n => n.level)).size,
     },
     generated_without_financial_mutation: true,
     generated_without_provider_mutation: true,
