@@ -4,7 +4,7 @@ import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
 import { IrisAssistant } from "./components/IrisAssistant";
 import { IrisCommandSurface } from "./components/IrisCommandSurface";
-import { PlaidCommandSurface } from "./components/PlaidCommandSurface";
+import { PlaidDeepSurface } from "./components/PlaidDeepSurface";
 import "./iris-command-deck.css";
 import "./iris-hd.css";
 import "./styles/data-semantics.css";
@@ -21,6 +21,6 @@ export default function App(){const[session,setSession]=useState<Session|null>(n
  if(!checkedAuth)return null;if(recovery&&session)return <Auth recovery onRecoveryComplete={()=>setRecovery(false)}/>;if(!session)return <Auth/>;
  const account=<div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email??"Signed in"}</span><button aria-label="Sign out" style={signOutStyle} onClick={()=>void signOut()} disabled={signingOut}>{signingOut?"Signing out…":"Sign out"}</button></div>;
  const switcher=<div className="ia-mode-switch" role="navigation" aria-label="Workspace switcher"><button type="button" className={workspace==="iris"?"active":""} onClick={()=>navigate("iris")}>Iris</button><button type="button" className={workspace==="plaid"?"active":""} onClick={()=>navigate("plaid")}>Plaid</button></div>;
- if(workspace==="plaid")return <div className="app-workspace app-workspace-plaid"><PlaidCommandSurface/>{switcher}{account}<IrisAssistant/></div>;
+ if(workspace==="plaid")return <div className="app-workspace app-workspace-plaid"><PlaidDeepSurface/>{switcher}{account}<IrisAssistant/></div>;
  return <div className="app-workspace app-workspace-iris"><IrisCommandSurface page={irisPage} go={(p)=>navigate("iris",p)}/>{switcher}{account}<IrisAssistant/></div>;
 }
