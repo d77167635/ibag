@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
-import { IrisWorkspace } from "./components/IrisWorkspace";
+import { IrisWorkspaceV2 } from "./components/IrisWorkspaceV2";
 import "./iris-command-deck.css";
 import "./iris-hd.css";
 import "./styles/data-semantics.css";
@@ -42,5 +42,5 @@ export default function App() {
   if (recovery && session) return <Auth recovery onRecoveryComplete={() => setRecovery(false)} />;
   if (!session) return <Auth />;
 
-  return <IrisWorkspace />;
+  return <IrisWorkspaceV2 />;
 }
