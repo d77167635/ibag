@@ -1,0 +1,211 @@
+/* iBag / Iris High-Definition Visual System
+   Purpose: high-contrast, explanatory, information-dense UI without rainbow styling.
+   Palette: electric blue + violet for intelligence, cyan for live evidence, green for positive,
+   amber for uncertainty, red for attention. No financial values are created here. */
+:root{
+  --hd-bg:#07101d;
+  --hd-surface:#0d1a2b;
+  --hd-surface-2:#12233a;
+  --hd-surface-3:#172d49;
+  --hd-ink:#f7fbff;
+  --hd-muted:#b6c7da;
+  --hd-faint:#8298b0;
+  --hd-line:#29435f;
+  --hd-blue:#35a7ff;
+  --hd-cyan:#28e0d0;
+  --hd-violet:#9a7cff;
+  --hd-green:#42e69a;
+  --hd-amber:#ffc857;
+  --hd-red:#ff667a;
+  --hd-shadow:0 18px 55px rgba(0,0,0,.32);
+}
+
+/* Workspace canvas: rich depth instead of flat white/black fields. */
+.app-workspace,
+.iris-shell,
+.iris-app,
+.iris-page,
+.iris-shell-page{
+  background:
+    radial-gradient(circle at 10% 0%,rgba(53,167,255,.13),transparent 30%),
+    radial-gradient(circle at 90% 8%,rgba(154,124,255,.12),transparent 28%),
+    linear-gradient(145deg,#07101d 0%,#091626 48%,#07111f 100%) !important;
+  color:var(--hd-ink) !important;
+}
+
+/* Persistent workspace switcher: unmistakable navigation. */
+.ia-mode-switch{
+  position:fixed !important; top:14px !important; left:50% !important; transform:translateX(-50%) !important;
+  z-index:1200 !important; display:flex !important; gap:4px !important; padding:4px !important;
+  border:1px solid #355879 !important; border-radius:14px !important;
+  background:rgba(5,14,25,.94) !important; box-shadow:0 10px 35px rgba(0,0,0,.4),0 0 28px rgba(53,167,255,.12) !important;
+  backdrop-filter:blur(18px);
+}
+.ia-mode-switch button{
+  min-width:94px !important; min-height:36px !important; border:0 !important; border-radius:10px !important;
+  background:transparent !important; color:#9eb4ca !important; font:800 12px/1 system-ui,sans-serif !important;
+  letter-spacing:.04em !important; cursor:pointer !important;
+}
+.ia-mode-switch button:hover{color:#fff !important;background:#132943 !important}
+.ia-mode-switch button.active{
+  color:#fff !important;
+  background:linear-gradient(135deg,#167bc8,#6c4de6) !important;
+  box-shadow:0 7px 20px rgba(53,167,255,.25),inset 0 1px rgba(255,255,255,.24) !important;
+}
+
+/* Main shell readability. */
+.iris-shell-main,.iris-main{background:transparent !important;color:var(--hd-ink) !important}
+.iris-shell-top,.iris-topbar{
+  background:rgba(7,16,29,.90) !important; border-bottom:1px solid var(--hd-line) !important;
+  color:#f7fbff !important; box-shadow:0 8px 30px rgba(0,0,0,.2) !important;
+}
+.iris-shell-crumb,.iris-shell-crumb strong{color:#d9e8f7 !important}
+.iris-shell-page,.iris-page{color:var(--hd-ink) !important}
+.iris-shell-hero h1,.iris-shell-page-intro h1,.iris-welcome h1{color:#fff !important;text-shadow:0 4px 24px rgba(53,167,255,.15)}
+.iris-shell-hero p,.iris-shell-page-intro p,.iris-welcome p{color:var(--hd-muted) !important;max-width:78ch !important}
+.iris-shell-kicker,.iris-shell-page .iris-shell-kicker{color:#55c3ff !important}
+
+/* Navigation: strong selected state and readable inactive labels. */
+.iris-shell-sidebar,.iris-sidebar{
+  background:linear-gradient(180deg,#081322,#0a1727) !important;
+  border-right:1px solid var(--hd-line) !important;
+}
+.iris-shell-nav-label{color:#6fa0c7 !important;font-size:10px !important}
+.iris-shell-nav-item{color:#b7c8da !important;border:1px solid transparent !important}
+.iris-shell-nav-item b{color:#76c7ff !important}
+.iris-shell-nav-item:hover{background:#11263d !important;color:#fff !important;border-color:#254865 !important}
+.iris-shell-nav-item.active{
+  background:linear-gradient(90deg,#123a5b,#20254e) !important;color:#fff !important;
+  border-color:#3679a8 !important;box-shadow:0 8px 24px rgba(0,0,0,.25),inset 3px 0 #35a7ff !important;
+}
+.iris-shell-nav-item.active:before{display:none !important}
+.iris-shell-sidebar-foot{border-top:1px solid var(--hd-line) !important;color:#a9bfd4 !important}
+
+/* Universal cards: lift them from the background and make boundaries obvious. */
+.iris-shell-state-primary,.iris-shell-stat,.iris-shell-panel,
+.iris-shell-card,.iris-panel,.iris-finding,.iris-insight-hero,
+.balance-card,.metric-card,.cashflow-card,.intelligence-card{
+  background:linear-gradient(145deg,rgba(16,32,52,.98),rgba(10,24,41,.98)) !important;
+  border:1px solid #2c4b68 !important; color:var(--hd-ink) !important;
+  box-shadow:var(--hd-shadow) !important;
+}
+.iris-shell-stat:hover,.iris-shell-panel:hover,.iris-shell-card:hover,.metric-card:hover,.intelligence-card:hover{
+  border-color:#3c719d !important; transform:translateY(-1px); transition:.18s ease;
+}
+.iris-shell-state-primary{
+  background:linear-gradient(135deg,#103d64 0%,#382b69 100%) !important;
+  border-color:#3d83b8 !important;
+  box-shadow:0 22px 65px rgba(22,108,180,.22),inset 0 1px rgba(255,255,255,.16) !important;
+}
+.iris-shell-state-primary .iris-shell-kicker{color:#8fddff !important}
+.iris-shell-state-primary strong,.iris-shell-stat strong{color:#fff !important}
+.iris-shell-state-primary p,.iris-shell-stat p{color:#d5e6f7 !important}
+.iris-shell-stat span,.iris-panel-head{color:#86b3d5 !important}
+.iris-shell-stat small,.iris-list-row small,.iris-basis,.temporal-context small{color:#9bb0c4 !important}
+.iris-shell-panel h2,.iris-shell-panel h3,.iris-finding b{color:#fff !important}
+.iris-shell-panel p,.iris-finding span{color:#c1d0df !important}
+.iris-list-row{border-top-color:#29445f !important}
+.iris-list-row span,.iris-list-row strong{color:#eef7ff !important}
+
+/* Evidence semantics are deliberately distinct and high contrast. */
+.iris-shell-evidence{font-weight:850 !important;border:1px solid currentColor !important;padding:5px 9px !important}
+.iris-shell-evidence.observed{background:rgba(40,224,208,.12) !important;color:#57f2e4 !important}
+.iris-shell-evidence.calculated{background:rgba(53,167,255,.13) !important;color:#6fc2ff !important}
+.iris-shell-evidence.inferred{background:rgba(255,200,87,.13) !important;color:#ffd875 !important}
+.iris-shell-evidence.insufficient_evidence{background:rgba(255,102,122,.12) !important;color:#ff91a0 !important}
+
+/* Status/readout chips: color carries meaning, text carries the explanation. */
+.iris-live-pill,.iris-state-badge{
+  border:1px solid #36759e !important;background:rgba(53,167,255,.11) !important;color:#8ed5ff !important;
+}
+.iris-screen-indicator{color:#a6bed3 !important}
+.iris-screen-indicator i{background:var(--hd-green) !important;box-shadow:0 0 14px rgba(66,230,154,.8) !important}
+
+/* Data visualization surfaces. */
+.hierarchy-segment{min-width:3px !important;box-shadow:inset 0 1px rgba(255,255,255,.25) !important}
+.iris-action-row button,.iris-discovery-links button,.mode-button,
+.iris-shell-page button:not(.iris-shell-nav-item){
+  border:1px solid #396080 !important;background:#10263d !important;color:#dff3ff !important;
+}
+.iris-action-row button:hover,.iris-discovery-links button:hover,.mode-button:hover{background:#173754 !important;border-color:#56b7f2 !important;color:#fff !important}
+.iris-discovery{background:linear-gradient(135deg,#102844,#1a2148) !important;border:1px solid #3d6791 !important}
+.iris-discovery h2{color:#fff !important}.iris-discovery p{color:#c5d8e9 !important}
+
+/* Legacy dashboard metric surfaces. */
+.balance-card{background:linear-gradient(135deg,#0f3f67,#35275f) !important;border-color:#3b80b1 !important}
+.balance-label{color:#9ee1ff !important}.balance-figure{color:#fff !important;text-shadow:0 5px 30px rgba(53,167,255,.25)}
+.balance-note{color:#d5e7f6 !important}.dashboard-mode-switch{background:#0e2238 !important;border:1px solid #2f506e !important}
+.mode-button.active{background:linear-gradient(135deg,#147fc9,#704fe4) !important;color:#fff !important;box-shadow:0 8px 22px rgba(53,167,255,.2) !important}
+
+/* Plain tables/data lists become scan-friendly. */
+table{border-color:#2c4b68 !important;color:#eaf5ff !important}
+th{background:#10253c !important;color:#9fd8ff !important;font-weight:850 !important;letter-spacing:.04em}
+td{border-color:#263f59 !important;color:#e1edf8 !important}
+tr:hover td{background:rgba(53,167,255,.055) !important}
+
+/* Forms and search controls. */
+input,textarea,select{
+  background:#0a1a2c !important;color:#fff !important;border:1px solid #355776 !important;
+  box-shadow:inset 0 1px 10px rgba(0,0,0,.18) !important;
+}
+input::placeholder,textarea::placeholder{color:#718aa2 !important}
+input:focus,textarea:focus,select:focus{border-color:#49b7ff !important;box-shadow:0 0 0 3px rgba(53,167,255,.14) !important}
+
+/* Universal Iris assistant: larger typography, stronger hierarchy, clearer affordances. */
+.iris-assistant-orb{
+  height:64px !important;padding:0 20px 0 9px !important;right:22px !important;bottom:20px !important;
+  background:linear-gradient(135deg,#0d2741,#271d56) !important;border:1px solid #4389bd !important;
+  box-shadow:0 18px 55px rgba(0,0,0,.5),0 0 40px rgba(53,167,255,.22) !important;
+  font-size:15px !important;letter-spacing:.02em !important;
+}
+.iris-assistant-orb-core{width:46px !important;height:46px !important;background:radial-gradient(circle at 30% 20%,#77d9ff,#4268ef 52%,#321d65) !important;box-shadow:0 0 28px rgba(53,167,255,.5) !important}
+.iris-assistant-orb i{width:8px !important;height:8px !important}
+.iris-assistant{
+  width:min(520px,calc(100vw - 24px)) !important;height:min(760px,calc(100vh - 94px)) !important;
+  right:18px !important;bottom:94px !important;border-radius:24px !important;
+  background:linear-gradient(155deg,#071522 0%,#0b1b2e 60%,#11162f 100%) !important;
+  border:1px solid #3b6488 !important;box-shadow:0 35px 110px rgba(0,0,0,.7),0 0 80px rgba(53,167,255,.16) !important;
+}
+.iris-assistant header{padding:17px 18px !important;border-bottom:1px solid #2c4a66 !important;background:linear-gradient(90deg,rgba(53,167,255,.16),rgba(154,124,255,.13)) !important}
+.iris-assistant-title strong{font-size:19px !important;color:#fff !important}.iris-assistant-title small{font-size:11px !important;color:#a9c2d8 !important}
+.iris-assistant-drag-label{font-size:9px !important;color:#9cc4df !important;border-color:#345674 !important}
+.iris-assistant-body{padding:20px !important}
+.iris-assistant-welcome>span{font-size:10px !important;color:#57d4ff !important}
+.iris-assistant-welcome h2{font-size:30px !important;color:#fff !important;background:none !important;-webkit-text-fill-color:#fff !important}
+.iris-assistant-welcome p{font-size:14px !important;color:#b8cde0 !important;line-height:1.65 !important}
+.iris-assistant-starters button{
+  padding:14px 15px !important;border-radius:13px !important;border:1px solid #315571 !important;
+  background:linear-gradient(135deg,#102943,#0d2035) !important;color:#e9f6ff !important;font-size:13px !important;
+}
+.iris-assistant-starters button:hover{background:#153653 !important;border-color:#4cbaff !important;transform:translateX(3px) !important}
+.iris-assistant-message{font-size:14px !important;line-height:1.65 !important;max-width:94% !important}
+.iris-assistant-message.user>div{background:linear-gradient(135deg,#176fae,#4a3aaa) !important;border-color:#5aa8d5 !important}
+.iris-assistant-message.iris>div{background:linear-gradient(145deg,#10263b,#0d1e31) !important;border:1px solid #315572 !important;color:#eef8ff !important}
+.iris-assistant-message small{font-size:9px !important;color:#8db0c9 !important}
+.iris-assistant-thinking i{background:#58d8ff !important}
+.iris-assistant-input{padding:14px !important;background:#071421 !important;border-top:1px solid #2b4862 !important}
+.iris-assistant-input input{font-size:14px !important;padding:13px !important;background:#0c2033 !important;border-color:#385b78 !important}
+.iris-assistant-input button{padding:0 18px !important;background:linear-gradient(135deg,#1389d3,#6749dd) !important;font-size:13px !important;box-shadow:0 8px 25px rgba(53,167,255,.2) !important}
+
+/* Make important numbers visually dominant without changing their values. */
+.iris-shell-stat strong,.metric-value,.balance-figure,[data-value],.amount,.currency-value{
+  font-variant-numeric:tabular-nums !important;text-shadow:0 2px 18px rgba(53,167,255,.12) !important;
+}
+
+/* Accessibility: preserve contrast and make keyboard focus unmistakable. */
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{
+  outline:3px solid #5bd4ff !important;outline-offset:3px !important;
+}
+
+@media(max-width:820px){
+  .ia-mode-switch{top:9px !important}
+  .ia-mode-switch button{min-width:78px !important}
+  .iris-assistant{right:8px !important;bottom:80px !important;width:calc(100vw - 16px) !important;height:calc(100vh - 92px) !important}
+  .iris-assistant-orb{right:12px !important;bottom:12px !important}
+}
+@media(max-width:560px){
+  .ia-mode-switch{left:50% !important}
+  .ia-mode-switch button{min-width:70px !important}
+  .iris-assistant-welcome h2{font-size:26px !important}
+  .iris-assistant-message{font-size:13px !important}
+}
