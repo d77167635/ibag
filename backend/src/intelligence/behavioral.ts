@@ -21,7 +21,7 @@ export async function computeCategoryDrift(userId: string, recentDays = 30, base
   if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
   const baselineStart = new Date(anchor.getTime() - baselineDays * 86_400_000).toISOString().slice(0, 10);
   const recentStart = new Date(anchor.getTime() - recentDays * 86_400_000).toISOString().slice(0, 10);
-  const txs = await getCanonicalTransactions(userId, baselineStart);
+  const txs = await getCanonicalTransactions(userId, baselineStart, executionContext?.temporal.as_of);
   const rows = txs.filter(isEconomicOutflow);
   if (!rows.length) return [];
 
