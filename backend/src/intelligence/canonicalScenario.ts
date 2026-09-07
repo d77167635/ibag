@@ -1,5 +1,6 @@
 import { computeEconomicCashFlow, getCanonicalTransactions } from "./transactionSemantics.js";
 import { computeCashFlowSafety } from "../services/intelligence.js";
+import { computeGovernedFinancialState } from "./governedFinancialState.js";
 import type { IrisExecutionContext } from "./irisExecutionContext.js";
 
 export async function computeCanonicalScenario(
@@ -13,14 +14,14 @@ export async function computeCanonicalScenario(
   }
 
   const [transactions, cashFlowSafety] = await Promise.all([
-    getCanonicalTransactions(userId, executionContext?.temporal.evidence_boundary ? undefined : undefined),
-    computeCashFlowSafety(userId),
+    getCanonicalTransactions(userId, undefined, executionContext?.temporal.as_of),
+    executionContext ? computeGovernedFinancialState(userId, executionContext).then(state => state.cashFlowSafety) : computeCashFlowSafety(userId),
   ]);
 
   const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date();
   if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
   const currentStart = new Date(anchor.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
-  const current = transactions.filter((tx) => tx.posted_date >= currentStart);
+  const current = transactions.filter((tx) => tx.posted_date >= currentStart && tx.posted_date <= anchor.toISOString().slice(0, 10));
   const cashFlow = computeEconomicCashFlow(current);
 
   if (cashFlowSafety.safeToSpend === null) {
