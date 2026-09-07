@@ -18,7 +18,7 @@ async function authedFetch(path: string, init?: RequestInit) {
 
 let intelligenceInFlight: Promise<any> | null = null;
 function getCanonicalIntelligence() {
-  if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/dashboard/intelligence/run", { method: "POST", body: JSON.stringify({ request_surface: "dashboard", request_mode: "full_intelligence", requested_capabilities: ["iris.full_intelligence"] }) }).finally(() => { intelligenceInFlight = null; });
+  if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/dashboard/intelligence").finally(() => { intelligenceInFlight = null; });
   return intelligenceInFlight;
 }
 
