@@ -14,6 +14,7 @@ export function decideCertification(input: {
   validations: IrisValidationResult[];
   ownershipValid: boolean;
   temporalValid: boolean;
+  contextCompliant?: boolean;
 }): CertificationDecision {
   const reasons: string[] = [];
   if (!input.ownershipValid) reasons.push("USER_ISOLATION_FAILED");
@@ -23,6 +24,7 @@ export function decideCertification(input: {
   if (!input.execution.output_hash) reasons.push("OUTPUT_HASH_MISSING");
   if (input.execution.validation_status !== "PASS") reasons.push("EXECUTION_VALIDATION_NOT_PASS");
   if (!input.temporalValid) reasons.push("TEMPORAL_BOUNDARY_INVALID");
+  if (input.contextCompliant !== true) reasons.push("EXECUTION_CONTEXT_NOT_FULLY_COMPLIANT");
   if (!input.validations.length) reasons.push("VALIDATION_MISSING");
   if (input.validations.some(v => v.status === "UNKNOWN")) reasons.push("VALIDATION_UNKNOWN");
   if (input.validations.some(v => v.status === "FAIL")) reasons.push("VALIDATION_FAILED");
