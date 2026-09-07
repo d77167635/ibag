@@ -43,6 +43,19 @@ export async function getCertifiedCoreItemIds(userId: string): Promise<string[]>
   return itemIds.filter(id => txProducts.has(id) && balanceProducts.has(id) && txItems.has(id) && balanceItems.has(id));
 }
 
+/** Resolve only accounts belonging to certified core Items. */
+export async function getCertifiedCoreAccountIds(userId: string): Promise<string[]> {
+  const itemIds = await getCertifiedCoreItemIds(userId);
+  if (!itemIds.length) return [];
+  const { data, error } = await supabaseAdmin
+    .from("plaid_accounts")
+    .select("id")
+    .eq("user_id", userId)
+    .in("item_id", itemIds);
+  if (error) throw error;
+  return (data ?? []).map((row: any) => row.id).filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+}
+
 /**
  * Returns the latest common evidence boundary across certified core Items only.
  * An unrelated active Item that lacks Balance must not invalidate a different
