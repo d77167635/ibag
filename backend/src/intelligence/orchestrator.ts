@@ -32,14 +32,22 @@ import { buildAdversarialReasoning } from "./adversarialReasoning.js";
 import { buildCounterfactualIntelligence } from "./counterfactual.js";
 import { recordIntelligenceSnapshot } from "./validationSnapshots.js";
 import { buildProviderDomainIntelligence } from "./providerDomainIntelligence.js";
+import type { IrisExecutionContext } from "./irisExecutionContext.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
-export async function computeFullIntelligence(userId: string) {
-  const [evidenceBoundary, sourceFidelity, providerDomainIntelligence] = await Promise.all([getCertifiedEvidenceBoundary(userId), assessSourceFidelity(userId), buildProviderDomainIntelligence(userId)]);
-  const canonical90Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 90 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
+export async function computeFullIntelligence(userId: string, executionContext?: IrisExecutionContext) {
+  const frozenEvidenceBoundary = executionContext?.temporal.evidence_boundary ?? null;
+  const frozenAsOf = executionContext?.temporal.as_of ?? new Date().toISOString();
+  const [evidenceBoundary, sourceFidelity, providerDomainIntelligence] = await Promise.all([
+    executionContext ? Promise.resolve(frozenEvidenceBoundary) : getCertifiedEvidenceBoundary(userId),
+    assessSourceFidelity(userId),
+    buildProviderDomainIntelligence(userId),
+  ]);
+  const canonicalAnchor = evidenceBoundary ? new Date(evidenceBoundary) : new Date(frozenAsOf);
+  const canonical90Start = new Date(canonicalAnchor.getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
   const canonical = await getCanonicalTransactions(userId, canonical90Start);
   const integrity = validateCanonicalIntelligenceInput(canonical);
-  const current30Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 30 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const current30Start = new Date(canonicalAnchor.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
   const current30 = canonical.filter(tx => tx.posted_date >= current30Start);
   const economicCurrent = computeEconomicCashFlow(current30);
   const roundupProjection = computeRoundupProjectionFromTransactions(canonical);
@@ -59,7 +67,7 @@ export async function computeFullIntelligence(userId: string) {
   const maximumIntelligence = buildMaximumIntelligence({ flows: multiWindowFlow, reasoning, safeToSpend: cashFlowSafety.safeToSpend, cashFlowNet: cashFlow.net, cashFlowWindowDays: cashFlow.windowDays, currentLiquidAssets: balances.liquidAssets, forwardProjectionBasis: forwardProjection.basis ?? null });
   const providerNetWorth = providerDomainIntelligence.derived?.net_worth ?? null;
   const layerMetrics = { net_worth: { liquid_assets: balances.liquidAssets, provider_domain_net_worth: providerNetWorth, provider_domain_components: providerDomainIntelligence.derived?.net_worth_components ?? null, as_of: balances.asOf }, debt_health: { revolving_debt: balances.revolvingDebt, credit_utilization: balances.creditUtilization, provider_liability_balance: providerDomainIntelligence.derived?.liability_state?.liability_balance ?? null, change_pct_30d: debtTrend.changePct, as_of: balances.asOf }, cash_flow_safety: cashFlowSafety, roundup_projection: roundupProjection, cash_flow: cashFlow, spending_by_domain: spendingByDomain, spending_hierarchy: spendingHierarchy, balance_history: balanceHistory, forward_projection: forwardProjection, anomalies, provider_domains: providerDomainIntelligence };
-  const baseResult = { narrative, generated_at: new Date().toISOString(), feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence, provider_lineage: providerLineage, evidence_boundary: evidenceBoundary };
+  const baseResult = { narrative, generated_at: frozenAsOf, feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence, provider_lineage: providerLineage, evidence_boundary: evidenceBoundary };
   const evidenceGraph = buildEvidenceGraph(baseResult);
   const uncertainty = assessUncertainty(evidenceGraph);
   const financialState = buildFinancialStateModel(evidenceGraph, uncertainty);
