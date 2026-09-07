@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { computeFullIntelligence } from "./orchestrator.js";
+import { createExecutionContext } from "./irisExecutionContext.js";
 import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
 import { buildEvidenceManifest, persistRunEvidence } from "./irisEvidenceManifest.js";
 import { createRun, failRun, getRun, transitionRun } from "./irisRunRepository.js";
@@ -64,7 +65,8 @@ export async function executeIrisFullIntelligenceRun(input: {
     executionId = execution.id;
     await recordInput({ execution_id: execution.id, input_type: "evidence_manifest", reference_type: "iris_run", reference_id: run.id, role: "governance_boundary", hash: manifest.hash });
 
-    const intelligence: any = await computeFullIntelligence(input.userId);
+    const context = createExecutionContext(run, manifest.references);
+    const intelligence: any = await computeFullIntelligence(input.userId, context);
     const outputHash = hashValue(intelligence);
     const summary = outputSummary(intelligence);
     await completeExecution(input.userId, execution.id, manifest.hash, outputHash, summary);
@@ -72,11 +74,13 @@ export async function executeIrisFullIntelligenceRun(input: {
     await transitionRun(input.userId, run.id, "EXECUTED", { completed_at: new Date().toISOString() });
     await transitionRun(input.userId, run.id, "VALIDATING");
 
+    const contextBound = intelligence.execution_context?.status === "PASS";
     const validationInputs = [
       { rule_id: "EVIDENCE_BOUND", status: manifest.references.length ? "PASS" : "FAIL", severity: "CRITICAL", expected: ">0 evidence references", actual: manifest.references.length },
       { rule_id: "EXECUTION_COMPLETE", status: "PASS", severity: "CRITICAL", expected: "EXECUTED", actual: "EXECUTED" },
       { rule_id: "OUTPUT_HASH_PRESENT", status: outputHash ? "PASS" : "FAIL", severity: "CRITICAL", expected: "sha256", actual: outputHash ? "sha256" : null },
       { rule_id: "CANONICAL_INPUT_INTEGRITY", status: intelligence.integrity?.status === "fail" ? "FAIL" : "PASS", severity: "CRITICAL", expected: "not fail", actual: intelligence.integrity?.status ?? null },
+      { rule_id: "EXECUTION_CONTEXT_BOUND", status: contextBound ? "PASS" : "FAIL", severity: "CRITICAL", expected: "PASS", actual: intelligence.execution_context?.status ?? "MISSING" },
     ] as const;
     for (const validation of validationInputs) {
       await recordValidation({ user_id: input.userId, run_id: run.id, execution_id: execution.id, rule_id: validation.rule_id, rule_version: "IRIS_VALIDATION_V1", status: validation.status, severity: validation.severity, expected: validation.expected, actual: validation.actual, details: null });
@@ -91,7 +95,7 @@ export async function executeIrisFullIntelligenceRun(input: {
     if (!executionForCertification) throw new Error("IRIS_EXECUTION_RECORD_NOT_FOUND_AFTER_VALIDATION");
     const decision = decideCertification({
       run: refreshedRun, execution: executionForCertification, evidenceCount: manifest.references.length, validations,
-      ownershipValid: true, temporalValid: new Date(asOf).getTime() >= (evidenceBoundary ? new Date(evidenceBoundary).getTime() : 0),
+      ownershipValid: true, temporalValid: contextBound && new Date(asOf).getTime() >= (evidenceBoundary ? new Date(evidenceBoundary).getTime() : 0),
     });
 
     if (decision.status === "CERTIFIED") {
