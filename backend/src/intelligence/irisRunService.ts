@@ -2,9 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { computeFullIntelligence } from "./orchestrator.js";
 import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
 import { buildEvidenceManifest, persistRunEvidence } from "./irisEvidenceManifest.js";
-import { createRun, failRun, transitionRun } from "./irisRunRepository.js";
-import { startExecution, completeExecution, failExecution, recordInput, recordOutput } from "./irisExecutionRepository.js";
-import { recordValidation } from "./irisValidationRepository.js";
+import { createRun, failRun, getRun, transitionRun } from "./irisRunRepository.js";
+import { startExecution, completeExecution, getExecution, recordInput, recordOutput, updateExecutionValidation } from "./irisExecutionRepository.js";
+import { getRunValidations, recordValidation } from "./irisValidationRepository.js";
 import { recordCertification, updateExecutionCertification } from "./irisCertificationRepository.js";
 import { decideCertification } from "./irisCertificationGate.js";
 import type { IrisExecutionPolicy, IrisResult, IrisRun, IrisResourceBudget } from "./irisExecutionTypes.js";
@@ -50,7 +50,7 @@ export async function executeIrisFullIntelligenceRun(input: {
   requestMode?: string;
   requestedCapabilities?: string[];
   asOf?: string;
-}): Promise<{ run: IrisRun; result: IrisResult; intelligence: unknown }> {
+}): Promise<{ run: IrisRun; result: IrisResult; intelligence: any }> {
   const requestId = input.requestId ?? randomUUID();
   const asOf = input.asOf ?? new Date().toISOString();
   const evidenceBoundary = await getCertifiedEvidenceBoundary(input.userId);
@@ -78,6 +78,7 @@ export async function executeIrisFullIntelligenceRun(input: {
     failure_message: null,
   });
 
+  let executionId: string | null = null;
   try {
     await persistRunEvidence(run.id, input.userId, manifest.references);
     await transitionRun(input.userId, run.id, "EXECUTING", { started_at: new Date().toISOString() });
@@ -100,12 +101,14 @@ export async function executeIrisFullIntelligenceRun(input: {
       error_code: null,
       error_message: null,
     });
+    executionId = execution.id;
     await recordInput({ execution_id: execution.id, input_type: "evidence_manifest", reference_type: "iris_run", reference_id: run.id, role: "governance_boundary", hash: manifest.hash });
 
-    const intelligence = await computeFullIntelligence(input.userId);
+    const intelligence: any = await computeFullIntelligence(input.userId);
     const outputHash = hashValue(intelligence);
-    await completeExecution(input.userId, execution.id, manifest.hash, outputHash, outputSummary(intelligence));
-    await recordOutput({ execution_id: execution.id, output_key: "full_intelligence", output_type: "summary", value: outputSummary(intelligence), hash: outputHash, evidence_state: "CALCULATED", uncertainty: intelligence.uncertainty ?? null });
+    const summary = outputSummary(intelligence);
+    await completeExecution(input.userId, execution.id, manifest.hash, outputHash, summary);
+    await recordOutput({ execution_id: execution.id, output_key: "full_intelligence", output_type: "summary", value: summary, hash: outputHash, evidence_state: "CALCULATED", uncertainty: intelligence.uncertainty ?? null });
     await transitionRun(input.userId, run.id, "EXECUTED", { completed_at: new Date().toISOString() });
     await transitionRun(input.userId, run.id, "VALIDATING");
 
@@ -119,31 +122,42 @@ export async function executeIrisFullIntelligenceRun(input: {
       await recordValidation({ user_id: input.userId, run_id: run.id, execution_id: execution.id, rule_id: validation.rule_id, rule_version: "IRIS_VALIDATION_V1", status: validation.status, severity: validation.severity, expected: validation.expected, actual: validation.actual, details: null });
     }
 
-    const validations = await import("./irisValidationRepository.js").then(m => m.getRunValidations(input.userId, run.id));
-    const refreshedRun = await import("./irisRunRepository.js").then(m => m.getRun(input.userId, run.id));
-    if (!refreshedRun) throw new Error("IRIS_RUN_NOT_FOUND_AFTER_EXECUTION");
-    const refreshedExecution = await import("./irisExecutionRepository.js").then(async m => {
-      const { data, error } = await (await import("../config/supabase.js")).supabaseAdmin.from("iris_execution_records").select("*").eq("id", execution.id).eq("user_id", input.userId).single();
-      if (error) throw error;
-      return data as any;
-    });
-    const decision = decideCertification({ run: refreshedRun, execution: refreshedExecution, evidenceCount: manifest.references.length, validations, ownershipValid: true, temporalValid: new Date(asOf).getTime() >= (evidenceBoundary ? new Date(evidenceBoundary).getTime() : 0) });
-    await transitionRun(input.userId, run.id, "VALIDATED");
-    await transitionRun(input.userId, run.id, "CERTIFYING");
+    const validations = await getRunValidations(input.userId, run.id);
+    const refreshedRun = await getRun(input.userId, run.id);
+    const refreshedExecution = await getExecution(input.userId, execution.id);
+    if (!refreshedRun || !refreshedExecution) throw new Error("IRIS_EXECUTION_RECORD_NOT_FOUND");
+    const allPass = validations.length > 0 && validations.every(v => v.status === "PASS");
+    await updateExecutionValidation(input.userId, execution.id, allPass ? "PASS" : validations.some(v => v.status === "FAIL") ? "FAIL" : "LIMITED");
+    const executionForCertification = await getExecution(input.userId, execution.id);
+    if (!executionForCertification) throw new Error("IRIS_EXECUTION_RECORD_NOT_FOUND_AFTER_VALIDATION");
+    const decision = decideCertification({ run: refreshedRun, execution: executionForCertification, evidenceCount: manifest.references.length, validations, ownershipValid: true, temporalValid: new Date(asOf).getTime() >= (evidenceBoundary ? new Date(evidenceBoundary).getTime() : 0) });
+
+    if (decision.status === "CERTIFIED") {
+      await transitionRun(input.userId, run.id, "VALIDATED");
+      await transitionRun(input.userId, run.id, "CERTIFYING");
+    } else {
+      await transitionRun(input.userId, run.id, "VALIDATION_FAILED");
+    }
     await updateExecutionCertification(input.userId, execution.id, decision.status);
     await recordCertification({ user_id: input.userId, run_id: run.id, execution_id: execution.id, result_id: null, policy_version: POLICY.certification_policy_version, status: decision.status, validation_snapshot: { rules: validations.map(v => ({ rule_id: v.rule_id, status: v.status, severity: v.severity })) }, reconciliation_snapshot: {}, evidence_snapshot: { evidence_count: manifest.references.length, evidence_manifest_hash: manifest.hash }, certification_hash: decision.certification_hash, certified_at: decision.status === "CERTIFIED" ? new Date().toISOString() : null });
-    const finalRun = await transitionRun(input.userId, run.id, decision.status === "CERTIFIED" ? "CERTIFIED" : "NOT_CERTIFIED", { completed_at: new Date().toISOString() });
+    const finalRun = decision.status === "CERTIFIED"
+      ? await transitionRun(input.userId, run.id, "CERTIFIED", { completed_at: new Date().toISOString() })
+      : (await getRun(input.userId, run.id))!;
     const result: IrisResult = {
       result_id: randomUUID(), run_id: finalRun.id, capability_id: "iris.full_intelligence", generated_at: new Date().toISOString(),
       evidence_as_of: finalRun.evidence_boundary, evidence_version: finalRun.evidence_version,
-      observation_window: { as_of: finalRun.as_of }, execution_state: "EXECUTED", validation_state: "PASS",
+      observation_window: { as_of: finalRun.as_of }, execution_state: "EXECUTED", validation_state: allPass ? "PASS" : "FAIL",
       certification_state: decision.status, delivery_state: decision.status === "CERTIFIED" ? "DELIVERED" : "WITHHELD",
-      evidence_state: manifest.references.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", values: outputSummary(intelligence),
+      evidence_state: manifest.references.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", values: summary,
       uncertainty: intelligence.uncertainty ?? null, limitations: decision.reasons, provenance: manifest.references,
     };
     return { run: finalRun, result, intelligence };
   } catch (error) {
-    await failRun(input.userId, run.id, "IRIS_EXECUTION_FAILED", error instanceof Error ? error.message : String(error));
+    if (executionId) {
+      const { failExecution } = await import("./irisExecutionRepository.js");
+      await failExecution(input.userId, executionId, "IRIS_EXECUTION_FAILED", error instanceof Error ? error.message : String(error)).catch(() => undefined);
+    }
+    await failRun(input.userId, run.id, "IRIS_EXECUTION_FAILED", error instanceof Error ? error.message : String(error)).catch(() => undefined);
     throw error;
   }
 }
