@@ -72,8 +72,8 @@ export async function executeIrisFullIntelligenceRun(input: {
 
     const context = createExecutionContext(run, manifest.references);
     const intelligence: any = await computeFullIntelligence(input.userId, context);
-    const outputHash = hashValue(intelligence);
     const summary = outputSummary(intelligence);
+    const outputHash = hashValue(summary);
     await completeExecution(input.userId, execution.id, manifest.hash, outputHash, summary);
     await recordOutput({ execution_id: execution.id, output_key: "full_intelligence", output_type: "summary", value: summary, hash: outputHash, evidence_state: "CALCULATED", uncertainty: intelligence.uncertainty ?? null });
     await transitionRun(input.userId, run.id, "EXECUTED", { completed_at: new Date().toISOString() });
