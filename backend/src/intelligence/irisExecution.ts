@@ -26,8 +26,9 @@ export async function executeIrisRun(request: RunRequest) {
 
   const { data: existing } = await supabaseAdmin.from("iris_runs").select("*").eq("user_id", userId).eq("request_id", requestId).maybeSingle();
   if (existing?.id) {
-    const { data: output } = await supabaseAdmin.from("iris_execution_outputs").select("value,hash,evidence_state").eq("execution_id", existing.id).maybeSingle();
-    return { ...existing, result: output?.value ?? null, output_hash: output?.hash ?? null, certified: existing.status === "CERTIFIED" };
+    const { data: existingExecution } = await supabaseAdmin.from("iris_execution_records").select("id").eq("run_id", existing.id).eq("user_id", userId).maybeSingle();
+    const { data: output } = existingExecution ? await supabaseAdmin.from("iris_execution_outputs").select("value,hash,evidence_state").eq("execution_id", existingExecution.id).maybeSingle() : { data: null };
+    return { ...existing, execution_id: existingExecution?.id ?? null, result: output?.value ?? null, output_hash: output?.hash ?? null, certified: existing.status === "CERTIFIED" };
   }
 
   const plan = await planCapabilities(userId, requestedCapabilities);
@@ -59,20 +60,21 @@ export async function executeIrisRun(request: RunRequest) {
     const result = await computeFullIntelligence(userId);
     const outputHash = hash(result);
     const finishedAt = new Date().toISOString();
-
     const { error: outputError } = await supabaseAdmin.from("iris_execution_outputs").insert({ execution_id: execution.id, output_key: "full_intelligence", output_type: "intelligence_snapshot", value: result, hash: outputHash, evidence_state: "CALCULATED", uncertainty: result?.uncertainty ?? null });
     if (outputError) { await failExecution(run.id, execution.id, userId, "EXECUTION_OUTPUT_PERSIST_FAILED", outputError.message); throw new Error(`Unable to persist Iris execution output: ${outputError.message}`); }
 
     const rawEvidence = (await supabaseAdmin.from("plaid_raw_product_observations").select("id,product,raw_response,effective_at,acquired_at").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed")).data ?? [];
     if (rawEvidence.length) {
-      await supabaseAdmin.from("iris_run_evidence").insert(rawEvidence.map(e => ({ run_id: run.id, user_id: userId, evidence_type: "provider_raw_observation", provider: "plaid", product: e.product, raw_observation_id: e.id, effective_at: e.effective_at ?? e.acquired_at, acquired_at: e.acquired_at, evidence_hash: hash(e.raw_response) })));
+      const evidenceRows = rawEvidence.map(e => ({ run_id: run.id, user_id: userId, evidence_type: "provider_raw_observation", provider: "plaid", product: e.product, raw_observation_id: e.id, effective_at: e.effective_at ?? e.acquired_at, acquired_at: e.acquired_at, evidence_hash: hash(e.raw_response) }));
+      const { error: evidenceInsertError } = await supabaseAdmin.from("iris_run_evidence").insert(evidenceRows);
+      if (evidenceInsertError) { await failExecution(run.id, execution.id, userId, "RUN_EVIDENCE_PERSIST_FAILED", evidenceInsertError.message); throw new Error(`Unable to persist Iris run evidence: ${evidenceInsertError.message}`); }
     }
     const evidenceBoundary = result?.evidence_boundary || finishedAt;
     await supabaseAdmin.from("iris_runs").update({ evidence_boundary: evidenceBoundary, evidence_version: "provider-observation-boundary-v1", status: "EXECUTED", completed_at: finishedAt, updated_at: finishedAt }).eq("id", run.id).eq("user_id", userId);
     await supabaseAdmin.from("iris_execution_records").update({ execution_state: "EXECUTED", completed_at: finishedAt, input_hash: inputHash, output_hash: outputHash, output_snapshot: { output_key: "full_intelligence", output_hash: outputHash }, resource_usage: { duration_ms: Date.parse(finishedAt) - Date.parse(asOf), planner_nodes: plan.resource_estimate.nodes, planner_edges: plan.resource_estimate.edges, planner_compositions: plan.resource_estimate.compositions }, validation_status: "UNKNOWN" }).eq("id", execution.id).eq("user_id", userId);
 
     const gate = await evaluateCertificationGate({ runId: run.id, executionId: execution.id, userId, inputHash, outputHash });
-    const validationRows = Object.entries(gate.checks).map(([ruleId, check]) => ({ run_id: run.id, execution_id: execution.id, user_id: userId, rule_id: ruleId, rule_version: CERTIFICATION_POLICY_VERSION, status: check.status, severity: check.status === "PASS" ? "INFO" : "CRITICAL", expected: { status: "PASS" }, actual: { status: check.status }, details: { message: check.details, gate_version: CERTIFICATION_POLICY_VERSION } }));
+    const validationRows = Object.entries(gate.checks).map(([ruleId, gateCheck]) => ({ run_id: run.id, execution_id: execution.id, user_id: userId, rule_id: ruleId, rule_version: CERTIFICATION_POLICY_VERSION, status: gateCheck.status, severity: gateCheck.status === "PASS" ? "INFO" : "CRITICAL", expected: { status: "PASS" }, actual: { status: gateCheck.status }, details: { message: gateCheck.details, gate_version: CERTIFICATION_POLICY_VERSION } }));
     const { error: validationError } = await supabaseAdmin.from("iris_validation_results").insert(validationRows);
     if (validationError) { await failExecution(run.id, execution.id, userId, "VALIDATION_PERSIST_FAILED", validationError.message); throw new Error(`Unable to persist Iris validation: ${validationError.message}`); }
 
@@ -82,6 +84,10 @@ export async function executeIrisRun(request: RunRequest) {
       await supabaseAdmin.from("iris_runs").update({ status: "VALIDATION_FAILED", failure_code: "CERTIFICATION_GATE_FAILED", failure_message: message, updated_at: new Date().toISOString() }).eq("id", run.id).eq("user_id", userId);
       return { ...run, id: run.id, status: "VALIDATION_FAILED", execution_id: execution.id, result, certified: false, certification_gate: gate };
     }
+
+    // The DB certification trigger requires validation_status=PASS while certification_status remains PENDING.
+    const { error: validationStateError } = await supabaseAdmin.from("iris_execution_records").update({ validation_status: "PASS" }).eq("id", execution.id).eq("user_id", userId);
+    if (validationStateError) { await failExecution(run.id, execution.id, userId, "VALIDATION_STATE_UPDATE_FAILED", validationStateError.message); throw new Error(`Unable to finalize Iris validation state: ${validationStateError.message}`); }
 
     const certificationHash = hash({ run_id: run.id, execution_id: execution.id, input_hash: inputHash, output_hash: outputHash, policy: CERTIFICATION_POLICY_VERSION, evidence: gate.evidence_snapshot, reconciliation: gate.reconciliation_snapshot });
     const { error: certificationError } = await supabaseAdmin.from("iris_certifications").insert({ run_id: run.id, execution_id: execution.id, user_id: userId, result_id: execution.id, policy_version: CERTIFICATION_POLICY_VERSION, status: "CERTIFIED", validation_snapshot: { status: "PASS", checks: gate.checks }, reconciliation_snapshot: gate.reconciliation_snapshot, evidence_snapshot: gate.evidence_snapshot, certification_hash: certificationHash, certified_at: new Date().toISOString() });
