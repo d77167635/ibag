@@ -5,9 +5,9 @@ export type FidelityCheck = { id: string; severity: FidelitySeverity; title: str
 
 const CANONICAL_PRODUCTS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
 const OBSERVED_LIFECYCLES = new Set(["observed", "validated", "fresh"]);
-const OBSERVED_EVIDENCE = new Set(["observed", "calculated"]);
+const OBSERVED_PROVIDER_EVIDENCE = new Set(["observed"]);
 
-/** Hard evidence gate between provider ingestion and Iris reasoning. Readiness is scoped to one complete same-Item evidence set. */
+/** Hard evidence gate between provider ingestion and Iris reasoning. Readiness is scoped to one complete same-Item evidence set. Provider observations can never be promoted to observed merely because they are calculated or derived. */
 export async function assessSourceFidelity(userId: string) {
   const [items, accounts, tx, rawTx, rawBalances, rawLiabilities, runs, products, rawProducts] = await Promise.all([
     supabaseAdmin.from("plaid_items").select("id, status, last_synced_at", { count: "exact" }).eq("user_id", userId),
@@ -23,7 +23,7 @@ export async function assessSourceFidelity(userId: string) {
 
   const queryErrors = [items, accounts, tx, rawTx, rawBalances, rawLiabilities, runs, products, rawProducts].filter(q => q.error).map(q => q.error!.message);
   if (queryErrors.length) return {
-    gate_version: "IRIS_SOURCE_FIDELITY_V3", status: "fail" as FidelitySeverity, ready_for_higher_order_intelligence: false,
+    gate_version: "IRIS_SOURCE_FIDELITY_V4", status: "fail" as FidelitySeverity, ready_for_higher_order_intelligence: false,
     checks: [{ id: "query_integrity", severity: "fail" as FidelitySeverity, title: "Evidence store readable", detail: queryErrors.join("; "), observed: null, expected: true }],
     limitations: ["The evidence store could not be completely inspected."], counts: {}, generated_at: new Date().toISOString()
   };
@@ -37,10 +37,9 @@ export async function assessSourceFidelity(userId: string) {
   const itemIds = new Set(itemRows.map(r => r.id));
   const accountIds = new Set(accountRows.map(r => r.id));
   const accountById = new Map(accountRows.map(r => [r.id, r]));
-  const accountsForItem = (itemId: string) => accountRows.filter(a => a.item_id === itemId);
-  const itemHasCurrentTx = (itemId: string) => rawTxRows.some(r => r.is_current && OBSERVED_EVIDENCE.has(r.evidence_state ?? "") && accountById.get(r.account_id)?.item_id === itemId);
-  const itemHasCurrentBalance = (itemId: string) => rawBalanceRows.some(r => r.is_current && OBSERVED_EVIDENCE.has(r.evidence_state ?? "") && accountById.get(r.account_id)?.item_id === itemId);
-  const itemHasCurrentLiability = (itemId: string) => rawLiabilityRows.some(r => r.is_current && OBSERVED_EVIDENCE.has(r.evidence_state ?? "") && accountById.get(r.account_id)?.item_id === itemId);
+  const itemHasCurrentTx = (itemId: string) => rawTxRows.some(r => r.is_current && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "") && accountById.get(r.account_id)?.item_id === itemId);
+  const itemHasCurrentBalance = (itemId: string) => rawBalanceRows.some(r => r.is_current && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "") && accountById.get(r.account_id)?.item_id === itemId);
+  const itemHasCurrentLiability = (itemId: string) => rawLiabilityRows.some(r => r.is_current && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "") && accountById.get(r.account_id)?.item_id === itemId);
 
   const providerKeys = new Set<string>(), duplicateProviderKeys = new Set<string>();
   for (const a of accountRows) { const key = `${a.item_id}:${a.plaid_account_id}`; if (providerKeys.has(key)) duplicateProviderKeys.add(key); providerKeys.add(key); }
@@ -60,8 +59,8 @@ export async function assessSourceFidelity(userId: string) {
   const latestRunByItem = new Map<string, any>();
   for (const run of runRows) if (!latestRunByItem.has(run.item_id)) latestRunByItem.set(run.item_id, run);
   const completeItems = itemRows.filter(item => {
-    const observed = new Set(productRows.filter(r => r.item_id === item.id && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
-    const raw = new Set(rawProductRows.filter(r => r.item_id === item.id && OBSERVED_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
+    const observed = new Set(productRows.filter(r => r.item_id === item.id && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
+    const raw = new Set(rawProductRows.filter(r => r.item_id === item.id && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
     const rawFor = (p: string) => p === "transactions" ? itemHasCurrentTx(item.id) : p === "balance" ? itemHasCurrentBalance(item.id) : p === "liabilities" ? itemHasCurrentLiability(item.id) : raw.has(p);
     const run = latestRunByItem.get(item.id);
     return item.status === "active" && !!run && ["completed", "validated"].includes(run.state) && CANONICAL_PRODUCTS.every(p => observed.has(p) && rawFor(p));
@@ -72,13 +71,13 @@ export async function assessSourceFidelity(userId: string) {
     ? pass("canonical_eight_domain_certification", "Eight-domain provider certification", `${completeItems.length} active Item(s) contain all eight canonical Plaid domains with current observed state, raw evidence, and a completed/validated sync on the same Item.`, completeItems.length, ">=1")
     : fail("canonical_eight_domain_certification", "Eight-domain provider certification", "No active Item currently has all eight canonical Plaid domains with current observed state, raw evidence, and a completed/validated sync on that same Item.", 0, ">=1");
 
-  const missingTransactions = itemRows.filter(i => !productRows.some(r => r.item_id === i.id && r.product === "transactions" && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_EVIDENCE.has(r.evidence_state ?? "")));
-  const missingBalances = itemRows.filter(i => !productRows.some(r => r.item_id === i.id && r.product === "balance" && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_EVIDENCE.has(r.evidence_state ?? "")));
+  const missingTransactions = itemRows.filter(i => !productRows.some(r => r.item_id === i.id && r.product === "transactions" && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")));
+  const missingBalances = itemRows.filter(i => !productRows.some(r => r.item_id === i.id && r.product === "balance" && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")));
   missingTransactions.length ? warn("transactions_product_observation", "Transactions provider observation", `${missingTransactions.length} connected Item(s) lack a current observed Transactions state; unrelated Items do not block another certified Item.`, missingTransactions.length, 0) : pass("transactions_product_observation", "Transactions provider observation", "Every connected Item has a current observed Transactions state.", itemRows.length, itemRows.length);
   missingBalances.length ? warn("balance_product_observation", "Balance provider observation", `${missingBalances.length} connected Item(s) lack a current observed Balance state; unrelated Items do not block another certified Item.`, missingBalances.length, 0) : pass("balance_product_observation", "Balance provider observation", "Every connected Item has a current observed Balance state.", itemRows.length, itemRows.length);
 
-  const txWithBadEvidence = txRows.filter(r => r.is_active && !OBSERVED_EVIDENCE.has(r.classification_evidence ?? ""));
-  txWithBadEvidence.length ? warn("transaction_semantics_evidence", "Transaction semantic evidence", `${txWithBadEvidence.length} active transactions do not have observed/calculated classification evidence.`, txWithBadEvidence.length, 0) : pass("transaction_semantics_evidence", "Transaction semantic evidence", "Active transactions have evidence-backed classification states.", 0, 0);
+  const txWithBadEvidence = txRows.filter(r => r.is_active && !["observed", "calculated", "inferred", "limited", "insufficient_evidence", "contradicted", "stale", "predicted", "scenario"].includes(r.classification_evidence ?? ""));
+  txWithBadEvidence.length ? warn("transaction_semantics_evidence", "Transaction semantic evidence", `${txWithBadEvidence.length} active transactions do not have a recognized semantic classification evidence state.`, txWithBadEvidence.length, 0) : pass("transaction_semantics_evidence", "Transaction semantic evidence", "Active transactions have recognized evidence-backed classification states.", 0, 0);
   const completedRuns = runRows.filter(r => itemIds.has(r.item_id) && ["completed", "validated"].includes(r.state));
   completedRuns.length ? pass("pagination_checkpoint", "Provider pagination checkpoint", "Completed sync runs retain checkpoint state.", completedRuns.length, completedRuns.length) : warn("pagination_checkpoint", "Provider pagination checkpoint", "No completed/validated sync run is available for the user's Items.", 0, ">=1");
 
@@ -88,14 +87,14 @@ export async function assessSourceFidelity(userId: string) {
   const hardIntegrityFailure = checks.some(c => c.severity === "fail" && c.id !== "canonical_eight_domain_certification");
   const ready = !hardIntegrityFailure && certifiedItemReady && eightDomainReady;
   return {
-    gate_version: "IRIS_SOURCE_FIDELITY_V3", status, ready_for_higher_order_intelligence: ready, checks,
+    gate_version: "IRIS_SOURCE_FIDELITY_V4", status, ready_for_higher_order_intelligence: ready, checks,
     limitations: checks.filter(c => c.severity !== "pass").map(c => c.detail),
     counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilityRows.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
     reconciliation: { canonical_active_transactions: txRows.filter(r => r.is_active).length, raw_current_transactions: rawTxRows.filter(r => r.is_current).length, added: runRows.reduce((n, r) => n + Number(r.added_count ?? 0), 0), modified: runRows.reduce((n, r) => n + Number(r.modified_count ?? 0), 0), removed: runRows.reduce((n, r) => n + Number(r.removed_count ?? 0), 0) },
     eight_domain_items: completeItems.map(i => i.id),
     missing_by_item: itemRows.map(item => {
-      const observed = new Set(productRows.filter(r => r.item_id === item.id && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
-      const raw = new Set(rawProductRows.filter(r => r.item_id === item.id && OBSERVED_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
+      const observed = new Set(productRows.filter(r => r.item_id === item.id && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
+      const raw = new Set(rawProductRows.filter(r => r.item_id === item.id && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
       return { item: item.id, missing_observed: CANONICAL_PRODUCTS.filter(p => !observed.has(p)), missing_raw: CANONICAL_PRODUCTS.filter(p => !(p === "transactions" ? itemHasCurrentTx(item.id) : p === "balance" ? itemHasCurrentBalance(item.id) : p === "liabilities" ? itemHasCurrentLiability(item.id) : raw.has(p))) };
     }),
     generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary."
