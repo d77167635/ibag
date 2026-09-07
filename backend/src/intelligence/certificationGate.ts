@@ -19,12 +19,11 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
     if (!ok) critical_failures.push(key);
   };
 
-  const [{ data: run }, { data: execution }, { data: evidence, error: evidenceError }, { data: outputs }, { data: lineage }, { count: rawCount }, { count: canonicalCount }, { count: roundupCount }, { count: productCount }] = await Promise.all([
+  const [{ data: run }, { data: execution }, { data: evidence, error: evidenceError }, { data: outputs }, { count: rawCount }, { count: canonicalCount }, { count: roundupCount }, { count: productCount }] = await Promise.all([
     supabaseAdmin.from("iris_runs").select("id,user_id,as_of,evidence_boundary,evidence_version,evidence_manifest_hash,resource_budget").eq("id", runId).eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("iris_execution_records").select("run_id,user_id,execution_state,input_hash,output_hash,resource_usage").eq("id", executionId).eq("run_id", runId).eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("iris_run_evidence").select("id,user_id,provider,product,raw_observation_id,evidence_hash,effective_at,acquired_at").eq("run_id", runId).eq("user_id", userId),
     supabaseAdmin.from("iris_execution_outputs").select("hash,evidence_state,value").eq("execution_id", executionId),
-    supabaseAdmin.from("iris_data_lineage").select("id,user_id,source_id,destination_id,evidence_state").eq("user_id", userId).or(`source_id.eq.${executionId},destination_id.eq.${executionId}`).limit(5000),
     supabaseAdmin.from("plaid_raw_transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
     supabaseAdmin.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true),
     supabaseAdmin.from("roundup_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
@@ -34,7 +33,11 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   check("iris.execution.integrity", !!execution && execution.execution_state === "EXECUTED" && execution.input_hash === inputHash && execution.output_hash === outputHash && inputHash.length === 64 && outputHash.length === 64, "Execution identity, state, and hashes match.", "Execution identity, state, or hashes are invalid.");
   check("iris.evidence.ownership", !evidenceError && (evidence?.length ?? 0) > 0 && evidence!.every(e => e.user_id === userId && !!e.evidence_hash && e.effective_at != null && e.acquired_at != null), "Run evidence is present, hashed, dated, and user-owned.", "Run evidence is missing, incomplete, unhashed, or ownership-invalid.");
   check("iris.evidence.boundary", !!run?.as_of && !!run?.evidence_boundary && !!run?.evidence_manifest_hash, "Explicit evidence boundary and manifest hash are persisted.", "Evidence boundary or manifest hash is missing.");
-  check("iris.lineage.present", (lineage?.length ?? 0) > 0 && lineage!.every(l => l.user_id === userId), "User-owned lineage reaches the execution boundary.", "No valid user-owned lineage reaches the execution boundary.");
+
+  const rawIds = (evidence ?? []).map(e => e.raw_observation_id).filter((id): id is string => typeof id === "string");
+  const { data: lineage } = rawIds.length ? await supabaseAdmin.from("iris_data_lineage").select("id,user_id,source_id,destination_id,evidence_state").eq("user_id", userId).in("source_id", rawIds.slice(0, 5000)).limit(5000) : { data: [] as any[] };
+  check("iris.lineage.present", (lineage?.length ?? 0) > 0 && lineage!.every(l => l.user_id === userId), "User-owned provider-to-intelligence lineage is attached to the run evidence boundary.", "No user-owned provider lineage is attached to the run evidence boundary.");
+
   const output = outputs?.find(o => o.hash === outputHash);
   check("iris.output.semantic_state", !!output && output.value != null && output.evidence_state !== "OBSERVED", "Output is persisted as derived intelligence and is not misclassified as provider observation.", "Output is missing, hash-mismatched, or incorrectly classified as observed evidence.");
 
@@ -58,6 +61,7 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
       evidence_version: run?.evidence_version ?? null,
       evidence_manifest_hash: run?.evidence_manifest_hash ?? null,
       run_evidence_count: evidence?.length ?? 0,
+      lineage_count: lineage?.length ?? 0,
       current_observed_product_count: productCount ?? 0,
     },
     reconciliation_snapshot: {
