@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js";
 
-export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v2";
+export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v3";
 
 type CapabilityContract = {
   capability_id: string;
@@ -36,20 +36,13 @@ function asStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
-/**
- * Resolve the governed capability graph from Supabase. This is intentionally
- * data-driven: the registry, not a hard-coded TypeScript dependency list,
- * determines traversal. DFS uses path-local cycle detection so recursive
- * capabilities may be revisited only when the governed graph explicitly
- * permits a recursive composition; a dependency cycle is never silently
- * executed.
- */
+/** Resolve the governed capability graph from persisted contracts and actual observed provider evidence. */
 export async function planCapabilities(userId: string, requested: string[]): Promise<CapabilityPlan> {
   const requestedIds = [...new Set(requested.filter(Boolean))];
   const [{ data: contracts, error: contractError }, { data: products, error: productError }, { count: fieldCount, error: fieldError }] = await Promise.all([
     supabaseAdmin.from("iris_capability_contracts").select("capability_id,version,operator_id,operator_version,evidence_requirements,dependencies,validation_rules,output_type,recursive,cross_domain").eq("active", true),
-    supabaseAdmin.from("plaid_product_observations").select("product").eq("user_id", userId).eq("lifecycle_state", "observed"),
-    supabaseAdmin.from("iris_source_field_observations").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    supabaseAdmin.from("plaid_product_observations").select("product,item_id,evidence_state,lifecycle_state").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("lifecycle_state", "observed").eq("evidence_state", "observed"),
+    supabaseAdmin.from("iris_source_field_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("evidence_state", "observed"),
   ]);
 
   if (contractError) throw new Error(`CAPABILITY_REGISTRY_READ_FAILED: ${contractError.message}`);
@@ -78,14 +71,13 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     ordered.push(id);
   };
 
-  for (const id of requestedIds) {
-    if (id !== "iris.full_intelligence") visit(id);
-  }
+  for (const id of requestedIds) if (id !== "iris.full_intelligence") visit(id);
 
   if (missing.length) limitations.push(`Missing governed capability contracts: ${missing.join(", ")}.`);
   if (productError) limitations.push(`Provider product observation could not be read: ${productError.message}.`);
   if (fieldError) limitations.push(`Provider source-field observations could not be counted: ${fieldError.message}.`);
-  if (!products?.length) limitations.push("No observed Plaid product domain is available to the planner for this user.");
+  const observedProducts = [...new Set((products ?? []).map(p => p.product).filter((p): p is string => typeof p === "string"))];
+  if (!observedProducts.length) limitations.push("No observed Plaid product domain is available to the planner for this user.");
 
   const contractsUsed = ordered.map(id => registry.get(id)!).filter(Boolean);
   const edges = contractsUsed.reduce((n, c) => n + asStrings(c.dependencies).filter(d => registry.has(d)).length, 0);
@@ -101,8 +93,8 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     missing_capabilities: missing,
     cycle_detected: cycleDetected,
     evidence: {
-      observed_products: [...new Set((products ?? []).map(p => p.product).filter(Boolean))],
-      observed_product_count: products?.length ?? 0,
+      observed_products: observedProducts,
+      observed_product_count: observedProducts.length,
       source_field_observation_count: fieldCount ?? 0,
     },
     resource_estimate: { nodes, edges, compositions },
