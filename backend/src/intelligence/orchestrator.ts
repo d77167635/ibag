@@ -1,4 +1,4 @@
-import { computeBalanceMetrics, computeCashFlowSafety, computeBalanceHistory, computeDebtTrend } from "../services/intelligence.js";
+import { computeGovernedFinancialState } from "./governedFinancialState.js";
 import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy, computeCanonicalForwardProjection } from "./transactionSemantics.js";
 import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
@@ -32,26 +32,48 @@ import { buildAdversarialReasoning } from "./adversarialReasoning.js";
 import { buildCounterfactualIntelligence } from "./counterfactual.js";
 import { recordIntelligenceSnapshot } from "./validationSnapshots.js";
 import { buildProviderDomainIntelligence } from "./providerDomainIntelligence.js";
+import type { IrisExecutionContext } from "./irisExecutionContext.js";
 
-/** Canonical intelligence orchestrator for Dashboard and Iris. */
-export async function computeFullIntelligence(userId: string) {
-  const [evidenceBoundary, sourceFidelity, providerDomainIntelligence] = await Promise.all([getCertifiedEvidenceBoundary(userId), assessSourceFidelity(userId), buildProviderDomainIntelligence(userId)]);
-  const canonical90Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 90 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
-  const canonical = await getCanonicalTransactions(userId, canonical90Start);
+/** Canonical intelligence orchestrator for Dashboard and Iris. Existing routes remain compatible. */
+export async function computeFullIntelligence(userId: string, executionContext?: IrisExecutionContext) {
+  const frozenEvidenceBoundary = executionContext?.temporal.evidence_boundary ?? null;
+  const frozenAsOf = executionContext?.temporal.as_of ?? new Date().toISOString();
+  const [evidenceBoundary, sourceFidelity, providerDomainIntelligence, financialStateRuntime] = await Promise.all([
+    executionContext ? Promise.resolve(frozenEvidenceBoundary) : getCertifiedEvidenceBoundary(userId),
+    assessSourceFidelity(userId),
+    buildProviderDomainIntelligence(userId),
+    computeGovernedFinancialState(userId, executionContext),
+  ]);
+  const canonicalAnchor = executionContext ? new Date(frozenAsOf) : evidenceBoundary ? new Date(evidenceBoundary) : new Date();
+  if (!Number.isFinite(canonicalAnchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const canonical90Start = new Date(canonicalAnchor.getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
+  const canonical = await getCanonicalTransactions(userId, canonical90Start, frozenAsOf);
   const integrity = validateCanonicalIntelligenceInput(canonical);
-  const current30Start = evidenceBoundary ? new Date(new Date(evidenceBoundary).getTime() - 30 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
-  const current30 = canonical.filter(tx => tx.posted_date >= current30Start);
+  const current30Start = new Date(canonicalAnchor.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const current30 = canonical.filter(tx => tx.posted_date >= current30Start && tx.posted_date <= frozenAsOf.slice(0, 10));
   const economicCurrent = computeEconomicCashFlow(current30);
   const roundupProjection = computeRoundupProjectionFromTransactions(canonical);
-  const spendingByDomain = computeSpendingByDomainFromTransactions(canonical, 30, evidenceBoundary);
-  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical, 30, evidenceBoundary);
+  const spendingByDomain = computeSpendingByDomainFromTransactions(canonical, 30, frozenAsOf);
+  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical, 30, frozenAsOf);
   const prior30 = canonical.filter(tx => tx.posted_date < current30Start);
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
-  const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: evidenceBoundary, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
-  const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
-    computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId), computeCanonicalAnomalies(userId), computeCanonicalForwardProjection(userId, 30, evidenceBoundary), computeDebtCostIntelligence(userId), computeCategoryDrift(userId), computeMultiWindowFlow(userId, undefined, evidenceBoundary), computeFinancialReasoning(userId, evidenceBoundary), getFeatureFlags(userId), supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }), verifyProviderLineage(supabaseAdmin, userId),
+  const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: evidenceBoundary, as_of: frozenAsOf, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
+  const [anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
+    computeCanonicalAnomalies(userId, 30, executionContext),
+    computeCanonicalForwardProjection(userId, 30, frozenAsOf),
+    computeDebtCostIntelligence(userId),
+    computeCategoryDrift(userId, 30, 90, executionContext),
+    computeMultiWindowFlow(userId, undefined, frozenAsOf),
+    computeFinancialReasoning(userId, frozenAsOf, executionContext),
+    getFeatureFlags(userId),
+    supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
+    verifyProviderLineage(supabaseAdmin, userId),
   ]);
+  const balances = financialStateRuntime.balances;
+  const cashFlowSafety = financialStateRuntime.cashFlowSafety;
+  const balanceHistory = financialStateRuntime.balanceHistory;
+  const debtTrend = financialStateRuntime.debtTrend;
   const declaredGoals = (declaredGoalsResult.data ?? []) as DeclaredIrisGoal[];
   const goalDataLimitations = declaredGoalsResult.error ? ["Persistent user goals could not be loaded; Iris is falling back to evidence-derived objectives."] : [];
   const trajectory = assessTrajectory(multiWindowFlow);
@@ -59,7 +81,7 @@ export async function computeFullIntelligence(userId: string) {
   const maximumIntelligence = buildMaximumIntelligence({ flows: multiWindowFlow, reasoning, safeToSpend: cashFlowSafety.safeToSpend, cashFlowNet: cashFlow.net, cashFlowWindowDays: cashFlow.windowDays, currentLiquidAssets: balances.liquidAssets, forwardProjectionBasis: forwardProjection.basis ?? null });
   const providerNetWorth = providerDomainIntelligence.derived?.net_worth ?? null;
   const layerMetrics = { net_worth: { liquid_assets: balances.liquidAssets, provider_domain_net_worth: providerNetWorth, provider_domain_components: providerDomainIntelligence.derived?.net_worth_components ?? null, as_of: balances.asOf }, debt_health: { revolving_debt: balances.revolvingDebt, credit_utilization: balances.creditUtilization, provider_liability_balance: providerDomainIntelligence.derived?.liability_state?.liability_balance ?? null, change_pct_30d: debtTrend.changePct, as_of: balances.asOf }, cash_flow_safety: cashFlowSafety, roundup_projection: roundupProjection, cash_flow: cashFlow, spending_by_domain: spendingByDomain, spending_hierarchy: spendingHierarchy, balance_history: balanceHistory, forward_projection: forwardProjection, anomalies, provider_domains: providerDomainIntelligence };
-  const baseResult = { narrative, generated_at: new Date().toISOString(), feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence, provider_lineage: providerLineage, evidence_boundary: evidenceBoundary };
+  const baseResult = { narrative, generated_at: frozenAsOf, feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence, provider_lineage: providerLineage, evidence_boundary: evidenceBoundary };
   const evidenceGraph = buildEvidenceGraph(baseResult);
   const uncertainty = assessUncertainty(evidenceGraph);
   const financialState = buildFinancialStateModel(evidenceGraph, uncertainty);
@@ -82,7 +104,10 @@ export async function computeFullIntelligence(userId: string) {
   const counterfactualIntelligence = sourceFidelity.ready_for_higher_order_intelligence ? buildCounterfactualIntelligence({ decision: decisionIntelligence, optimization: optimizationBase, safeToSpend: cashFlowSafety.safeToSpend, cashFlowNet: cashFlow.net, revolvingDebt: balances.revolvingDebt }) : { findings: [], evidence_gate: "closed" };
   const metaIntelligence = buildMetaIntelligence({ atlas: intelligenceAtlas, sourceFidelity, integrity, uncertainty, investigations, composition });
   const intelligenceGate = { ...sourceFidelity, higher_order_conclusions_enabled: sourceFidelity.ready_for_higher_order_intelligence, limitation: sourceFidelity.ready_for_higher_order_intelligence ? null : "Higher-order Iris compositions remain evidence-bounded until source completeness and lineage are certified." };
+  const execution_context = executionContext
+    ? { status: "PARTIAL" as const, run_id: executionContext.run.id, as_of: executionContext.temporal.as_of, evidence_boundary: executionContext.temporal.evidence_boundary, evidence_version: executionContext.run.evidence_version, manifest_hash: executionContext.run.evidence_manifest_hash, limitation: "The governed orchestrator boundary is frozen, but legacy providers still require context-aware state resolution before this run can be certified." }
+    : { status: "NOT_GOVERNED" as const, limitation: "Legacy compatibility execution has no governed IrisRun context." };
   recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
   recordIntelligenceSnapshot(userId, { evidenceBoundary, liquidAssets: balances.liquidAssets, cashFlowNet: cashFlow.net, safeToSpend: cashFlowSafety.safeToSpend, revolvingDebt: balances.revolvingDebt, creditUtilization: balances.creditUtilization, forwardProjectedLiquidPosition: typeof forwardProjection.projectedLiquidPosition === "number" ? forwardProjection.projectedLiquidPosition : null, roundupProjected: roundupProjection.projectedAmount ?? roundupProjection.projectedTotal ?? null, sourceFidelityStatus: sourceFidelity.status ?? null, higherOrderReady: sourceFidelity.ready_for_higher_order_intelligence, forecastHorizonDays: 30, metadata: { atlas_ready: intelligenceAtlas.counts.evidence_ready, atlas_total: intelligenceAtlas.counts.total_defined, investigation_count: investigations.investigations.length, composition_possible: rawComposition.counts.possible_combinations, layer_composition_ready: layerComposition.counts.evidence_ready, new_analysis_features: layerComposition.counts.new_analysis_features, provider_domain_evidence_ready: providerDomainIntelligence.evidence_ready, provider_domain_selected_item: providerDomainIntelligence.selected_item_id } }).catch(err => console.error("intelligence snapshot failed:", err));
-  return { ...baseResult, integrity, source_fidelity: sourceFidelity, intelligence_gate: intelligenceGate, evidence_graph: evidenceGraph, intelligence_graph: intelligenceGraph, investigations, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition, layer_composition: layerComposition, higher_order_synthesis: higherOrderSynthesis, adversarial_reasoning: adversarialReasoning, counterfactual_intelligence: counterfactualIntelligence, meta_intelligence: metaIntelligence };
+  return { ...baseResult, integrity, source_fidelity: sourceFidelity, intelligence_gate: intelligenceGate, execution_context, evidence_graph: evidenceGraph, intelligence_graph: intelligenceGraph, investigations, uncertainty, financial_state: financialState, causal_analysis: causalAnalysis, decision_graph: decisionGraph, decision_intelligence: decisionIntelligence, consequence_model: consequenceModel, optimization_intelligence: optimization, goal_intelligence: goals, intelligence_atlas: intelligenceAtlas, intelligence_composition: composition, layer_composition: layerComposition, higher_order_synthesis: higherOrderSynthesis, adversarial_reasoning: adversarialReasoning, counterfactual_intelligence: counterfactualIntelligence, meta_intelligence: metaIntelligence };
 }

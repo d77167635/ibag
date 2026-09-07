@@ -1,4 +1,5 @@
 import { getCanonicalTransactions, isEconomicOutflow } from "./transactionSemantics.js";
+import type { IrisExecutionContext } from "./irisExecutionContext.js";
 
 const MIN_BASELINE_TRANSACTIONS = 3;
 const SIGNIFICANT_DEVIATION_PCT = 25;
@@ -15,10 +16,12 @@ export interface CategoryDrift {
 }
 
 /** LAYER 5/6 — spending behavior excludes transfers and other non-economic movements. */
-export async function computeCategoryDrift(userId: string, recentDays = 30, baselineDays = 90): Promise<CategoryDrift[]> {
-  const baselineStart = new Date(Date.now() - baselineDays * 86_400_000).toISOString().slice(0, 10);
-  const recentStart = new Date(Date.now() - recentDays * 86_400_000).toISOString().slice(0, 10);
-  const txs = await getCanonicalTransactions(userId, baselineStart);
+export async function computeCategoryDrift(userId: string, recentDays = 30, baselineDays = 90, executionContext?: IrisExecutionContext): Promise<CategoryDrift[]> {
+  const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date();
+  if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const baselineStart = new Date(anchor.getTime() - baselineDays * 86_400_000).toISOString().slice(0, 10);
+  const recentStart = new Date(anchor.getTime() - recentDays * 86_400_000).toISOString().slice(0, 10);
+  const txs = await getCanonicalTransactions(userId, baselineStart, executionContext?.temporal.as_of);
   const rows = txs.filter(isEconomicOutflow);
   if (!rows.length) return [];
 

@@ -1,22 +1,15 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import type { IrisExecutionContext } from "../intelligence/irisExecutionContext.js";
 
 /**
  * Recurring transaction detection — rule-based, not ML. A "series" is
  * declared when a merchant has 3+ posted, same-sign (all outflows)
  * transactions whose amounts are within 10% of their median and whose
  * day-gaps are within 5 days of their median gap. Anything less regular
- * (e.g. alternating charges/refunds, one-off large purchases) is
- * correctly left undetected rather than force-fit into a pattern.
+ * is correctly left undetected rather than force-fit into a pattern.
  */
 export async function detectRecurringSeries(userId: string) {
-  const { data: txs, error } = await supabaseAdmin
-    .from("transactions")
-    .select("merchant_id, amount, posted_date, plaid_category_detailed")
-    .eq("user_id", userId)
-    .eq("pending", false)
-    .not("merchant_id", "is", null)
-    .gt("amount", 0)
-    .order("posted_date", { ascending: true });
+  const { data: txs, error } = await supabaseAdmin.from("transactions").select("merchant_id, amount, posted_date, plaid_category_detailed").eq("user_id", userId).eq("pending", false).not("merchant_id", "is", null).gt("amount", 0).order("posted_date", { ascending: true });
   if (error) throw error;
   const { data: essentialCategories } = await supabaseAdmin.from("category_mapping").select("plaid_category_detailed").eq("is_essential", true);
   const essentialSet = new Set((essentialCategories ?? []).map((c) => c.plaid_category_detailed));
@@ -30,40 +23,43 @@ export async function detectRecurringSeries(userId: string) {
     if (!amounts.every((a) => Math.abs(a - medianAmount) / medianAmount <= 0.1)) continue;
     const gaps: number[] = []; for (let i = 1; i < occurrences.length; i++) gaps.push(daysBetween(occurrences[i - 1].date, occurrences[i].date));
     const medianGap = median(gaps); if (!gaps.every((g) => Math.abs(g - medianGap) <= 5) || medianGap < 1) continue;
-    const lastSeen = occurrences[occurrences.length - 1].date;
-    const nextExpected = new Date(new Date(lastSeen).getTime() + medianGap * 86_400_000).toISOString().slice(0, 10);
-    const mostRecentCategory = occurrences[occurrences.length - 1].category;
-    const isEssential = mostRecentCategory ? essentialSet.has(mostRecentCategory) : false;
+    const lastSeen = occurrences[occurrences.length - 1].date; const nextExpected = new Date(new Date(lastSeen).getTime() + medianGap * 86_400_000).toISOString().slice(0, 10);
+    const mostRecentCategory = occurrences[occurrences.length - 1].category; const isEssential = mostRecentCategory ? essentialSet.has(mostRecentCategory) : false;
     const { error: upsertError } = await supabaseAdmin.from("recurring_series").upsert({ user_id: userId, merchant_id: merchantId, typical_amount: medianAmount, interval_days: Math.round(medianGap), last_seen_date: lastSeen, next_expected_date: nextExpected, occurrence_count: occurrences.length, is_essential: isEssential, updated_at: new Date().toISOString() }, { onConflict: "user_id,merchant_id" });
     if (upsertError) throw upsertError;
   }
 }
 
-export async function computeBalanceMetrics(userId: string) {
+export async function computeBalanceMetrics(userId: string, executionContext?: IrisExecutionContext) {
   const { data: accounts, error } = await supabaseAdmin.from("plaid_accounts").select("type, current_balance, credit_limit, balance_updated_at").eq("user_id", userId);
   if (error) throw error;
-  if (!accounts || accounts.length === 0) return { liquidAssets: null, revolvingDebt: null, creditUtilization: null, asOf: null };
-  const depository = accounts.filter((a) => a.type === "depository" && a.current_balance !== null);
-  const credit = accounts.filter((a) => a.type === "credit" && a.current_balance !== null);
+  if (!accounts || accounts.length === 0) return { liquidAssets: null, revolvingDebt: null, creditUtilization: null, asOf: null, stateEvidence: "insufficient_evidence" as const };
+  const requestedAsOf = executionContext ? new Date(executionContext.temporal.as_of) : null;
+  if (requestedAsOf && !Number.isFinite(requestedAsOf.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const usable = accounts.filter((a) => a.current_balance !== null && Number.isFinite(Number(a.current_balance)) && (!requestedAsOf || !a.balance_updated_at || new Date(a.balance_updated_at).getTime() <= requestedAsOf.getTime()));
+  const depository = usable.filter((a) => a.type === "depository"); const credit = usable.filter((a) => a.type === "credit");
   const liquidAssets = depository.length ? depository.reduce((sum, a) => sum + Number(a.current_balance), 0) : null;
   const revolvingDebt = credit.length ? credit.reduce((sum, a) => sum + Number(a.current_balance), 0) : null;
   const creditWithLimits = credit.filter((a) => a.credit_limit && Number(a.credit_limit) > 0);
   const creditUtilization = creditWithLimits.length ? creditWithLimits.reduce((sum, a) => sum + Number(a.current_balance) / Number(a.credit_limit), 0) / creditWithLimits.length : null;
-  const asOf = accounts.map((a) => a.balance_updated_at).filter(Boolean).sort().pop() ?? null;
-  return { liquidAssets, revolvingDebt, creditUtilization, asOf };
+  const asOf = usable.map((a) => a.balance_updated_at).filter(Boolean).sort().pop() ?? null;
+  const stateEvidence = requestedAsOf && usable.length < accounts.filter((a) => a.current_balance !== null).length ? "limited" as const : "observed" as const;
+  return { liquidAssets, revolvingDebt, creditUtilization, asOf, stateEvidence };
 }
 
-export async function computeCashFlowSafety(userId: string, horizonDays = 14, collisionWindowDays = 3) {
+export async function computeCashFlowSafety(userId: string, horizonDays = 14, collisionWindowDays = 3, executionContext?: IrisExecutionContext) {
   const { data: checkingAccounts } = await supabaseAdmin.from("plaid_accounts").select("available_balance").eq("user_id", userId).eq("type", "depository").eq("subtype", "checking");
-  const knownBalances = (checkingAccounts ?? []).filter((a) => a.available_balance !== null);
+  const knownBalances = (checkingAccounts ?? []).filter((a) => a.available_balance !== null && Number.isFinite(Number(a.available_balance)));
   const currentAvailable = knownBalances.length ? knownBalances.reduce((sum, a) => sum + Number(a.available_balance), 0) : null;
   const { data: series } = await supabaseAdmin.from("recurring_series").select("typical_amount, next_expected_date, merchant_id, is_essential, merchants(canonical_name)").eq("user_id", userId).eq("is_essential", true);
-  const today = new Date(); const horizon = new Date(today.getTime() + horizonDays * 86_400_000);
-  const upcoming = (series ?? []).filter((s) => new Date(s.next_expected_date) <= horizon).sort((a, b) => a.next_expected_date.localeCompare(b.next_expected_date));
+  const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date();
+  if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const horizon = new Date(anchor.getTime() + horizonDays * 86_400_000);
+  const upcoming = (series ?? []).filter((s) => new Date(s.next_expected_date) <= horizon && new Date(s.next_expected_date) >= anchor).sort((a, b) => a.next_expected_date.localeCompare(b.next_expected_date));
   const totalUpcomingBills = upcoming.reduce((sum, s) => sum + Number(s.typical_amount), 0); const safeToSpend = currentAvailable !== null ? currentAvailable - totalUpcomingBills : null;
   const collisions: { window_start: string; bills: string[] }[] = []; const claimed = new Set<number>();
   for (let i = 0; i < upcoming.length; i++) { if (claimed.has(i)) continue; const clusterIndices = upcoming.map((s, j) => ({ s, j })).filter(({ s, j }) => !claimed.has(j) && Math.abs((new Date(s.next_expected_date).getTime() - new Date(upcoming[i].next_expected_date).getTime()) / 86_400_000) <= collisionWindowDays); if (clusterIndices.length >= 2) { clusterIndices.forEach(({ j }) => claimed.add(j)); collisions.push({ window_start: upcoming[i].next_expected_date, bills: clusterIndices.map(({ s }: any) => s.merchants?.canonical_name ?? "Unknown") }); } }
-  return { safeToSpend, currentAvailable, essentialBillsTotal: totalUpcomingBills, upcomingBills: upcoming.map((s: any) => ({ merchant: s.merchants?.canonical_name ?? "Unknown", amount: Number(s.typical_amount), expectedDate: s.next_expected_date })), billCollisions: collisions, horizonDays };
+  return { safeToSpend, currentAvailable, essentialBillsTotal: totalUpcomingBills, upcomingBills: upcoming.map((s: any) => ({ merchant: s.merchants?.canonical_name ?? "Unknown", amount: Number(s.typical_amount), expectedDate: s.next_expected_date })), billCollisions: collisions, horizonDays, asOf: anchor.toISOString(), stateEvidence: currentAvailable !== null ? "observed" : "insufficient_evidence" };
 }
 
 export async function computeRoundupProjection(userId: string, projectDays = 30) {
@@ -74,9 +70,11 @@ export async function computeRoundupProjection(userId: string, projectDays = 30)
   return { dailyRate, projected: dailyRate * projectDays, basisDays: spanDays, projectDays };
 }
 
-export async function computeCashFlow(userId: string, windowDays = 30) {
-  const now = Date.now(); const windowStart = new Date(now - windowDays * 86_400_000).toISOString().slice(0, 10); const priorWindowStart = new Date(now - 2 * windowDays * 86_400_000).toISOString().slice(0, 10);
-  const { data: txs } = await supabaseAdmin.from("transactions").select("amount, posted_date").eq("user_id", userId).eq("pending", false).gte("posted_date", priorWindowStart);
+export async function computeCashFlow(userId: string, windowDays = 30, executionContext?: IrisExecutionContext) {
+  const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date();
+  if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const now = anchor.getTime(); const windowStart = new Date(now - windowDays * 86_400_000).toISOString().slice(0, 10); const priorWindowStart = new Date(now - 2 * windowDays * 86_400_000).toISOString().slice(0, 10); const cutoff = new Date(now).toISOString().slice(0, 10);
+  const { data: txs } = await supabaseAdmin.from("transactions").select("amount, posted_date").eq("user_id", userId).eq("pending", false).gte("posted_date", priorWindowStart).lte("posted_date", cutoff);
   if (!txs || txs.length === 0) return { inflow: null, outflow: null, net: null, netChangePct: null, windowDays };
   const current = txs.filter((t) => t.posted_date >= windowStart); const prior = txs.filter((t) => t.posted_date < windowStart);
   const sum = (rows: typeof txs, sign: "in" | "out") => rows.filter((t) => (sign === "in" ? Number(t.amount) < 0 : Number(t.amount) > 0)).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
@@ -84,42 +82,49 @@ export async function computeCashFlow(userId: string, windowDays = 30) {
   return { inflow, outflow, net, netChangePct, windowDays };
 }
 
-export async function computeSpendingByDomain(userId: string, windowDays = 30) {
-  const now = Date.now(); const windowStart = new Date(now - windowDays * 86_400_000).toISOString().slice(0, 10); const priorWindowStart = new Date(now - 2 * windowDays * 86_400_000).toISOString().slice(0, 10);
-  const { data: txs } = await supabaseAdmin.from("transactions").select("amount, posted_date, subdomains(domains(key, label))").eq("user_id", userId).eq("pending", false).gt("amount", 0).gte("posted_date", priorWindowStart);
+export async function computeSpendingByDomain(userId: string, windowDays = 30, executionContext?: IrisExecutionContext) {
+  const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date(); if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const windowStart = new Date(anchor.getTime() - windowDays * 86_400_000).toISOString().slice(0, 10); const priorWindowStart = new Date(anchor.getTime() - 2 * windowDays * 86_400_000).toISOString().slice(0, 10); const cutoff = anchor.toISOString().slice(0, 10);
+  const { data: txs } = await supabaseAdmin.from("transactions").select("amount, posted_date, subdomains(domains(key, label))").eq("user_id", userId).eq("pending", false).gt("amount", 0).gte("posted_date", priorWindowStart).lte("posted_date", cutoff);
   if (!txs || txs.length === 0) return [];
   const byDomain = new Map<string, { label: string; current: number; prior: number }>();
   for (const tx of txs as any[]) { const domain = tx.subdomains?.domains; const key = domain?.key ?? "uncategorized"; const label = domain?.label ?? "Uncategorized"; const entry = byDomain.get(key) ?? { label, current: 0, prior: 0 }; if (tx.posted_date >= windowStart) entry.current += Number(tx.amount); else entry.prior += Number(tx.amount); byDomain.set(key, entry); }
   return Array.from(byDomain.entries()).map(([key, v]) => ({ key, label: v.label, amount: v.current, changePct: v.prior > 0 ? ((v.current - v.prior) / v.prior) * 100 : null })).sort((a, b) => b.amount - a.amount);
 }
 
-export async function computeBalanceHistory(userId: string, days = 90) {
-  const { data: accounts } = await supabaseAdmin.from("plaid_accounts").select("id, current_balance").eq("user_id", userId).eq("type", "depository").not("current_balance", "is", null);
+export async function computeBalanceHistory(userId: string, days = 90, executionContext?: IrisExecutionContext) {
+  const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date(); if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const { data: accounts } = await supabaseAdmin.from("plaid_accounts").select("id, current_balance, balance_updated_at").eq("user_id", userId).eq("type", "depository").not("current_balance", "is", null);
   if (!accounts || accounts.length === 0) return [];
-  const currentTotal = accounts.reduce((sum, a) => sum + Number(a.current_balance), 0); const accountIds = accounts.map((a) => a.id); const windowStart = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-  const { data: txs } = await supabaseAdmin.from("transactions").select("amount, posted_date").in("account_id", accountIds).eq("pending", false).gte("posted_date", windowStart).order("posted_date", { ascending: true });
-  const today = new Date().toISOString().slice(0, 10); const series: { date: string; liquidAssets: number }[] = [];
-  for (let i = days; i >= 0; i--) { const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10); const afterD = (txs ?? []).filter((t) => t.posted_date > d); const reconstructed = currentTotal + afterD.reduce((s, t) => s + Number(t.amount), 0); series.push({ date: d, liquidAssets: reconstructed }); if (d === today) break; }
+  const currentEligible = accounts.filter((a) => !a.balance_updated_at || new Date(a.balance_updated_at).getTime() <= anchor.getTime());
+  if (executionContext && currentEligible.length !== accounts.length) return [];
+  const currentTotal = accounts.reduce((sum, a) => sum + Number(a.current_balance), 0); const accountIds = accounts.map((a) => a.id); const windowStart = new Date(anchor.getTime() - days * 86_400_000).toISOString().slice(0, 10); const cutoff = anchor.toISOString().slice(0, 10);
+  const { data: txs } = await supabaseAdmin.from("transactions").select("amount, posted_date").in("account_id", accountIds).eq("pending", false).gte("posted_date", windowStart).lte("posted_date", cutoff).order("posted_date", { ascending: true });
+  const series: { date: string; liquidAssets: number }[] = [];
+  for (let i = days; i >= 0; i--) { const d = new Date(anchor.getTime() - i * 86_400_000).toISOString().slice(0, 10); const afterD = (txs ?? []).filter((t) => t.posted_date > d && t.posted_date <= cutoff); const reconstructed = currentTotal - afterD.reduce((s, t) => s + Number(t.amount), 0); series.push({ date: d, liquidAssets: reconstructed }); }
   return series;
 }
 
-export async function computeDebtTrend(userId: string, days = 30) {
-  const { data: accounts } = await supabaseAdmin.from("plaid_accounts").select("id, current_balance").eq("user_id", userId).eq("type", "credit").not("current_balance", "is", null);
+export async function computeDebtTrend(userId: string, days = 30, executionContext?: IrisExecutionContext) {
+  const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date(); if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const { data: accounts } = await supabaseAdmin.from("plaid_accounts").select("id, current_balance, balance_updated_at").eq("user_id", userId).eq("type", "credit").not("current_balance", "is", null);
   if (!accounts || accounts.length === 0) return { changePct: null, series: [] };
-  const currentTotal = accounts.reduce((sum, a) => sum + Number(a.current_balance), 0); const accountIds = accounts.map((a) => a.id); const windowStart = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-  const { data: txs } = await supabaseAdmin.from("transactions").select("amount, posted_date").in("account_id", accountIds).eq("pending", false).gte("posted_date", windowStart);
+  const currentEligible = accounts.filter((a) => !a.balance_updated_at || new Date(a.balance_updated_at).getTime() <= anchor.getTime()); if (executionContext && currentEligible.length !== accounts.length) return { changePct: null, series: [] };
+  const currentTotal = accounts.reduce((sum, a) => sum + Number(a.current_balance), 0); const accountIds = accounts.map((a) => a.id); const windowStart = new Date(anchor.getTime() - days * 86_400_000).toISOString().slice(0, 10); const cutoff = anchor.toISOString().slice(0, 10);
+  const { data: txs } = await supabaseAdmin.from("transactions").select("amount, posted_date").in("account_id", accountIds).eq("pending", false).gte("posted_date", windowStart).lte("posted_date", cutoff);
   const series: { date: string; debt: number }[] = [];
-  for (let i = days; i >= 0; i--) { const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10); const afterD = (txs ?? []).filter((t) => t.posted_date > d); const reconstructed = currentTotal - afterD.reduce((s, t) => s + Number(t.amount), 0); series.push({ date: d, debt: reconstructed }); }
+  for (let i = days; i >= 0; i--) { const d = new Date(anchor.getTime() - i * 86_400_000).toISOString().slice(0, 10); const afterD = (txs ?? []).filter((t) => t.posted_date > d && t.posted_date <= cutoff); const reconstructed = currentTotal - afterD.reduce((s, t) => s + Number(t.amount), 0); series.push({ date: d, debt: reconstructed }); }
   const first = series[0]?.debt; const last = series[series.length - 1]?.debt; const changePct = first && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null; return { changePct, series };
 }
 
-export async function detectAnomalies(userId: string, windowDays = 30) {
-  const windowStart = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
-  const { data: recentTxs } = await supabaseAdmin.from("transactions").select("id, amount, posted_date, merchant_id, merchants(canonical_name)").eq("user_id", userId).eq("pending", false).gt("amount", 0).gte("posted_date", windowStart).not("merchant_id", "is", null);
+export async function detectAnomalies(userId: string, windowDays = 30, executionContext?: IrisExecutionContext) {
+  const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date(); if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const windowStart = new Date(anchor.getTime() - windowDays * 86_400_000).toISOString().slice(0, 10); const cutoff = anchor.toISOString().slice(0, 10);
+  const { data: recentTxs } = await supabaseAdmin.from("transactions").select("id, amount, posted_date, merchant_id, merchants(canonical_name)").eq("user_id", userId).eq("pending", false).gt("amount", 0).gte("posted_date", windowStart).lte("posted_date", cutoff).not("merchant_id", "is", null);
   if (!recentTxs || recentTxs.length === 0) return [];
   const anomalies: { merchant: string; amount: number; typicalAmount: number; date: string; pctAboveTypical: number }[] = [];
   for (const tx of recentTxs as any[]) {
-    const { data: history } = await supabaseAdmin.from("transactions").select("amount").eq("user_id", userId).eq("merchant_id", tx.merchant_id).eq("pending", false).neq("id", tx.id).gt("amount", 0);
+    const { data: history } = await supabaseAdmin.from("transactions").select("amount").eq("user_id", userId).eq("merchant_id", tx.merchant_id).eq("pending", false).neq("id", tx.id).gt("amount", 0).lte("posted_date", cutoff);
     if (!history || history.length < 2) continue;
     const avg = history.reduce((s, h) => s + Number(h.amount), 0) / history.length; const amount = Number(tx.amount);
     if (avg > 0 && amount >= avg * 1.5) anomalies.push({ merchant: tx.merchants?.canonical_name ?? "Unknown", amount, typicalAmount: avg, date: tx.posted_date, pctAboveTypical: ((amount - avg) / avg) * 100 });
@@ -138,7 +143,6 @@ export async function computeForwardProjection(userId: string, days = 30) {
 }
 
 function money(n: number): string { const sign = n < 0 ? "-" : ""; return `${sign}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
-
 export function buildNarrative(inputs: { safeToSpend: number | null; essentialBillsCount: number; cashFlowNet: number | null; cashFlowNetChangePct: number | null; debtChangePct: number | null; anomalyCount: number; }): string {
   const parts: string[] = [];
   if (inputs.safeToSpend !== null) parts.push(`Your safe-to-spend estimate is ${money(inputs.safeToSpend)}, based on ${inputs.essentialBillsCount} known essential bill${inputs.essentialBillsCount === 1 ? "" : "s"} due soon.`); else parts.push("There isn't enough account data yet to estimate safe-to-spend.");

@@ -1,0 +1,61 @@
+name: Iris execution foundation
+
+on:
+  push:
+    branches: [feat/iris-execution-foundation]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/iris-execution-foundation.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/iris-execution-foundation.yml"
+
+permissions:
+  contents: read
+
+env:
+  NODE_ENV: test
+  PLAID_CLIENT_ID: ci-placeholder
+  PLAID_SECRET: ci-placeholder
+  PLAID_ENV: sandbox
+  SUPABASE_URL: https://example.supabase.co
+  SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+  TOKEN_ENCRYPTION_KEY: ci-placeholder-32-byte-test-key-only
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
