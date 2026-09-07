@@ -20,3 +20,18 @@ export function createExecutionContext(run: IrisRun, evidence: IrisEvidenceRefer
     execution_policy: Object.freeze({ ...run.execution_policy, resource_budget: Object.freeze({ ...run.execution_policy.resource_budget }) }),
   });
 }
+
+/**
+ * Converts the immutable execution boundary into the canonical date used by
+ * temporal intelligence. This is deliberately strict: governed executions
+ * must never silently fall back to the process clock.
+ */
+export function executionAsOfDate(context: IrisExecutionContext): Date {
+  const date = new Date(context.temporal.as_of);
+  if (!Number.isFinite(date.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  return date;
+}
+
+export function executionEvidenceBoundary(context: IrisExecutionContext): string | null {
+  return context.temporal.evidence_boundary;
+}
