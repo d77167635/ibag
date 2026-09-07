@@ -1,4 +1,5 @@
 import { getCanonicalTransactions, isEconomicOutflow } from "./transactionSemantics.js";
+import type { IrisExecutionContext } from "./irisExecutionContext.js";
 
 export const IRIS_ANOMALY_INTELLIGENCE_V1 = "IRIS_ANOMALY_INTELLIGENCE_V1" as const;
 
@@ -14,8 +15,10 @@ export interface IrisAnomaly {
 }
 
 /** Merchant-relative anomaly detection over the canonical active transaction population. */
-export async function computeCanonicalAnomalies(userId: string, windowDays = 30): Promise<IrisAnomaly[]> {
-  const windowStart = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+export async function computeCanonicalAnomalies(userId: string, windowDays = 30, executionContext?: IrisExecutionContext): Promise<IrisAnomaly[]> {
+  const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date();
+  if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
+  const windowStart = new Date(anchor.getTime() - windowDays * 86_400_000).toISOString().slice(0, 10);
   const txs = await getCanonicalTransactions(userId);
   const economic = txs.filter(isEconomicOutflow);
   const recent = economic.filter(tx => tx.posted_date >= windowStart && tx.merchant_id);
