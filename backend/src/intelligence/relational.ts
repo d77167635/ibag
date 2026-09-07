@@ -15,13 +15,13 @@ export async function computeFinancialReasoning(userId: string, asOf?: string | 
   const anchor = executionContext ? new Date(executionContext.temporal.as_of) : asOf ? new Date(asOf) : new Date();
   if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
   const cutoff = new Date(anchor.getTime() - widest * 86_400_000).toISOString().slice(0, 10);
-  const canonical = await getCanonicalTransactions(userId, cutoff);
+  const canonical = await getCanonicalTransactions(userId, cutoff, anchor);
   const currentCutoff = new Date(anchor.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
-  const currentCanonical = canonical.filter(tx => tx.posted_date >= currentCutoff);
+  const currentCanonical = canonical.filter(tx => tx.posted_date >= currentCutoff && tx.posted_date <= anchor.toISOString().slice(0, 10));
   const canonicalCashFlow = computeEconomicCashFlow(currentCanonical);
   const canonicalRoundup = computeRoundupProjectionFromTransactions(canonical);
   const [balances, cashSafety, debtTrend, anomalies, debtCost, drift, multiWindow] = await Promise.all([
-    computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeDebtTrend(userId), computeCanonicalAnomalies(userId, 30, executionContext), computeDebtCostIntelligence(userId), computeCategoryDrift(userId, 30, 90, executionContext), computeMultiWindowFlow(userId, undefined, executionContext?.temporal.as_of ?? asOf),
+    computeBalanceMetrics(userId, executionContext), computeCashFlowSafety(userId, undefined, undefined, executionContext), computeDebtTrend(userId, undefined, executionContext), computeCanonicalAnomalies(userId, 30, executionContext), computeDebtCostIntelligence(userId), computeCategoryDrift(userId, 30, 90, executionContext), computeMultiWindowFlow(userId, undefined, executionContext?.temporal.as_of ?? asOf),
   ]);
   const trajectory = assessTrajectory(multiWindow);
   const cashFlow = { ...canonicalCashFlow, windowDays: 30, netChangePct: null as number | null };
