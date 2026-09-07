@@ -19,7 +19,7 @@ export async function computeCanonicalAnomalies(userId: string, windowDays = 30,
   const anchor = executionContext ? new Date(executionContext.temporal.as_of) : new Date();
   if (!Number.isFinite(anchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
   const windowStart = new Date(anchor.getTime() - windowDays * 86_400_000).toISOString().slice(0, 10);
-  const txs = await getCanonicalTransactions(userId);
+  const txs = await getCanonicalTransactions(userId, undefined, executionContext?.temporal.as_of);
   const economic = txs.filter(isEconomicOutflow);
   const recent = economic.filter(tx => tx.posted_date >= windowStart && tx.merchant_id);
   if (!recent.length) return [];
