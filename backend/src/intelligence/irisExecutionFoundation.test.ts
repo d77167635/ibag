@@ -28,10 +28,16 @@ test("evidence manifest hashing is deterministic", () => {
   assert.equal(hashEvidenceManifest(refs), hashEvidenceManifest([...refs]));
 });
 
-test("certification succeeds only when execution and validation are complete", () => {
+test("certification succeeds only when execution, validation, and context are complete", () => {
   const decision = decideCertification({ run: run(), execution: execution(), evidenceCount: 2, validations: [validation()], ownershipValid: true, temporalValid: true, contextCompliant: true });
   assert.equal(decision.status, "CERTIFIED");
   assert.deepEqual(decision.reasons, []);
+});
+
+test("partial execution context can never certify", () => {
+  const decision = decideCertification({ run: run(), execution: execution(), evidenceCount: 2, validations: [validation()], ownershipValid: true, temporalValid: true, contextCompliant: false });
+  assert.equal(decision.status, "NOT_CERTIFIED");
+  assert.ok(decision.reasons.includes("EXECUTION_CONTEXT_NOT_FULLY_COMPLIANT"));
 });
 
 test("unknown validation can never certify", () => {
