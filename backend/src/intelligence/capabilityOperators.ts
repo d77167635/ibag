@@ -13,7 +13,7 @@ export type CapabilityOperator = {
   version: string;
   status: CapabilityOperatorStatus;
   execution_stage: string;
-  evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO";
+  evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE";
 };
 
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
@@ -28,9 +28,9 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   { capability_id: "scenario", operator_id: "scenario", version: "1.0.0", status: "implemented", execution_stage: "counterfactual_analysis", evidence_state: "SCENARIO" },
   { capability_id: "decision", operator_id: "decision", version: "1.0.0", status: "implemented", execution_stage: "decision_intelligence", evidence_state: "INFERRED" },
   { capability_id: "recommendation", operator_id: "recommendation", version: "1.0.0", status: "implemented", execution_stage: "optimization_and_goals", evidence_state: "INFERRED" },
-  { capability_id: "outcome", operator_id: "outcome", version: "1.0.0", status: "planned", execution_stage: "durable_outcome_loop", evidence_state: "CALCULATED" },
-  { capability_id: "learning", operator_id: "learning", version: "1.0.0", status: "planned", execution_stage: "validated_outcome_learning", evidence_state: "INFERRED" },
-  { capability_id: "emergent", operator_id: "emergent", version: "1.0.0", status: "planned", execution_stage: "higher_order_discovery", evidence_state: "INFERRED" },
+  { capability_id: "outcome", operator_id: "outcome", version: "1.0.0", status: "implemented", execution_stage: "durable_outcome_loop", evidence_state: "CALCULATED" },
+  { capability_id: "learning", operator_id: "learning", version: "1.0.0", status: "implemented", execution_stage: "validated_outcome_learning", evidence_state: "INFERRED" },
+  { capability_id: "emergent", operator_id: "emergent", version: "1.0.0", status: "implemented", execution_stage: "higher_order_discovery", evidence_state: "INFERRED" },
 ];
 
 export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null {
