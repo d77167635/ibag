@@ -42,11 +42,16 @@ export async function executeIrisFullIntelligenceRun(input: {
 }): Promise<{ run: IrisRun; result: IrisResult; intelligence: any }> {
   const requestId = input.requestId ?? randomUUID();
   const asOf = input.asOf ?? new Date().toISOString();
+  const parsedAsOf = new Date(asOf);
+  if (!Number.isFinite(parsedAsOf.getTime())) throw new Error("IRIS_INVALID_AS_OF");
   const evidenceBoundary = await getCertifiedEvidenceBoundary(input.userId);
+  const evidenceDate = evidenceBoundary ? new Date(evidenceBoundary) : null;
+  if (evidenceDate && !Number.isFinite(evidenceDate.getTime())) throw new Error("IRIS_INVALID_EVIDENCE_BOUNDARY");
+  if (evidenceDate && parsedAsOf.getTime() < evidenceDate.getTime()) throw new Error("IRIS_AS_OF_PRECEDES_EVIDENCE_BOUNDARY");
   const manifest = await buildEvidenceManifest(input.userId, evidenceBoundary);
   const run = await createRun({
     request_id: requestId, user_id: input.userId, request_surface: input.requestSurface ?? "dashboard", request_mode: input.requestMode ?? "full_intelligence",
-    requested_capabilities: input.requestedCapabilities ?? ["iris.full_intelligence"], status: "PLANNED", as_of: asOf,
+    requested_capabilities: input.requestedCapabilities ?? ["iris.full_intelligence"], status: "PLANNED", as_of: parsedAsOf.toISOString(),
     evidence_boundary: evidenceBoundary, evidence_version: manifest.hash, resource_budget: DEFAULT_BUDGET, execution_policy: POLICY,
     planner_version: "IRIS_PLANNER_V1", orchestrator_version: "ORCHESTRATOR_COMPAT_737CEF", certification_policy_version: POLICY.certification_policy_version,
     financial_context_hash: null, evidence_manifest_hash: manifest.hash, started_at: null, completed_at: null, failure_code: null, failure_message: null,
@@ -95,7 +100,7 @@ export async function executeIrisFullIntelligenceRun(input: {
     if (!executionForCertification) throw new Error("IRIS_EXECUTION_RECORD_NOT_FOUND_AFTER_VALIDATION");
     const decision = decideCertification({
       run: refreshedRun, execution: executionForCertification, evidenceCount: manifest.references.length, validations,
-      ownershipValid: true, temporalValid: contextBound && new Date(asOf).getTime() >= (evidenceBoundary ? new Date(evidenceBoundary).getTime() : 0),
+      ownershipValid: true, temporalValid: contextBound && (!evidenceDate || parsedAsOf.getTime() >= evidenceDate.getTime()), contextCompliant: contextBound,
     });
 
     if (decision.status === "CERTIFIED") {
