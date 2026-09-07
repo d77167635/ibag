@@ -92,6 +92,7 @@ create table if not exists public.iris_validation_results (
   id uuid primary key default gen_random_uuid(),
   run_id uuid not null references public.iris_runs(id) on delete cascade,
   execution_id uuid references public.iris_execution_records(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
   rule_id text not null,
   rule_version text not null,
   status text not null check (status in ('UNKNOWN','PASS','FAIL','LIMITED')),
@@ -106,6 +107,7 @@ create table if not exists public.iris_certifications (
   id uuid primary key default gen_random_uuid(),
   run_id uuid not null references public.iris_runs(id) on delete cascade,
   execution_id uuid references public.iris_execution_records(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
   result_id uuid,
   policy_version text not null,
   status text not null check (status in ('PENDING','CERTIFIED','NOT_CERTIFIED')),
@@ -126,8 +128,10 @@ create index if not exists iris_execution_inputs_execution_idx on public.iris_ex
 create index if not exists iris_execution_outputs_execution_idx on public.iris_execution_outputs(execution_id);
 create index if not exists iris_validation_results_run_idx on public.iris_validation_results(run_id);
 create index if not exists iris_validation_results_execution_idx on public.iris_validation_results(execution_id);
+create index if not exists iris_validation_results_user_idx on public.iris_validation_results(user_id);
 create index if not exists iris_certifications_run_idx on public.iris_certifications(run_id);
 create index if not exists iris_certifications_execution_idx on public.iris_certifications(execution_id);
+create index if not exists iris_certifications_user_idx on public.iris_certifications(user_id);
 
 alter table public.iris_runs enable row level security;
 alter table public.iris_run_evidence enable row level security;
@@ -142,8 +146,8 @@ create policy iris_run_evidence_select_own on public.iris_run_evidence for selec
 create policy iris_execution_records_select_own on public.iris_execution_records for select to authenticated using (user_id = auth.uid());
 create policy iris_execution_inputs_select_own on public.iris_execution_inputs for select to authenticated using (exists (select 1 from public.iris_execution_records e where e.id = execution_id and e.user_id = auth.uid()));
 create policy iris_execution_outputs_select_own on public.iris_execution_outputs for select to authenticated using (exists (select 1 from public.iris_execution_records e where e.id = execution_id and e.user_id = auth.uid()));
-create policy iris_validation_results_select_own on public.iris_validation_results for select to authenticated using (exists (select 1 from public.iris_runs r where r.id = run_id and r.user_id = auth.uid()));
-create policy iris_certifications_select_own on public.iris_certifications for select to authenticated using (exists (select 1 from public.iris_runs r where r.id = run_id and r.user_id = auth.uid()));
+create policy iris_validation_results_select_own on public.iris_validation_results for select to authenticated using (user_id = auth.uid());
+create policy iris_certifications_select_own on public.iris_certifications for select to authenticated using (user_id = auth.uid());
 
 revoke insert, update, delete on public.iris_runs from anon, authenticated;
 revoke insert, update, delete on public.iris_run_evidence from anon, authenticated;
