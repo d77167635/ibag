@@ -18,7 +18,6 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
     checks[key] = { status: ok ? "PASS" : "FAIL", details: ok ? pass : fail };
     if (!ok) critical_failures.push(key);
   };
-
   const [{ data: run }, { data: execution }, { data: evidence, error: evidenceError }, { data: outputs }, { count: rawCount }, { count: canonicalCount }, { count: roundupCount }, { count: productCount }] = await Promise.all([
     supabaseAdmin.from("iris_runs").select("id,user_id,as_of,evidence_boundary,evidence_version,evidence_manifest_hash,resource_budget").eq("id", runId).eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("iris_execution_records").select("run_id,user_id,execution_state,input_hash,output_hash,resource_usage").eq("id", executionId).eq("run_id", runId).eq("user_id", userId).maybeSingle(),
@@ -29,33 +28,28 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
     supabaseAdmin.from("roundup_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabaseAdmin.from("plaid_raw_product_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
   ]);
-
   check("iris.execution.integrity", !!execution && execution.execution_state === "EXECUTED" && execution.input_hash === inputHash && execution.output_hash === outputHash && inputHash.length === 64 && outputHash.length === 64, "Execution identity, state, and hashes match.", "Execution identity, state, or hashes are invalid.");
   check("iris.evidence.ownership", !evidenceError && (evidence?.length ?? 0) > 0 && evidence!.every(e => e.user_id === userId && !!e.evidence_hash && e.effective_at != null && e.acquired_at != null), "Run evidence is present, hashed, dated, and user-owned.", "Run evidence is missing, incomplete, unhashed, or ownership-invalid.");
   check("iris.evidence.boundary", !!run?.as_of && !!run?.evidence_boundary && !!run?.evidence_manifest_hash, "Explicit evidence boundary and manifest hash are persisted.", "Evidence boundary or manifest hash is missing.");
-
   const rawIds = (evidence ?? []).map(e => e.raw_observation_id).filter((id): id is string => typeof id === "string");
   const { data: lineage } = rawIds.length ? await supabaseAdmin.from("iris_data_lineage").select("id,user_id,source_id,destination_id,evidence_state").eq("user_id", userId).in("source_id", rawIds.slice(0, 5000)).limit(5000) : { data: [] as any[] };
   check("iris.lineage.present", (lineage?.length ?? 0) > 0 && lineage!.every(l => l.user_id === userId), "User-owned provider-to-intelligence lineage is attached to the run evidence boundary.", "No user-owned provider lineage is attached to the run evidence boundary.");
-
   const output = outputs?.find(o => o.hash === outputHash);
   check("iris.output.semantic_state", !!output && output.value != null && output.evidence_state !== "OBSERVED", "Output is persisted as derived intelligence and is not misclassified as provider observation.", "Output is missing, hash-mismatched, or incorrectly classified as observed evidence.");
-
   const raw = rawCount ?? 0;
   const canonical = canonicalCount ?? 0;
   const reconciliationOk = raw === canonical;
   check("iris.reconciliation", reconciliationOk, `Core transaction reconciliation passed: ${raw} current raw observations = ${canonical} current canonical transactions.`, `Core transaction reconciliation failed: ${raw} current raw observations != ${canonical} current canonical transactions.`);
-
   const usage = execution?.resource_usage as { duration_ms?: number } | null | undefined;
   const budget = run?.resource_budget as { max_execution_time_ms?: number } | null | undefined;
   check("iris.resource_budget", !!usage && (!budget?.max_execution_time_ms || (usage.duration_ms ?? Number.MAX_SAFE_INTEGER) <= budget.max_execution_time_ms), "Execution completed within the configured time budget.", "Execution resource usage is missing or exceeds the configured time budget.");
-
   return {
     eligible: critical_failures.length === 0,
     status: critical_failures.length === 0 ? "PASS" : "FAIL",
     critical_failures,
     checks,
     evidence_snapshot: {
+      evidence_state: "CALCULATED",
       user_id: userId, run_id: runId, execution_id: executionId,
       evidence_boundary: run?.evidence_boundary ?? null,
       evidence_version: run?.evidence_version ?? null,
