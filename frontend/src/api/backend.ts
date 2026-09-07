@@ -18,7 +18,7 @@ async function authedFetch(path: string, init?: RequestInit) {
 
 let intelligenceInFlight: Promise<any> | null = null;
 function getCanonicalIntelligence() {
-  if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/dashboard/intelligence").finally(() => { intelligenceInFlight = null; });
+  if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/dashboard/intelligence/run", { method: "POST", body: JSON.stringify({ request_surface: "dashboard", request_mode: "full_intelligence", requested_capabilities: ["iris.full_intelligence"] }) }).finally(() => { intelligenceInFlight = null; });
   return intelligenceInFlight;
 }
 
@@ -29,6 +29,7 @@ export const api = {
   exchangePublicToken: (publicToken: string) => authedFetch("/link/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken }) }),
   getOverview: () => authedFetch("/dashboard/overview"),
   getIntelligence: getCanonicalIntelligence,
+  runGovernedIntelligence: (input: { requestId?: string; asOf?: string; requestedCapabilities?: string[] } = {}) => authedFetch("/dashboard/intelligence/run", { method: "POST", body: JSON.stringify({ request_id: input.requestId, request_surface: "dashboard", request_mode: "full_intelligence", requested_capabilities: input.requestedCapabilities ?? ["iris.full_intelligence"], as_of: input.asOf }) }),
   getIrisCatalog: () => authedFetch("/iris/catalog"),
   saveIrisCatalogSelection: (capabilityIds: string[]) => authedFetch("/iris/catalog/selection", { method: "PUT", body: JSON.stringify({ capability_ids: capabilityIds }) }),
   askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
@@ -44,7 +45,7 @@ export const api = {
   getPlaidCapabilities: () => authedFetch("/dashboard/plaid/capabilities"),
   getPlaidSelection: () => authedFetch("/dashboard/plaid/selection"),
   getSourceTruth: (limit = 200) => authedFetch(`/dashboard/source?limit=${limit}`),
-  runScenario: (type: string, amount: number) => authedFetch("/dashboard/scenario", { method: "POST", body: JSON.stringify({ type, amount }) }),
+  runScenario: (type: string, amount: number) => authedFetch("/dashboard/scenario", { method: "POST", body: JSON.stringify({ type, amount }) },
   toggleAccountRoundup: (accountId: string, enabled: boolean) => authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, { method: "POST", body: JSON.stringify({ enabled }) }),
   getGoals: () => authedFetch("/goals"),
   createGoal: (goal: Record<string, unknown>) => authedFetch("/goals", { method: "POST", body: JSON.stringify(goal) }),
