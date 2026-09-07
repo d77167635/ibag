@@ -43,22 +43,35 @@ export async function computeFullIntelligence(userId: string, executionContext?:
     assessSourceFidelity(userId),
     buildProviderDomainIntelligence(userId),
   ]);
-  const canonicalAnchor = evidenceBoundary ? new Date(evidenceBoundary) : new Date(frozenAsOf);
+  const canonicalAnchor = executionContext ? new Date(frozenAsOf) : evidenceBoundary ? new Date(evidenceBoundary) : new Date();
+  if (!Number.isFinite(canonicalAnchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
   const canonical90Start = new Date(canonicalAnchor.getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
-  const canonical = await getCanonicalTransactions(userId, canonical90Start);
+  const canonical = await getCanonicalTransactions(userId, canonical90Start, frozenAsOf);
   const integrity = validateCanonicalIntelligenceInput(canonical);
   const current30Start = new Date(canonicalAnchor.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
-  const current30 = canonical.filter(tx => tx.posted_date >= current30Start);
+  const current30 = canonical.filter(tx => tx.posted_date >= current30Start && tx.posted_date <= frozenAsOf.slice(0, 10));
   const economicCurrent = computeEconomicCashFlow(current30);
   const roundupProjection = computeRoundupProjectionFromTransactions(canonical);
-  const spendingByDomain = computeSpendingByDomainFromTransactions(canonical, 30, evidenceBoundary);
-  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical, 30, evidenceBoundary);
+  const spendingByDomain = computeSpendingByDomainFromTransactions(canonical, 30, frozenAsOf);
+  const spendingHierarchy = computeCanonicalSpendingHierarchy(canonical, 30, frozenAsOf);
   const prior30 = canonical.filter(tx => tx.posted_date < current30Start);
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
-  const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: evidenceBoundary, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
+  const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: evidenceBoundary, as_of: frozenAsOf, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
   const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
-    computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId), computeCanonicalAnomalies(userId), computeCanonicalForwardProjection(userId, 30, evidenceBoundary), computeDebtCostIntelligence(userId), computeCategoryDrift(userId), computeMultiWindowFlow(userId, undefined, evidenceBoundary), computeFinancialReasoning(userId, evidenceBoundary), getFeatureFlags(userId), supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }), verifyProviderLineage(supabaseAdmin, userId),
+    computeBalanceMetrics(userId, executionContext),
+    computeCashFlowSafety(userId, undefined, undefined, executionContext),
+    computeBalanceHistory(userId, undefined, executionContext),
+    computeDebtTrend(userId, undefined, executionContext),
+    computeCanonicalAnomalies(userId, 30, executionContext),
+    computeCanonicalForwardProjection(userId, 30, frozenAsOf),
+    computeDebtCostIntelligence(userId),
+    computeCategoryDrift(userId, 30, 90, executionContext),
+    computeMultiWindowFlow(userId, undefined, frozenAsOf),
+    computeFinancialReasoning(userId, frozenAsOf, executionContext),
+    getFeatureFlags(userId),
+    supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
+    verifyProviderLineage(supabaseAdmin, userId),
   ]);
   const declaredGoals = (declaredGoalsResult.data ?? []) as DeclaredIrisGoal[];
   const goalDataLimitations = declaredGoalsResult.error ? ["Persistent user goals could not be loaded; Iris is falling back to evidence-derived objectives."] : [];
@@ -91,7 +104,7 @@ export async function computeFullIntelligence(userId: string, executionContext?:
   const metaIntelligence = buildMetaIntelligence({ atlas: intelligenceAtlas, sourceFidelity, integrity, uncertainty, investigations, composition });
   const intelligenceGate = { ...sourceFidelity, higher_order_conclusions_enabled: sourceFidelity.ready_for_higher_order_intelligence, limitation: sourceFidelity.ready_for_higher_order_intelligence ? null : "Higher-order Iris compositions remain evidence-bounded until source completeness and lineage are certified." };
   const execution_context = executionContext
-    ? { status: "PARTIAL" as const, run_id: executionContext.run.id, as_of: executionContext.temporal.as_of, evidence_boundary: executionContext.temporal.evidence_boundary, evidence_version: executionContext.run.evidence_version, manifest_hash: executionContext.run.evidence_manifest_hash, limitation: "The governed orchestrator boundary is frozen, but lower-level legacy operators still own temporal acquisition and must be migrated before this run can be certified." }
+    ? { status: "PARTIAL" as const, run_id: executionContext.run.id, as_of: executionContext.temporal.as_of, evidence_boundary: executionContext.temporal.evidence_boundary, evidence_version: executionContext.run.evidence_version, manifest_hash: executionContext.run.evidence_manifest_hash, limitation: "The governed orchestrator boundary is frozen, but legacy providers still require context-aware state resolution before this run can be certified." }
     : { status: "NOT_GOVERNED" as const, limitation: "Legacy compatibility execution has no governed IrisRun context." };
   recordExplainabilityTrace(userId, reasoning).catch(err => console.error("explainability trace failed:", err));
   recordIntelligenceSnapshot(userId, { evidenceBoundary, liquidAssets: balances.liquidAssets, cashFlowNet: cashFlow.net, safeToSpend: cashFlowSafety.safeToSpend, revolvingDebt: balances.revolvingDebt, creditUtilization: balances.creditUtilization, forwardProjectedLiquidPosition: typeof forwardProjection.projectedLiquidPosition === "number" ? forwardProjection.projectedLiquidPosition : null, roundupProjected: roundupProjection.projectedAmount ?? roundupProjection.projectedTotal ?? null, sourceFidelityStatus: sourceFidelity.status ?? null, higherOrderReady: sourceFidelity.ready_for_higher_order_intelligence, forecastHorizonDays: 30, metadata: { atlas_ready: intelligenceAtlas.counts.evidence_ready, atlas_total: intelligenceAtlas.counts.total_defined, investigation_count: investigations.investigations.length, composition_possible: rawComposition.counts.possible_combinations, layer_composition_ready: layerComposition.counts.evidence_ready, new_analysis_features: layerComposition.counts.new_analysis_features, provider_domain_evidence_ready: providerDomainIntelligence.evidence_ready, provider_domain_selected_item: providerDomainIntelligence.selected_item_id } }).catch(err => console.error("intelligence snapshot failed:", err));
