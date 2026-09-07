@@ -7,6 +7,12 @@ export async function startExecution(input: Omit<IrisExecutionRecord, "id" | "st
   return data as IrisExecutionRecord;
 }
 
+export async function getExecution(userId: string, executionId: string): Promise<IrisExecutionRecord | null> {
+  const { data, error } = await supabaseAdmin.from("iris_execution_records").select("*").eq("id", executionId).eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  return (data as IrisExecutionRecord | null) ?? null;
+}
+
 export async function completeExecution(userId: string, executionId: string, inputHash: string, outputHash: string, outputSnapshot: unknown): Promise<IrisExecutionRecord> {
   const { data, error } = await supabaseAdmin.from("iris_execution_records").update({ execution_state: "EXECUTED", input_hash: inputHash, output_hash: outputHash, output_snapshot: outputSnapshot, completed_at: new Date().toISOString() }).eq("id", executionId).eq("user_id", userId).select("*").single();
   if (error) throw error;
