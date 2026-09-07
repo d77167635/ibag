@@ -21,6 +21,10 @@ function getCanonicalIntelligence() {
   if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/dashboard/intelligence").finally(() => { intelligenceInFlight = null; });
   return intelligenceInFlight;
 }
+function getIrisSummary() {
+  if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/iris/summary").finally(() => { intelligenceInFlight = null; });
+  return intelligenceInFlight;
+}
 
 export const api = {
   get: (path: string) => authedFetch(path),
@@ -29,6 +33,7 @@ export const api = {
   exchangePublicToken: (publicToken: string) => authedFetch("/link/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken }) }),
   getOverview: () => authedFetch("/dashboard/overview"),
   getIntelligence: getCanonicalIntelligence,
+  getIrisSummary,
   getIrisCatalog: () => authedFetch("/iris/catalog"),
   saveIrisCatalogSelection: (capabilityIds: string[]) => authedFetch("/iris/catalog/selection", { method: "PUT", body: JSON.stringify({ capability_ids: capabilityIds }) }),
   askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
@@ -38,7 +43,7 @@ export const api = {
   getRoundups: () => authedFetch("/dashboard/roundups"),
   previewTransfer: (accountId: string, amount: number) => authedFetch("/dashboard/roundups/preview-transfer", { method: "POST", body: JSON.stringify({ account_id: accountId, amount }) }),
   getFeatures: () => authedFetch("/features"),
-  toggleFeature: (key: string, enabled: boolean) => authedFetch(`/features/${key}/toggle`, { method: "POST", body: JSON.stringify({ enabled }) }),
+  toggleFeature: (key: string, enabled: boolean) => authedFetch(`/features/${key}/toggle`, { method: "POST", body: JSON.stringify({ enabled } ) }),
   getPlaidProducts: () => authedFetch("/dashboard/plaid"),
   getPlaidSurface: () => authedFetch("/dashboard/plaid/surface"),
   getPlaidCapabilities: () => authedFetch("/dashboard/plaid/capabilities"),
