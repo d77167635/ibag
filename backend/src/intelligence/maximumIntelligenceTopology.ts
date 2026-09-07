@@ -1,5 +1,6 @@
 import type { IrisAnalysisDefinition } from "./analysisAtlas.js";
-import { IRIS_CATALOG, IRIS_CATALOG_EXPANSION } from "./irisCatalog.js";
+import { IRIS_CATALOG } from "./irisCatalog.js";
+import { IRIS_CATALOG_EXPANSION } from "./irisCatalogExpansion.js";
 
 type CatalogCapability = { id: string; name: string; description: string; family: string; depth: "core" | "advanced" | "frontier"; atlas_ids: string[] };
 type TopologyNode = { id: string; level: "apex" | "domain" | "capability" | "analysis" | "composition" | "synthesis" | "evidence" | "delivery" | "meta"; name: string; parent_ids: string[]; source_kind: "declared" | "wired" | "evidence_bounded" | "gap"; atlas_ids: string[]; evidence_ready: boolean };
