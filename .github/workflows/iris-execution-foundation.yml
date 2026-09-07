@@ -1,6 +1,12 @@
 name: Iris execution foundation
 
 on:
+  push:
+    branches: [feat/iris-execution-foundation]
+    paths:
+      - "backend/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/iris-execution-foundation.yml"
   pull_request:
     branches: [main]
     paths:
