@@ -1,4 +1,4 @@
-import { computeBalanceMetrics, computeCashFlowSafety, computeBalanceHistory, computeDebtTrend } from "../services/intelligence.js";
+import { computeGovernedFinancialState } from "./governedFinancialState.js";
 import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy, computeCanonicalForwardProjection } from "./transactionSemantics.js";
 import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
@@ -38,10 +38,11 @@ import type { IrisExecutionContext } from "./irisExecutionContext.js";
 export async function computeFullIntelligence(userId: string, executionContext?: IrisExecutionContext) {
   const frozenEvidenceBoundary = executionContext?.temporal.evidence_boundary ?? null;
   const frozenAsOf = executionContext?.temporal.as_of ?? new Date().toISOString();
-  const [evidenceBoundary, sourceFidelity, providerDomainIntelligence] = await Promise.all([
+  const [evidenceBoundary, sourceFidelity, providerDomainIntelligence, financialStateRuntime] = await Promise.all([
     executionContext ? Promise.resolve(frozenEvidenceBoundary) : getCertifiedEvidenceBoundary(userId),
     assessSourceFidelity(userId),
     buildProviderDomainIntelligence(userId),
+    computeGovernedFinancialState(userId, executionContext),
   ]);
   const canonicalAnchor = executionContext ? new Date(frozenAsOf) : evidenceBoundary ? new Date(evidenceBoundary) : new Date();
   if (!Number.isFinite(canonicalAnchor.getTime())) throw new Error("IRIS_EXECUTION_CONTEXT_INVALID_AS_OF");
@@ -58,11 +59,7 @@ export async function computeFullIntelligence(userId: string, executionContext?:
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
   const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: evidenceBoundary, as_of: frozenAsOf, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
-  const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
-    computeBalanceMetrics(userId, executionContext),
-    computeCashFlowSafety(userId, undefined, undefined, executionContext),
-    computeBalanceHistory(userId, undefined, executionContext),
-    computeDebtTrend(userId, undefined, executionContext),
+  const [anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
     computeCanonicalAnomalies(userId, 30, executionContext),
     computeCanonicalForwardProjection(userId, 30, frozenAsOf),
     computeDebtCostIntelligence(userId),
@@ -73,6 +70,10 @@ export async function computeFullIntelligence(userId: string, executionContext?:
     supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
     verifyProviderLineage(supabaseAdmin, userId),
   ]);
+  const balances = financialStateRuntime.balances;
+  const cashFlowSafety = financialStateRuntime.cashFlowSafety;
+  const balanceHistory = financialStateRuntime.balanceHistory;
+  const debtTrend = financialStateRuntime.debtTrend;
   const declaredGoals = (declaredGoalsResult.data ?? []) as DeclaredIrisGoal[];
   const goalDataLimitations = declaredGoalsResult.error ? ["Persistent user goals could not be loaded; Iris is falling back to evidence-derived objectives."] : [];
   const trajectory = assessTrajectory(multiWindowFlow);
