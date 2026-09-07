@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/backend";
+import "../iris-command-surface.css";
 
 type Props={page?:string;go?:(page:string)=>void};
 const tiers=[
