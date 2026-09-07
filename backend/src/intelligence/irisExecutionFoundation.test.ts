@@ -29,7 +29,7 @@ test("evidence manifest hashing is deterministic", () => {
 });
 
 test("certification succeeds only when execution and validation are complete", () => {
-  const decision = decideCertification({ run: run(), execution: execution(), evidenceCount: 2, validations: [validation()], ownershipValid: true, temporalValid: true });
+  const decision = decideCertification({ run: run(), execution: execution(), evidenceCount: 2, validations: [validation()], ownershipValid: true, temporalValid: true, contextCompliant: true });
   assert.equal(decision.status, "CERTIFIED");
   assert.deepEqual(decision.reasons, []);
 });
