@@ -3,7 +3,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { previewTransferBackToCard } from "../services/roundup.js";
 import { getPlaidAccessToken } from "../services/tokenStore.js";
-import { computeFullIntelligence } from "../intelligence/orchestrator.js";
+import { executeIrisRun } from "../intelligence/irisExecution.js";
 import { computeCanonicalScenario } from "../intelligence/canonicalScenario.js";
 import { evaluateIntelligenceValidation } from "../intelligence/validationEngine.js";
 import { assessModelGovernance } from "../intelligence/modelGovernance.js";
@@ -27,7 +27,7 @@ dashboardRouter.get("/dashboard/overview", requireAuth, async (req: AuthedReques
     supabaseAdmin.from("virtual_ibag_balance").select("user_id, projected_balance, updated_at").eq("user_id", userId).maybeSingle(),
   ]);
   if (accountsErr) console.error("dashboard/overview accounts query error:", accountsErr.message);
-  if (txErr) console.error("dashboard/overview transactions query error:", txErr.message);
+  if (txErr) console.error("dashboard/overview transactions query error:");
   if (ibagErr) console.error("dashboard/overview ibag query error:", ibagErr.message);
   const withMerchant = (recentTx ?? []).filter((t: any) => t.merchants).length;
   const withSubdomain = (recentTx ?? []).filter((t: any) => t.subdomains).length;
@@ -64,9 +64,11 @@ dashboardRouter.post("/dashboard/roundups/preview-transfer", requireAuth, async 
 
 dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const full = await computeFullIntelligence(req.userId!);
+    const run = await executeIrisRun({ userId: req.userId!, requestId: typeof req.header("x-iris-request-id") === "string" ? req.header("x-iris-request-id")! : undefined, surface: "iris_dashboard", mode: "full_intelligence" });
+    const full = run.result;
+    if (!full) return res.status(503).json({ error: "Iris intelligence is temporarily unavailable", certified: false, run_id: run.id ?? null });
     const metrics = full.layer_metrics;
-    res.json({ narrative: full.narrative, generated_at: full.generated_at, net_worth: metrics.net_worth, debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost }, cash_flow_safety: metrics.cash_flow_safety, roundup_projection: metrics.roundup_projection, cash_flow: metrics.cash_flow, spending_by_domain: metrics.spending_by_domain, balance_history: metrics.balance_history, forward_projection: metrics.forward_projection, anomalies: metrics.anomalies, spending_hierarchy: metrics.spending_hierarchy, category_drift: full.layer_behavioral.categoryDrift, reasoning: full.layer_reasoning, temporal: full.layer_temporal, maximum_intelligence: full.layer_max_intelligence, feature_flags: full.feature_flags, provider_lineage: full.provider_lineage, integrity: full.integrity, source_fidelity: full.source_fidelity, intelligence_gate: full.intelligence_gate, evidence_boundary: full.evidence_boundary, evidence_graph: full.evidence_graph, intelligence_graph: full.intelligence_graph, investigations: full.investigations, uncertainty: full.uncertainty, financial_state: full.financial_state, causal_analysis: full.causal_analysis, decision_graph: full.decision_graph, decision_intelligence: full.decision_intelligence, consequence_model: full.consequence_model, optimization_intelligence: full.optimization_intelligence, goal_intelligence: full.goal_intelligence, intelligence_atlas: full.intelligence_atlas, intelligence_composition: full.intelligence_composition, layer_composition: full.layer_composition, higher_order_synthesis: full.higher_order_synthesis, adversarial_reasoning: full.adversarial_reasoning, counterfactual_intelligence: full.counterfactual_intelligence, meta_intelligence: full.meta_intelligence });
+    res.json({ run_id: run.id ?? null, execution_id: run.execution_id ?? null, certified: run.certified === true, certification_gate: run.certification_gate ?? null, narrative: full.narrative, generated_at: full.generated_at, net_worth: metrics.net_worth, debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost }, cash_flow_safety: metrics.cash_flow_safety, roundup_projection: metrics.roundup_projection, cash_flow: metrics.cash_flow, spending_by_domain: metrics.spending_by_domain, balance_history: metrics.balance_history, forward_projection: metrics.forward_projection, anomalies: metrics.anomalies, spending_hierarchy: metrics.spending_hierarchy, category_drift: full.layer_behavioral.categoryDrift, reasoning: full.layer_reasoning, temporal: full.layer_temporal, maximum_intelligence: full.layer_max_intelligence, feature_flags: full.feature_flags, provider_lineage: full.provider_lineage, integrity: full.integrity, source_fidelity: full.source_fidelity, intelligence_gate: full.intelligence_gate, evidence_boundary: full.evidence_boundary, evidence_graph: full.evidence_graph, intelligence_graph: full.intelligence_graph, investigations: full.investigations, uncertainty: full.uncertainty, financial_state: full.financial_state, causal_analysis: full.causal_analysis, decision_graph: full.decision_graph, decision_intelligence: full.decision_intelligence, consequence_model: full.consequence_model, optimization_intelligence: full.optimization_intelligence, goal_intelligence: full.goal_intelligence, intelligence_atlas: full.intelligence_atlas, intelligence_composition: full.intelligence_composition, layer_composition: full.layer_composition, higher_order_synthesis: full.higher_order_synthesis, adversarial_reasoning: full.adversarial_reasoning, counterfactual_intelligence: full.counterfactual_intelligence, meta_intelligence: full.meta_intelligence });
   } catch (err) { console.error("dashboard/intelligence error:", err); res.status(500).json({ error: "Failed to compute intelligence metrics" }); }
 });
 
@@ -96,22 +98,8 @@ dashboardRouter.get("/dashboard/plaid", requireAuth, async (req: AuthedRequest, 
   if (error) return res.status(500).json({ error: error.message });
   const observations = items?.length ? ((await supabaseAdmin.from("plaid_product_observations").select("item_id, product, lifecycle_state, evidence_state, is_current, acquired_at").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true)).data ?? []) as ProductObservationRow[] : [];
   const byItemProduct = new Map(observations.map((o) => [`${o.item_id}:${o.product}`, o]));
-  const itemSummaries = (items ?? []).map((item: any) => ({
-    institution_name: item.institution_name,
-    status: item.status,
-    last_synced_at: item.last_synced_at,
-    products: PLAID_STANDARD_PRODUCTS.map((product) => {
-      const row = byItemProduct.get(`${item.id}:${product}`);
-      return { product, status: dashboardProductStatus(row), evidence_state: row?.evidence_state ?? "insufficient_evidence", acquired_at: row?.acquired_at ?? null };
-    }),
-  }));
-  const products = PLAID_STANDARD_PRODUCTS.map((product) => {
-    const rows = items?.map((item: any) => byItemProduct.get(`${item.id}:${product}`)).filter(Boolean) as ProductObservationRow[] | undefined;
-    const observedCount = rows?.filter((row) => dashboardProductStatus(row) === "observed").length ?? 0;
-    const authorizedCount = rows?.filter((row) => dashboardProductStatus(row) === "authorized").length ?? 0;
-    const availableCount = rows?.filter((row) => dashboardProductStatus(row) === "available").length ?? 0;
-    return { product, status: observedCount > 0 ? "observed" : authorizedCount > 0 ? "authorized" : availableCount > 0 ? "available" : items?.length ? "not_observed" : "not_connected", observed_item_count: observedCount, authorized_item_count: authorizedCount, available_item_count: availableCount, item_count: items?.length ?? 0 };
-  });
+  const itemSummaries = (items ?? []).map((item: any) => ({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, products: PLAID_STANDARD_PRODUCTS.map((product) => { const row = byItemProduct.get(`${item.id}:${product}`); return { product, status: dashboardProductStatus(row), evidence_state: row?.evidence_state ?? "insufficient_evidence", acquired_at: row?.acquired_at ?? null }; }) }));
+  const products = PLAID_STANDARD_PRODUCTS.map((product) => { const rows = items?.map((item: any) => byItemProduct.get(`${item.id}:${product}`)).filter(Boolean) as ProductObservationRow[] | undefined; const observedCount = rows?.filter((row) => dashboardProductStatus(row) === "observed").length ?? 0; const authorizedCount = rows?.filter((row) => dashboardProductStatus(row) === "authorized").length ?? 0; const availableCount = rows?.filter((row) => dashboardProductStatus(row) === "available").length ?? 0; return { product, status: observedCount > 0 ? "observed" : authorizedCount > 0 ? "authorized" : availableCount > 0 ? "available" : items?.length ? "not_observed" : "not_connected", observed_item_count: observedCount, authorized_item_count: authorizedCount, available_item_count: availableCount, item_count: items?.length ?? 0 }; });
   res.json({ items: itemSummaries, products, evidence_rule: "Only current lifecycle_state=observed and evidence_state=observed counts as observed. Availability, consent, authorization, billing, and itemGet product metadata never count as provider evidence." });
 });
 
