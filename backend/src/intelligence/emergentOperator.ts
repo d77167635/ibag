@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { supabaseAdmin } from "../db.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 export const EMERGENT_OPERATOR_VERSION = "1.0.0";
 
