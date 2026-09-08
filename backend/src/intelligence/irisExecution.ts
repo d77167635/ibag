@@ -10,18 +10,23 @@ const CERTIFICATION_POLICY_VERSION = "iris-certification-v2";
 const CAPABILITY_ID = "iris.full_intelligence";
 const OPERATOR_ID = "computeFullIntelligence";
 const OPERATOR_VERSION = "1";
-const GOVERNED_CAPABILITIES = ["temporal", "analysis", "behavioral", "pattern", "relationship", "anomaly", "causal", "predictive", "scenario", "decision", "recommendation", "outcome", "learning", "emergent"];
+const DEFAULT_REQUESTED_CAPABILITIES = [CAPABILITY_ID];
 
 type RunRequest = { userId: string; requestId?: string; surface?: string; mode?: string; requestedCapabilities?: string[] };
 function hash(value: unknown): string { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 function errorText(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
+/**
+ * Single governed execution boundary for Iris financial intelligence.
+ * The aggregate operator is intentionally explicit: individual capability
+ * catalog entries are not treated as executed merely because they are listed.
+ */
 export async function executeIrisRun(request: RunRequest) {
   const userId = request.userId;
   const requestId = request.requestId?.trim() || randomUUID();
   const surface = request.surface || "iris";
   const mode = request.mode || "full_intelligence";
-  const requestedCapabilities = request.requestedCapabilities?.length ? request.requestedCapabilities : GOVERNED_CAPABILITIES;
+  const requestedCapabilities = request.requestedCapabilities?.length ? request.requestedCapabilities : DEFAULT_REQUESTED_CAPABILITIES;
   const asOf = new Date().toISOString();
 
   const { data: existing } = await supabaseAdmin.from("iris_runs").select("*").eq("user_id", userId).eq("request_id", requestId).maybeSingle();
@@ -35,20 +40,10 @@ export async function executeIrisRun(request: RunRequest) {
   if (plan.status === "BLOCKED") throw new Error(`CAPABILITY_PLAN_BLOCKED: ${plan.limitations.join(" | ")}`);
 
   const initialManifest = { user_id: userId, request_id: requestId, surface, mode, requested_capabilities: requestedCapabilities, capability_plan: plan, as_of: asOf, planner_version: PLANNER_VERSION, orchestrator_version: ORCHESTRATOR_VERSION, certification_policy_version: CERTIFICATION_POLICY_VERSION };
-  const { data: run, error: runError } = await supabaseAdmin.from("iris_runs").insert({
-    request_id: requestId, user_id: userId, request_surface: surface, request_mode: mode, requested_capabilities: requestedCapabilities,
-    status: "PLANNED", as_of: asOf, evidence_boundary: asOf, evidence_version: "provider-observation-boundary-v1",
-    resource_budget: { max_execution_time_ms: 120000, max_graph_nodes: 10000, max_graph_edges: 30000, max_compositions: 5000, max_investigations: 500 },
-    execution_policy: { evidence_gated: true, certify_only_after_validation: true, server_authoritative: true, capability_plan_status: plan.status },
-    planner_version: PLANNER_VERSION, orchestrator_version: ORCHESTRATOR_VERSION, certification_policy_version: CERTIFICATION_POLICY_VERSION,
-    financial_context_hash: hash({ user_id: userId, as_of: asOf }), evidence_manifest_hash: hash(initialManifest), started_at: asOf, updated_at: asOf,
-  }).select("*").single();
+  const { data: run, error: runError } = await supabaseAdmin.from("iris_runs").insert({ request_id: requestId, user_id: userId, request_surface: surface, request_mode: mode, requested_capabilities: requestedCapabilities, status: "PLANNED", as_of: asOf, evidence_boundary: asOf, evidence_version: "provider-observation-boundary-v1", resource_budget: { max_execution_time_ms: 120000, max_graph_nodes: 10000, max_graph_edges: 30000, max_compositions: 5000, max_investigations: 500 }, execution_policy: { evidence_gated: true, certify_only_after_validation: true, server_authoritative: true, capability_plan_status: plan.status }, planner_version: PLANNER_VERSION, orchestrator_version: ORCHESTRATOR_VERSION, certification_policy_version: CERTIFICATION_POLICY_VERSION, financial_context_hash: hash({ user_id: userId, as_of: asOf }), evidence_manifest_hash: hash(initialManifest), started_at: asOf, updated_at: asOf }).select("*").single();
   if (runError || !run) throw new Error(`Unable to create Iris run: ${runError?.message || "unknown error"}`);
 
-  const { data: execution, error: executionError } = await supabaseAdmin.from("iris_execution_records").insert({
-    run_id: run.id, user_id: userId, capability_id: CAPABILITY_ID, operator_id: OPERATOR_ID, operator_version: OPERATOR_VERSION,
-    execution_state: "EXECUTING", started_at: asOf, evidence_state: "CALCULATED", validation_status: "UNKNOWN", certification_status: "PENDING", input_manifest: initialManifest,
-  }).select("*").single();
+  const { data: execution, error: executionError } = await supabaseAdmin.from("iris_execution_records").insert({ run_id: run.id, user_id: userId, capability_id: CAPABILITY_ID, operator_id: OPERATOR_ID, operator_version: OPERATOR_VERSION, execution_state: "EXECUTING", started_at: asOf, evidence_state: "CALCULATED", validation_status: "UNKNOWN", certification_status: "PENDING", input_manifest: initialManifest }).select("*").single();
   if (executionError || !execution) { await failRun(run.id, `EXECUTION_RECORD_CREATE_FAILED: ${executionError?.message || "unknown error"}`); throw new Error(`Unable to create Iris execution record: ${executionError?.message || "unknown error"}`); }
   await supabaseAdmin.from("iris_runs").update({ status: "EXECUTING", updated_at: new Date().toISOString() }).eq("id", run.id).eq("user_id", userId);
 
@@ -85,7 +80,6 @@ export async function executeIrisRun(request: RunRequest) {
       return { ...run, id: run.id, status: "VALIDATION_FAILED", execution_id: execution.id, result, certified: false, certification_gate: gate };
     }
 
-    // The DB certification trigger requires validation_status=PASS while certification_status remains PENDING.
     const { error: validationStateError } = await supabaseAdmin.from("iris_execution_records").update({ validation_status: "PASS" }).eq("id", execution.id).eq("user_id", userId);
     if (validationStateError) { await failExecution(run.id, execution.id, userId, "VALIDATION_STATE_UPDATE_FAILED", validationStateError.message); throw new Error(`Unable to finalize Iris validation state: ${validationStateError.message}`); }
 
