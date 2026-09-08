@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { supabaseAdmin } from "../lib/supabase.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 export type CapabilityContract = {
   key: string;
@@ -93,8 +93,6 @@ export async function buildRecursiveCapabilityGraph(options: {
   const frontier: string[] = [];
   let truncated = false;
 
-  // Capability readiness is contract/evidence driven. The optional readiness
-  // metadata may be populated by a runtime evidence planner; absence is blocked.
   const ready = (c: CapabilityContract) => contractValue(c, "evidence_ready") === true && contractValue(c, "runtime_proven") === true;
 
   const queue: Array<{ key: string; depth: number }> = contracts.map(c => ({ key: c.key, depth: 0 }));
