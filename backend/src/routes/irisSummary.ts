@@ -1,14 +1,25 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
-import { computeFullIntelligence } from "../intelligence/orchestrator.js";
+import { executeIrisRun } from "../intelligence/irisExecution.js";
 
 export const irisSummaryRouter = Router();
 
 irisSummaryRouter.get("/iris/summary", requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const full = await computeFullIntelligence(req.userId!);
+    const fullRun = await executeIrisRun({
+      userId: req.userId!,
+      requestId: typeof req.header("x-iris-request-id") === "string" ? req.header("x-iris-request-id")! : undefined,
+      surface: "iris_summary",
+      mode: "full_intelligence",
+    });
+    const full = fullRun.result;
+    if (!full) return res.status(503).json({ error: "Iris intelligence is temporarily unavailable", certified: false, run_id: fullRun.id ?? null });
     const metrics = full.layer_metrics;
     res.json({
+      run_id: fullRun.id ?? null,
+      execution_id: fullRun.execution_id ?? null,
+      certified: fullRun.certified === true,
+      certification_gate: fullRun.certification_gate ?? null,
       generated_at: full.generated_at,
       narrative: full.narrative,
       intelligence_gate: full.intelligence_gate,
