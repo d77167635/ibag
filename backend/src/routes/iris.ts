@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { createHash } from "node:crypto";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { executeIrisRun } from "../intelligence/irisExecution.js";
@@ -14,7 +13,6 @@ import { buildTrialProductIntelligence } from "../intelligence/trialProductIntel
 export const irisRouter = Router();
 function money(value: unknown): string { if (typeof value !== "number" || !Number.isFinite(value)) return "not available from current evidence"; return `${value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 const PRODUCT_GATED_INTENTS = new Set(["overview", "cash_flow", "spending", "liquidity", "debt", "roundups", "anomaly"]);
-function requestIdForQuestion(question: string, context: IrisQuestionContext): string { return `iris-ask:${createHash("sha256").update(JSON.stringify({ question, context })).digest("hex")}`; }
 function answerFor(intent: ReturnType<typeof resolveIrisContext>["intent"], intel: any, accountCount: number, evidencePlan: ReturnType<typeof planIrisEvidence>, providerAnswer?: string | null, trialProducts?: any) {
   const metrics = intel?.layer_metrics ?? {};
   const limitations = evidencePlan.limitations;
@@ -44,7 +42,8 @@ irisRouter.post("/iris/ask", requireAuth, async (req: AuthedRequest, res) => {
     const userId = req.userId!;
     const suppliedContext: IrisQuestionContext = req.body?.context && typeof req.body.context === "object" ? req.body.context : {};
     const resolved = resolveIrisContext(question, suppliedContext);
-    const run = await executeIrisRun({ userId, requestId: typeof req.header("x-iris-request-id") === "string" ? req.header("x-iris-request-id")! : requestIdForQuestion(resolved.normalizedQuestion, suppliedContext), surface: "iris_ask", mode: resolved.intent });
+    const suppliedRequestId = req.header("x-iris-request-id");
+    const run = await executeIrisRun({ userId, requestId: typeof suppliedRequestId === "string" && suppliedRequestId.trim() ? suppliedRequestId.trim() : undefined, surface: "iris_ask", mode: resolved.intent });
     const intelligence = run.result;
     if (!intelligence) return res.status(503).json({ error: "Iris could not complete the question from the current evidence", certified: false, run_id: run.id ?? null });
     const [{ data: accounts, error: accountError }, providerLineage, providerEvidence, trialProductIntelligence] = await Promise.all([
