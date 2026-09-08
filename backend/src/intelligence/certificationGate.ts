@@ -26,8 +26,8 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
     supabaseAdmin.from("iris_run_evidence").select("id,user_id,provider,product,raw_observation_id,evidence_hash,effective_at,acquired_at").eq("run_id", runId).eq("user_id", userId),
     supabaseAdmin.from("iris_execution_outputs").select("hash,evidence_state,value").eq("execution_id", executionId),
     supabaseAdmin.from("plaid_raw_transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
-    supabaseAdmin.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true),
-    supabaseAdmin.from("roundup_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    supabaseAdmin.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true),
+    supabaseAdmin.from("roundup_sweep_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabaseAdmin.from("plaid_raw_product_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
     supabaseAdmin.from("plaid_raw_product_observations").select("item_id,product").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
   ]);
