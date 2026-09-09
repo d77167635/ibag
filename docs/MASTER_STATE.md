@@ -6,7 +6,7 @@
 - Product: Iris
 - Repository: `d77167635/ibag`
 - Default branch: `main`
-- Latest verified continuity checkpoint: `268de7acc9c0f38643e258b1c6fea217197c925a`
+- Latest verified continuity checkpoint: `33a7b54cc682a565ea974194703514caab1bc8b7`
 - Repository status: active, public, non-archived
 
 ## Core product boundary
@@ -35,8 +35,9 @@
 - `backend/src/routes/irisCatalog.ts` and `backend/src/routes/irisIntelligence.ts` consume that same canonical baseline rather than maintaining duplicate lists.
 - `backend/src/intelligence/irisCatalog.test.ts` certifies the ten-item standard baseline and its preference-not-ceiling semantics.
 - `backend/src/intelligence/irisIntelligenceOutputRuntime.ts` is the final governed publication boundary: it preserves feature readiness, explicit evidence qualification, one-to-many feature/analysis mapping, and provenance integrity without creating provider observations or financial facts.
-- `backend/src/intelligence/irisPublicationContext.ts` is now the shared publication-context builder used by Iris intelligence surfaces.
+- `backend/src/intelligence/irisPublicationContext.ts` is the shared publication-context builder used by Iris intelligence surfaces and exposes a pure adapter for deterministic testing.
 - `/iris/intelligence` and `/dashboard/intelligence` now consume the same feature/output publication boundary.
+- `backend/src/intelligence/irisPublicationContext.test.ts` verifies ready/limited/suppressed publication behavior and the provider/analysis boundary.
 - `.github/workflows/iris-backend-ci.yml` runs backend dependency installation, intelligence tests, and TypeScript build on pushes/PRs to `main`.
 
 ## Plaid capability contract
