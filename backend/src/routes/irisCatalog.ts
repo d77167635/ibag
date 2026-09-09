@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { supabaseAdmin } from "../config/supabase.js";
-import { IRIS_CATALOG, IRIS_CATALOG_VERSION, IRIS_STANDARD_CAPABILITY_IDS, getIrisCatalogCapability } from "../intelligence/irisCatalog.js";
+import { IRIS_CATALOG, IRIS_CATALOG_VERSION, getIrisCatalogCapability, IRIS_STANDARD_CAPABILITY_IDS } from "../intelligence/irisCatalog.js";
 import { IRIS_CATALOG_EXPANSION } from "../intelligence/irisCatalogExpansion.js";
 
 export const irisCatalogRouter = Router();
