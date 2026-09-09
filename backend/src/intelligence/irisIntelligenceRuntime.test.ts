@@ -4,8 +4,8 @@ import { buildIrisIntelligenceRuntime } from "../contracts/irisIntelligenceRunti
 
 const featureId = "feature.financial-state";
 
-function product(decision: "selected" | "eligible_awaiting_evidence" | "blocked" | "not_eligible", evidenceStatus: "observed" | "not_observed" | "not_available" = "observed") {
-  return { product: "transactions", decision, evidenceStatus, availableToIris: decision === "selected" || decision === "eligible_awaiting_evidence" };
+function product(decision: "selected" | "eligible_awaiting_evidence" | "blocked" | "not_eligible", evidenceStatus: "observed" | "not_observed" | "not_available" = "observed", capabilityIds = ["financial-state"]) {
+  return { product: "transactions", capabilityIds, decision, evidenceStatus, availableToIris: decision === "selected" || decision === "eligible_awaiting_evidence" };
 }
 
 test("runtime defaults to insufficient evidence rather than inventing readiness", () => {
@@ -56,6 +56,17 @@ test("eligible awaiting evidence is never counted as observed supporting evidenc
   const state = runtime.states.find((item) => item.featureId === featureId);
   assert.ok(state);
   assert.deepEqual(state.supportingProducts, ["transactions"]);
+  assert.deepEqual(state.observedSupportingProducts, []);
+});
+
+test("unrelated provider products are not falsely linked to a feature", () => {
+  const runtime = buildIrisIntelligenceRuntime({
+    evidenceCoverageByCapabilityId: { "financial-state": 1 },
+    productDecisions: [product("selected", "observed", ["spending"])],
+  });
+  const state = runtime.states.find((item) => item.featureId === featureId);
+  assert.ok(state);
+  assert.deepEqual(state.supportingProducts, []);
   assert.deepEqual(state.observedSupportingProducts, []);
 });
 
