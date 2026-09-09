@@ -1,4 +1,11 @@
-import type { CapabilityContract } from "./recursiveCapabilityGraph.js";
+export type CapabilityContract = {
+  key: string;
+  label: string;
+  capability_group: string;
+  description: string | null;
+  metadata: Record<string, unknown>;
+  active: boolean;
+};
 
 const metadata = (c: CapabilityContract) => c.metadata ?? {};
 
