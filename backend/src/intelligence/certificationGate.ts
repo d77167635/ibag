@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import { reconcileCanonicalTransactions } from "./canonicalReconciliation.js";
 
 const REQUIRED_PROVIDER_DOMAINS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
 
@@ -22,16 +23,17 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
     if (!ok) critical_failures.push(key);
   };
 
-  const [{ data: run }, { data: execution }, { data: evidence, error: evidenceError }, { data: outputs }, { count: rawCount }, { count: canonicalCount }, { count: roundupCount }, { count: productCount }, { data: currentProviderRows }] = await Promise.all([
+  const [{ data: run }, { data: execution }, { data: evidence, error: evidenceError }, { data: outputs }, { count: roundupCount }, { count: productCount }, { data: currentProviderRows }, { data: accounts }, { data: canonicalTransactions }, { data: rawTransactions }] = await Promise.all([
     supabaseAdmin.from("iris_runs").select("id,user_id,as_of,evidence_boundary,evidence_version,evidence_manifest_hash,resource_budget,execution_policy").eq("id", runId).eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("iris_execution_records").select("run_id,user_id,execution_state,input_hash,output_hash,resource_usage,input_manifest").eq("id", executionId).eq("run_id", runId).eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("iris_run_evidence").select("id,user_id,provider,product,raw_observation_id,evidence_hash,effective_at,acquired_at").eq("run_id", runId).eq("user_id", userId),
     supabaseAdmin.from("iris_execution_outputs").select("hash,evidence_state,value").eq("execution_id", executionId),
-    supabaseAdmin.from("plaid_raw_transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
-    supabaseAdmin.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true),
     supabaseAdmin.from("roundup_sweep_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabaseAdmin.from("plaid_raw_product_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
     supabaseAdmin.from("plaid_raw_product_observations").select("item_id,product").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
+    supabaseAdmin.from("plaid_accounts").select("id,item_id,plaid_account_id").eq("user_id", userId),
+    supabaseAdmin.from("transactions").select("id,account_id,plaid_transaction_id,raw_transaction_id,is_active").eq("user_id", userId).eq("is_active", true),
+    supabaseAdmin.from("plaid_raw_transactions").select("id,account_id,plaid_transaction_id,is_current,evidence_state").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
   ]);
 
   check("iris.execution.integrity", !!execution && execution.execution_state === "EXECUTED" && execution.input_hash === inputHash && execution.output_hash === outputHash && inputHash.length === 64 && outputHash.length === 64, "Execution identity, state, and hashes match.", "Execution identity, state, or hashes are invalid.");
@@ -71,10 +73,13 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   const crossDomainReady = crossDomain?.state === "reconciled" && crossDomain?.net_worth_basis === "account_balances_only" && crossDomain?.checks?.transaction_account_lineage === true && crossDomain?.checks?.currency_safe === true;
   check("iris.reconciliation.cross_domain", crossDomainReady, "Cross-domain financial evidence reconciles sufficiently for governed certification, with account balances as the non-overlapping net-worth basis.", crossDomain ? `Cross-domain reconciliation is ${String(crossDomain.state)} or one of its core safety checks is not satisfied; certification remains blocked.` : "The governed output does not contain a cross-domain reconciliation result.");
 
-  const raw = rawCount ?? 0;
-  const canonical = canonicalCount ?? 0;
-  const reconciliationOk = raw === canonical;
-  check("iris.reconciliation.transactions", reconciliationOk, `Core transaction reconciliation passed: ${raw} current raw observations = ${canonical} current canonical transactions.`, `Core transaction reconciliation failed: ${raw} current raw observations != ${canonical} current canonical transactions.`);
+  const canonicalReconciliation = reconcileCanonicalTransactions(
+    (accounts ?? []).map(row => ({ id: row.id, item_id: row.item_id, plaid_account_id: row.plaid_account_id })),
+    (canonicalTransactions ?? []).map(row => ({ id: row.id, account_id: row.account_id, plaid_transaction_id: row.plaid_transaction_id, raw_transaction_id: row.raw_transaction_id, is_active: row.is_active })),
+    (rawTransactions ?? []).map(row => ({ id: row.id, account_id: row.account_id, plaid_transaction_id: row.plaid_transaction_id, is_current: row.is_current, evidence_state: row.evidence_state })),
+  );
+  const transactionReconciliationReady = canonicalReconciliation.status === "reconciled" && !canonicalReconciliation.double_counting_risk && canonicalReconciliation.active_canonical_with_raw === canonicalReconciliation.canonical_active && canonicalReconciliation.active_canonical_with_account === canonicalReconciliation.canonical_active && canonicalReconciliation.active_canonical_with_item === canonicalReconciliation.canonical_active;
+  check("iris.reconciliation.transactions", transactionReconciliationReady, "Canonical transactions reconcile one-to-one with current observed provider transactions and account/Item lineage.", `Canonical transaction reconciliation is ${canonicalReconciliation.status}; provider identity, raw linkage, account lineage, or duplicate checks prevent certification.`);
 
   const usage = execution?.resource_usage as { duration_ms?: number } | null | undefined;
   const budget = run?.resource_budget as { max_execution_time_ms?: number } | null | undefined;
@@ -93,10 +98,15 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
       complete_item_count: completeItems.length, complete_item_ids: completeItems, selected_item_id: selectedItemId, run_evidence_item_ids: evidenceItemIds,
     },
     reconciliation_snapshot: {
-      status: reconciliationOk && evidenceMatchesSelectedItem && evidenceHasRequiredDomains && crossDomainReady ? "PASS" : "FAIL",
-      raw_current_transactions: raw, canonical_current_transactions: canonical, roundup_event_count: roundupCount ?? 0,
-      current_product_observation_count: productCount ?? 0, selected_item_id: selectedItemId, run_evidence_item_ids: evidenceItemIds,
-      run_evidence_required_domains: evidenceHasRequiredDomains, cross_domain_reconciliation: crossDomain ?? null, scope: "provider_item_plus_core_transaction_plus_cross_domain_reconciliation",
+      status: transactionReconciliationReady && evidenceMatchesSelectedItem && evidenceHasRequiredDomains && crossDomainReady ? "PASS" : "FAIL",
+      canonical_transaction_reconciliation: canonicalReconciliation,
+      roundup_event_count: roundupCount ?? 0,
+      current_product_observation_count: productCount ?? 0,
+      selected_item_id: selectedItemId,
+      run_evidence_item_ids: evidenceItemIds,
+      run_evidence_required_domains: evidenceHasRequiredDomains,
+      cross_domain_reconciliation: crossDomain ?? null,
+      scope: "provider_item_plus_identity_lineage_plus_cross_domain_reconciliation",
     },
   };
 }
