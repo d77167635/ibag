@@ -11,6 +11,7 @@ import {
   evaluateIrisFeatureState,
   type IrisFeatureDefinition,
   type IrisFeatureState,
+  type IrisEvidenceStatus,
 } from "./irisFeatureRegistry.js";
 import type { PlaidDecisionState } from "./plaidProductDecision.js";
 
@@ -25,17 +26,23 @@ export interface IrisProductRuntimeInput {
 export interface IrisFeatureRuntimeInput {
   activationByFeatureId?: Record<string, "enabled" | "disabled">;
   evidenceCoverageByCapabilityId?: Record<string, number>;
+  evidenceStatusByFeatureId?: Record<string, Record<string, IrisEvidenceStatus>>;
   blockersByCapabilityId?: Record<string, string[]>;
   productDecisions?: IrisProductRuntimeInput[];
 }
 
 export interface IrisFeatureRuntimeState extends IrisFeatureState {
+  featureVersion: string;
   capabilityId: string;
   name: string;
   family: string;
+  prerequisites: string[];
   requiredEvidence: string[];
+  evidencePolicy: "all";
   intelligenceOutputs: string[];
   uiSurfaces: string[];
+  educationSurfaces: string[];
+  interactionModes: string[];
   supportingProducts: string[];
   observedSupportingProducts: string[];
 }
@@ -47,10 +54,10 @@ function productNamesForFeature(feature: IrisFeatureDefinition, products: IrisPr
     (product.decision === "selected" || product.decision === "eligible_awaiting_evidence"),
   );
   return {
-    supporting: related.map((product) => product.product),
-    observed: related
+    supporting: [...new Set(related.map((product) => product.product))],
+    observed: [...new Set(related
       .filter((product) => product.decision === "selected" && product.evidenceStatus === "observed")
-      .map((product) => product.product),
+      .map((product) => product.product))],
   };
 }
 
@@ -62,18 +69,31 @@ export function buildIrisIntelligenceRuntime(input: IrisFeatureRuntimeInput = {}
   const products = input.productDecisions ?? [];
   const states: IrisFeatureRuntimeState[] = IRIS_FEATURE_REGISTRY.map((feature) => {
     const activation = input.activationByFeatureId?.[feature.featureId] ?? "enabled";
-    const evidenceCoverage = input.evidenceCoverageByCapabilityId?.[feature.capabilityId] ?? 0;
+    const explicitEvidence = input.evidenceStatusByFeatureId?.[feature.featureId];
+    const evidenceCoverage = explicitEvidence
+      ? undefined
+      : input.evidenceCoverageByCapabilityId?.[feature.capabilityId] ?? 0;
     const blockers = [...(input.blockersByCapabilityId?.[feature.capabilityId] ?? [])];
     const productLinks = productNamesForFeature(feature, products);
-    const state = evaluateIrisFeatureState(feature, { activation, evidenceCoverage, blockers });
+    const state = evaluateIrisFeatureState(feature, {
+      activation,
+      evidenceCoverage,
+      evidenceStatusById: explicitEvidence,
+      blockers,
+    });
     return {
       ...state,
+      featureVersion: feature.version,
       capabilityId: feature.capabilityId,
       name: feature.name,
       family: feature.family,
+      prerequisites: feature.prerequisites,
       requiredEvidence: feature.requiredEvidence,
+      evidencePolicy: feature.evidencePolicy,
       intelligenceOutputs: feature.intelligenceOutputs,
       uiSurfaces: feature.uiSurfaces,
+      educationSurfaces: feature.educationSurfaces,
+      interactionModes: feature.interactionModes,
       supportingProducts: productLinks.supporting,
       observedSupportingProducts: productLinks.observed,
     };
@@ -85,7 +105,8 @@ export function buildIrisIntelligenceRuntime(input: IrisFeatureRuntimeInput = {}
   const blocked = states.filter((state) => state.readiness === "blocked");
 
   return {
-    engine_version: "IRIS_INTELLIGENCE_RUNTIME_V1",
+    engine_version: "IRIS_INTELLIGENCE_RUNTIME_V2",
+    registry_version: "IRIS_FEATURE_REGISTRY_V2",
     states,
     available_features: states.filter((state) => state.available),
     ready_features: ready,
