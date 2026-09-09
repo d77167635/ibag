@@ -3,6 +3,7 @@ import { computeMultiWindowFlow } from "./temporal.js";
 import { computeCategoryDrift } from "./behavioral.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
 import { computeFinancialReasoning } from "./relational.js";
+import { computeForwardProjection } from "./predictive.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
 export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
@@ -94,6 +95,12 @@ export async function dispatchGovernedCapability({ userId, capabilityId, paramet
     case "relationship": {
       const asOf = validAsOf(parameters.asOf);
       const result = await computeFinancialReasoning(userId, asOf);
+      return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result };
+    }
+    case "predictive": {
+      const horizonDays = positiveInteger(parameters.horizonDays, "horizonDays");
+      const asOf = validAsOf(parameters.asOf);
+      const result = await computeForwardProjection(userId, horizonDays, asOf);
       return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result };
     }
     default:
