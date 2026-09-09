@@ -1,0 +1,42 @@
+-- Corrected Iris capability graph.
+-- Existing implementations are upgraded into a governed dependency hierarchy;
+-- this migration never lowers the semantic requirements of the corrected architecture.
+
+insert into public.iris_capability_contracts
+  (capability_id, version, operator_id, operator_version, evidence_requirements, dependencies, validation_rules, output_type, recursive, cross_domain, active)
+values
+  ('temporal','1.0.0','temporal','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array(),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','temporal_scope_valid'),'temporal_result',false,true,true),
+  ('analysis','1.0.0','analysis','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('temporal','behavioral'),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','dependency_results_valid'),'analysis_result',false,true,true),
+  ('behavioral','1.0.0','behavioral','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('temporal'),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','temporal_scope_valid'),'behavioral_result',false,true,true),
+  ('pattern','1.0.0','pattern','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('analysis','behavioral','temporal'),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','dependency_results_valid'),'pattern_result',true,true,true),
+  ('relationship','1.0.0','relationship','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('analysis','pattern','temporal'),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','dependency_results_valid'),'relationship_result',true,true,true),
+  ('anomaly','1.0.0','anomaly','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('temporal','behavioral'),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','temporal_scope_valid'),'anomaly_result',false,true,true),
+  ('causal','1.0.0','causal','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('relationship','pattern','temporal'),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','alternative_hypotheses_required','falsification_required','causal_claims_bounded'),'causal_result',true,true,true),
+  ('predictive','1.0.0','predictive','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('temporal','pattern','relationship'),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','forecast_horizon_required','future_data_excluded','limitations_required'),'predictive_result',true,true,true),
+  ('scenario','1.0.0','scenario','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('predictive','causal','relationship'),jsonb_build_array('user_isolation','lineage_present','scenario_isolation','actual_state_immutable','assumptions_explicit'),'scenario_result',true,true,true),
+  ('decision','1.0.0','decision','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('scenario','causal','relationship'),jsonb_build_array('user_isolation','lineage_present','alternatives_required','tradeoffs_explicit','no_action_execution'),'decision_result',true,true,true),
+  ('recommendation','1.0.0','recommendation','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('decision','scenario','causal'),jsonb_build_array('user_isolation','lineage_present','goal_alignment_required','uncertainty_disclosed','user_choice_required'),'recommendation_result',true,true,true),
+  ('outcome','1.0.0','outcome','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('decision','recommendation','temporal'),jsonb_build_array('user_isolation','lineage_present','outcome_observed_not_invented','decision_link_required'),'outcome_result',true,true,true),
+  ('learning','1.0.0','learning','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('outcome','predictive','decision'),jsonb_build_array('user_isolation','lineage_present','outcome_required','calibration_required','historical_truth_immutable'),'learning_result',true,true,true),
+  ('emergent','1.0.0','emergent','1.0.0',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('learning','pattern','relationship','causal'),jsonb_build_array('user_isolation','lineage_present','novelty_required','falsification_required','evidence_ceiling_enforced'),'emergent_result',true,true,true)
+on conflict (capability_id,version) do update set
+  operator_id=excluded.operator_id,
+  operator_version=excluded.operator_version,
+  evidence_requirements=excluded.evidence_requirements,
+  dependencies=excluded.dependencies,
+  validation_rules=excluded.validation_rules,
+  output_type=excluded.output_type,
+  recursive=excluded.recursive,
+  cross_domain=excluded.cross_domain,
+  active=true;
+
+-- Aggregate is retained only as a compatibility composition. It is not used as
+-- a substitute for independent capability operators.
+insert into public.iris_capability_contracts
+  (capability_id, version, operator_id, operator_version, evidence_requirements, dependencies, validation_rules, output_type, recursive, cross_domain, active)
+values
+  ('iris.full_intelligence','1.0.0','computeFullIntelligence','1',jsonb_build_array('authorized_plaid_evidence','canonical_financial_model'),jsonb_build_array('analysis','pattern','relationship','anomaly','causal','predictive','scenario','decision','recommendation','outcome','learning','emergent'),jsonb_build_array('user_isolation','lineage_present','evidence_state_valid','dependency_results_valid'),'full_intelligence_snapshot',true,true,true)
+on conflict (capability_id,version) do update set
+  dependencies=excluded.dependencies,
+  validation_rules=excluded.validation_rules,
+  active=true;
