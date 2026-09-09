@@ -25,7 +25,7 @@ export async function assessSourceFidelity(userId: string) {
 
   const queryErrors = [items, accounts, tx, rawTx, rawBalances, rawLiabilities, runs, products, rawProducts].filter(q => q.error).map(q => q.error!.message);
   if (queryErrors.length) return {
-    gate_version: "IRIS_SOURCE_FIDELITY_V6", status: "fail" as FidelitySeverity, ready_for_higher_order_intelligence: false,
+    gate_version: "IRIS_SOURCE_FIDELITY_V7", status: "fail" as FidelitySeverity, ready_for_higher_order_intelligence: false,
     checks: [{ id: "query_integrity", severity: "fail" as FidelitySeverity, title: "Evidence store readable", detail: queryErrors.join("; "), observed: null, expected: true }],
     limitations: ["The evidence store could not be completely inspected."], counts: {}, generated_at: new Date().toISOString()
   };
@@ -37,7 +37,6 @@ export async function assessSourceFidelity(userId: string) {
   const fail = (id: string, title: string, detail: string, observed: any, expected: any) => checks.push({ id, severity: "fail", title, detail, observed, expected });
 
   const itemIds = new Set(itemRows.map(r => r.id));
-  const accountIds = new Set(accountRows.map(r => r.id));
   const accountById = new Map(accountRows.map(r => [r.id, r]));
   const itemHasCurrentTx = (itemId: string) => rawTxRows.some(r => r.is_current && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state || "") && accountById.get(r.account_id)?.item_id === itemId);
   const itemHasCurrentBalance = (itemId: string) => rawBalanceRows.some(r => r.is_current && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state || "") && accountById.get(r.account_id)?.item_id === itemId);
@@ -48,6 +47,11 @@ export async function assessSourceFidelity(userId: string) {
   const orphanAccounts = accountRows.filter(a => !itemIds.has(a.item_id));
   orphanAccounts.length ? fail("account_item_lineage", "Account → Item lineage", `${orphanAccounts.length} account(s) reference an unknown Item.`, orphanAccounts.length, 0) : pass("account_item_lineage", "Account → Item lineage", "Every account belongs to a user-owned Plaid Item.", 0, 0);
   duplicateProviderKeys.size ? fail("account_provider_identity", "Provider account identity", `${duplicateProviderKeys.size} duplicate provider account identity value(s) exist within an Item.`, duplicateProviderKeys.size, 0) : pass("account_provider_identity", "Provider account identity", "Provider account identities are unique within each Item.", 0, 0);
+
+  const invalidAccountBalances = accountRows.filter(r => r.current_balance != null && !Number.isFinite(Number(r.current_balance)));
+  invalidAccountBalances.length
+    ? fail("account_balance_numeric_integrity", "Account balance numeric integrity", `${invalidAccountBalances.length} account balance value(s) are not finite numeric values; monetary composition is withheld.`, invalidAccountBalances.length, 0)
+    : pass("account_balance_numeric_integrity", "Account balance numeric integrity", "All supplied account balances are finite numeric values or null.", 0, 0);
 
   const canonicalReconciliation = reconcileCanonicalTransactions(
     accountRows.map(row => ({ id: row.id, item_id: row.item_id, plaid_account_id: row.plaid_account_id })),
@@ -77,14 +81,15 @@ export async function assessSourceFidelity(userId: string) {
     [],
     [],
   );
-  const compositionBaseSafe = compositionBase.status === "reconciled"
+  const compositionBaseSafe = invalidAccountBalances.length === 0
+    && compositionBase.status === "reconciled"
     && compositionBase.net_worth_basis === "account_balances_only"
     && !compositionBase.double_counting_risk
     && compositionBase.duplicate_account_ids.length === 0
     && compositionBase.currencies.length <= 1;
   compositionBaseSafe
-    ? pass("financial_composition_base", "Financial composition base safety", "Account identities and account-balance currency are safe for a non-overlapping base composition; specialized provider values remain non-additive until separately reconciled.", compositionBase.net_worth, "account_balances_only")
-    : fail("financial_composition_base", "Financial composition base safety", "Account-balance composition is unsafe because of duplicate identity, mixed currency, missing monetary evidence, or another composition integrity failure.", compositionBase.status, "reconciled");
+    ? pass("financial_composition_base", "Financial composition base safety", "Account identities, finite balances, and account-balance currency are safe for a non-overlapping base composition; specialized provider values remain non-additive until separately reconciled.", compositionBase.net_worth, "account_balances_only")
+    : fail("financial_composition_base", "Financial composition base safety", "Account-balance composition is unsafe because of duplicate identity, mixed currency, non-finite monetary evidence, missing monetary evidence, or another composition integrity failure.", compositionBase.status, "reconciled");
 
   const latestRunByItem = new Map<string, any>();
   for (const run of runRows) if (!latestRunByItem.has(run.item_id)) latestRunByItem.set(run.item_id, run);
@@ -117,7 +122,7 @@ export async function assessSourceFidelity(userId: string) {
   const hardIntegrityFailure = checks.some(c => c.severity === "fail" && c.id !== "canonical_eight_domain_certification");
   const ready = !hardIntegrityFailure && certifiedItemReady && eightDomainReady && transactionReconciliationReady && compositionBaseSafe;
   return {
-    gate_version: "IRIS_SOURCE_FIDELITY_V6", status, ready_for_higher_order_intelligence: ready, checks,
+    gate_version: "IRIS_SOURCE_FIDELITY_V7", status, ready_for_higher_order_intelligence: ready, checks,
     limitations: checks.filter(c => c.severity !== "pass").map(c => c.detail),
     counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilityRows.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
     reconciliation: { canonical_active_transactions: txRows.filter(r => r.is_active).length, raw_current_transactions: rawTxRows.filter(r => r.is_current).length, added: runRows.reduce((n, r) => n + Number(r.added_count || 0), 0), modified: runRows.reduce((n, r) => n + Number(r.modified_count || 0), 0), removed: runRows.reduce((n, r) => n + Number(r.removed_count || 0), 0), canonical_transaction_reconciliation: canonicalReconciliation, financial_composition_base: compositionBase },
@@ -127,6 +132,6 @@ export async function assessSourceFidelity(userId: string) {
       const raw = new Set(rawProductRows.filter(r => r.item_id === item.id && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state || "")).map(r => r.product));
       return { item: item.id, missing_observed: CANONICAL_PRODUCTS.filter(p => !observed.has(p)), missing_raw: CANONICAL_PRODUCTS.filter(p => !(p === "transactions" ? itemHasCurrentTx(item.id) : p === "balance" ? itemHasCurrentBalance(item.id) : p === "liabilities" ? itemHasCurrentLiability(item.id) : raw.has(p))) };
     }),
-    generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary, canonical transaction reconciliation is required before higher-order readiness, and account-balance composition must be currency-safe and free of duplicate identity risk."
+    generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary, canonical transaction reconciliation is required before higher-order readiness, and account-balance composition must be finite, currency-safe, and free of duplicate identity risk."
   };
 }
