@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
 test("implemented capabilities are explicitly runtime-wired", () => {
-  for (const capabilityId of ["temporal", "behavioral", "anomaly", "relationship"]) {
+  for (const capabilityId of ["temporal", "behavioral", "anomaly", "relationship", "predictive"]) {
     const operator = getCapabilityOperator(capabilityId);
     assert.ok(operator);
     assert.equal(operator.status, "implemented");
@@ -13,7 +13,7 @@ test("implemented capabilities are explicitly runtime-wired", () => {
 });
 
 test("future capabilities remain truthful until independently wired", () => {
-  for (const capabilityId of ["analysis", "pattern", "causal", "predictive", "scenario", "decision", "recommendation", "outcome", "learning", "emergent"]) {
+  for (const capabilityId of ["analysis", "pattern", "causal", "scenario", "decision", "recommendation", "outcome", "learning", "emergent"]) {
     const operator = getCapabilityOperator(capabilityId);
     assert.ok(operator);
     assert.equal(operator.status, "planned");
