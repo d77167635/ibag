@@ -92,7 +92,7 @@ export function evaluatePlaidProductDecision(
     reasons.push("Required provider evidence is unavailable.");
   } else if (input.evidenceState !== "observed") {
     blockers.push("evidence_required");
-    reasons.push("The product is eligible for consideration but has not produced observed evidence yet.");
+    reasons.push("The product is eligible for consideration but has not been observed as evidence yet.");
   }
 
   const hardBlockers = blockers.filter((blocker) => blocker !== "evidence_required");
