@@ -51,6 +51,29 @@ async function markProductObserved(userId: string, itemId: string, product: stri
   }, source, "observed");
 }
 
+async function getDurableTransactionCursor(userId: string, itemId: string) {
+  const { data, error } = await supabaseAdmin.from("plaid_transaction_sync_state")
+    .select("cursor,pages_processed")
+    .eq("user_id", userId)
+    .eq("item_id", itemId)
+    .maybeSingle();
+  if (error) throw error;
+  return { cursor: (data?.cursor as string | null | undefined) ?? undefined, pages: Number(data?.pages_processed ?? 0) };
+}
+
+async function checkpointDurableTransactionCursor(userId: string, itemId: string, cursor: string | undefined, pages: number) {
+  const now = new Date().toISOString();
+  const { error } = await supabaseAdmin.from("plaid_transaction_sync_state").upsert({
+    user_id: userId,
+    item_id: itemId,
+    cursor: cursor ?? null,
+    pages_processed: pages,
+    last_checkpoint_at: now,
+    last_success_at: cursor ? now : null,
+  }, { onConflict: "item_id,user_id" });
+  if (error) throw error;
+}
+
 async function normalizeTransaction(userId: string, accountId: string, tx: any) {
   const { data: rawRow, error: rawError } = await supabaseAdmin.rpc("record_plaid_transaction_observation", {
     p_user_id: userId, p_account_id: accountId, p_plaid_transaction_id: tx.transaction_id, p_raw_response: tx,
@@ -100,8 +123,11 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       if (balanceError) throw balanceError;
     }
     await markProductObserved(userId, itemDbId, "balance", "plaid.accountsGet");
-    let cursor: string | undefined = priorState === "retryable" ? (run[0].cursor as string | undefined) : undefined;
-    let hasMore = true, pages = Number(run[0].pages_processed ?? 0);
+
+    const durableCursor = await getDurableTransactionCursor(userId, itemDbId);
+    let cursor: string | undefined = durableCursor.cursor;
+    let hasMore = true;
+    let pages = durableCursor.pages;
     while (hasMore) {
       await updateSyncRun(runId, { state: "provider_fetching", cursor });
       const response = await plaidClient.transactionsSync({ access_token: accessToken, cursor });
@@ -109,9 +135,13 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       for (const tx of response.data.added ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); added++; }
       for (const tx of response.data.modified ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid modified transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); modified++; }
       for (const tx of response.data.removed ?? []) { if (!tx.transaction_id) continue; const { error: rawError } = await supabaseAdmin.rpc("retire_plaid_transaction_observation", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id }); if (rawError) throw rawError; const { error: normalizedError } = await supabaseAdmin.rpc("retire_normalized_transaction", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id, p_reason: "provider_removed" }); if (normalizedError) throw normalizedError; removed++; }
-      cursor = response.data.next_cursor; hasMore = response.data.has_more; pages++;
+      cursor = response.data.next_cursor;
+      hasMore = response.data.has_more;
+      pages++;
+      await checkpointDurableTransactionCursor(userId, itemDbId, cursor, pages);
       await updateSyncRun(runId, { state: "committing", cursor, pages_processed: pages, added_count: added, modified_count: modified, removed_count: removed, last_checkpoint_at: new Date().toISOString() });
     }
+
     await markProductObserved(userId, itemDbId, "transactions", "plaid.transactionsSync");
     await observeActivatedTrialProducts(userId, itemDbId, accessToken, providerProducts.added);
     await updateSyncRun(runId, { state: "reconciling" });
