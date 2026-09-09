@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { reconcileCanonicalTransactions } from "./canonicalReconciliation.js";
+import { reconcileFinancialComposition } from "./financialCompositionReconciliation.js";
 
 export type FidelitySeverity = "pass" | "warn" | "fail";
 export type FidelityCheck = { id: string; severity: FidelitySeverity; title: string; detail: string; observed: number | string | boolean | null; expected: number | string | boolean | null };
@@ -12,7 +13,7 @@ const OBSERVED_PROVIDER_EVIDENCE = new Set(["observed"]);
 export async function assessSourceFidelity(userId: string) {
   const [items, accounts, tx, rawTx, rawBalances, rawLiabilities, runs, products, rawProducts] = await Promise.all([
     supabaseAdmin.from("plaid_items").select("id, status, last_synced_at", { count: "exact" }).eq("user_id", userId),
-    supabaseAdmin.from("plaid_accounts").select("id, item_id, plaid_account_id", { count: "exact" }).eq("user_id", userId),
+    supabaseAdmin.from("plaid_accounts").select("id, item_id, plaid_account_id, type, current_balance, iso_currency_code", { count: "exact" }).eq("user_id", userId),
     supabaseAdmin.from("transactions").select("id, account_id, plaid_transaction_id, raw_transaction_id, is_active, classification_evidence", { count: "exact" }).eq("user_id", userId),
     supabaseAdmin.from("plaid_raw_transactions").select("id, account_id, plaid_transaction_id, is_current, evidence_state", { count: "exact" }).eq("user_id", userId),
     supabaseAdmin.from("plaid_raw_balances").select("id, account_id, provider_object_id, is_current, evidence_state", { count: "exact" }).eq("user_id", userId),
@@ -24,7 +25,7 @@ export async function assessSourceFidelity(userId: string) {
 
   const queryErrors = [items, accounts, tx, rawTx, rawBalances, rawLiabilities, runs, products, rawProducts].filter(q => q.error).map(q => q.error!.message);
   if (queryErrors.length) return {
-    gate_version: "IRIS_SOURCE_FIDELITY_V5", status: "fail" as FidelitySeverity, ready_for_higher_order_intelligence: false,
+    gate_version: "IRIS_SOURCE_FIDELITY_V6", status: "fail" as FidelitySeverity, ready_for_higher_order_intelligence: false,
     checks: [{ id: "query_integrity", severity: "fail" as FidelitySeverity, title: "Evidence store readable", detail: queryErrors.join("; "), observed: null, expected: true }],
     limitations: ["The evidence store could not be completely inspected."], counts: {}, generated_at: new Date().toISOString()
   };
@@ -64,6 +65,27 @@ export async function assessSourceFidelity(userId: string) {
   const orphanRaw = canonicalReconciliation.orphan_raw.length;
   orphanRaw ? warn("raw_canonical_reconciliation", "Raw → canonical reconciliation", `${orphanRaw} current raw transaction observation(s) have no active canonical transaction.`, orphanRaw, 0) : pass("raw_canonical_reconciliation", "Raw → canonical reconciliation", "Current raw transaction identities reconcile to canonical transactions.", 0, 0);
 
+  const compositionBase = reconcileFinancialComposition(
+    accountRows.map(row => ({
+      account_id: String(row.id),
+      item_id: String(row.item_id),
+      account_type: String(row.type ?? ""),
+      current_balance: Number(row.current_balance),
+      currency: typeof row.iso_currency_code === "string" ? row.iso_currency_code : null,
+    })),
+    [],
+    [],
+    [],
+  );
+  const compositionBaseSafe = compositionBase.status === "reconciled"
+    && compositionBase.net_worth_basis === "account_balances_only"
+    && !compositionBase.double_counting_risk
+    && compositionBase.duplicate_account_ids.length === 0
+    && compositionBase.currencies.length <= 1;
+  compositionBaseSafe
+    ? pass("financial_composition_base", "Financial composition base safety", "Account identities and account-balance currency are safe for a non-overlapping base composition; specialized provider values remain non-additive until separately reconciled.", compositionBase.net_worth, "account_balances_only")
+    : fail("financial_composition_base", "Financial composition base safety", "Account-balance composition is unsafe because of duplicate identity, mixed currency, missing monetary evidence, or another composition integrity failure.", compositionBase.status, "reconciled");
+
   const latestRunByItem = new Map<string, any>();
   for (const run of runRows) if (!latestRunByItem.has(run.item_id)) latestRunByItem.set(run.item_id, run);
   const completeItems = itemRows.filter(item => {
@@ -82,7 +104,7 @@ export async function assessSourceFidelity(userId: string) {
   const missingTransactions = itemRows.filter(i => !productRows.some(r => r.item_id === i.id && r.product === "transactions" && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")));
   const missingBalances = itemRows.filter(i => !productRows.some(r => r.item_id === i.id && r.product === "balance" && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")));
   missingTransactions.length ? warn("transactions_product_observation", "Transactions provider observation", `${missingTransactions.length} connected Item(s) lack a current observed Transactions state; unrelated Items do not block another certified Item.`, missingTransactions.length, 0) : pass("transactions_product_observation", "Transactions provider observation", "Every connected Item has a current observed Transactions state.", itemRows.length, itemRows.length);
-  missingBalances.length ? warn("balance_product_observation", "Balance provider observation", `${missingBalances.length} connected Item(s) lack a current observed Balance state; unrelated Items do not block another certified Item.`, missingBalances.length, 0) : pass("balance_product_observation", "Balance provider observation", "Every connected Item has a current observed Balance state.", itemRows.length, itemRows.length);
+  missingBalances.length ? warn("balance_product_observation", "Balance provider observation", `${missingBalances.length} connected Item(s) lack a current observed Balance state; unrelated Items do not block another certified Item.", missingBalances.length, 0) : pass("balance_product_observation", "Balance provider observation", "Every connected Item has a current observed Balance state.", itemRows.length, itemRows.length);
 
   const txWithBadEvidence = txRows.filter(r => r.is_active && !["observed", "calculated", "inferred", "limited", "insufficient_evidence", "contradicted", "stale", "predicted", "scenario"].includes(r.classification_evidence ?? ""));
   txWithBadEvidence.length ? warn("transaction_semantics_evidence", "Transaction semantic evidence", `${txWithBadEvidence.length} active transactions do not have a recognized semantic classification evidence state.`, txWithBadEvidence.length, 0) : pass("transaction_semantics_evidence", "Transaction semantic evidence", "Active transactions have recognized evidence-backed classification states.", 0, 0);
@@ -93,18 +115,18 @@ export async function assessSourceFidelity(userId: string) {
   const status: FidelitySeverity = checks.some(c => c.severity === "fail" && c.id !== "canonical_eight_domain_certification") ? "fail" : checks.some(c => c.severity === "warn") ? "warn" : "pass";
   const certifiedItemReady = completeItems.some(item => itemHasCurrentTx(item.id) && itemHasCurrentBalance(item.id));
   const hardIntegrityFailure = checks.some(c => c.severity === "fail" && c.id !== "canonical_eight_domain_certification");
-  const ready = !hardIntegrityFailure && certifiedItemReady && eightDomainReady && transactionReconciliationReady;
+  const ready = !hardIntegrityFailure && certifiedItemReady && eightDomainReady && transactionReconciliationReady && compositionBaseSafe;
   return {
-    gate_version: "IRIS_SOURCE_FIDELITY_V5", status, ready_for_higher_order_intelligence: ready, checks,
+    gate_version: "IRIS_SOURCE_FIDELITY_V6", status, ready_for_higher_order_intelligence: ready, checks,
     limitations: checks.filter(c => c.severity !== "pass").map(c => c.detail),
-    counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilityRows.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
-    reconciliation: { canonical_active_transactions: txRows.filter(r => r.is_active).length, raw_current_transactions: rawTxRows.filter(r => r.is_current).length, added: runRows.reduce((n, r) => n + Number(r.added_count ?? 0), 0), modified: runRows.reduce((n, r) => n + Number(r.modified_count ?? 0), 0), removed: runRows.reduce((n, r) => n + Number(r.removed_count ?? 0), 0), canonical_transaction_reconciliation: canonicalReconciliation },
+    counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilities.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
+    reconciliation: { canonical_active_transactions: txRows.filter(r => r.is_active).length, raw_current_transactions: rawTxRows.filter(r => r.is_current).length, added: runRows.reduce((n, r) => n + Number(r.added_count ?? 0), 0), modified: runRows.reduce((n, r) => n + Number(r.modified_count ?? 0), 0), removed: runRows.reduce((n, r) => n + Number(r.removed_count ?? 0), 0), canonical_transaction_reconciliation: canonicalReconciliation, financial_composition_base: compositionBase },
     eight_domain_items: completeItems.map(i => i.id),
     missing_by_item: itemRows.map(item => {
       const observed = new Set(productRows.filter(r => r.item_id === item.id && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
       const raw = new Set(rawProductRows.filter(r => r.item_id === item.id && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
       return { item: item.id, missing_observed: CANONICAL_PRODUCTS.filter(p => !observed.has(p)), missing_raw: CANONICAL_PRODUCTS.filter(p => !(p === "transactions" ? itemHasCurrentTx(item.id) : p === "balance" ? itemHasCurrentBalance(item.id) : p === "liabilities" ? itemHasCurrentLiability(item.id) : raw.has(p))) };
     }),
-    generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary, and canonical transaction reconciliation is required before higher-order readiness."
+    generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary, canonical transaction reconciliation is required before higher-order readiness, and account-balance composition must be currency-safe and free of duplicate identity risk."
   };
 }
