@@ -11,6 +11,7 @@
 - Added a regression test for the standard baseline and its preference-not-ceiling semantics.
 - Added `irisPublicationContext.ts` as the shared publication-context builder for intelligence surfaces.
 - Integrated the governed feature/output publication runtime into both `/iris/intelligence` and `/dashboard/intelligence`, preventing surface-specific publication semantics from drifting.
+- Updated `/iris/catalog` to consume the same canonical standard baseline directly from the catalog module.
 - Preserved the boundary that analytical atlas readiness is not raw Plaid observation and that limited intelligence must remain explicitly qualified.
 - Updated the master continuity record with the new publication and verification boundary.
 - Next: complete authoritative runtime product coverage, strengthen selection/entitlement/cost semantics, complete Plaid Dashboard observability, integrate governed intelligence output into the shared dashboard contract, and continue recursive financial-life intelligence.
