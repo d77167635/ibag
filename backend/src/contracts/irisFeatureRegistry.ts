@@ -8,6 +8,7 @@
  */
 import { IRIS_CATALOG } from "../intelligence/irisCatalog.js";
 import { IRIS_CATALOG_EXPANSION } from "../intelligence/irisCatalogExpansion.js";
+import { IRIS_ANALYSIS_ATLAS } from "../intelligence/analysisAtlas.js";
 import type { IrisCatalogCapability } from "../intelligence/irisCatalog.js";
 
 export type IrisFeatureActivation = "enabled" | "disabled";
@@ -23,7 +24,10 @@ export interface IrisFeatureDefinition {
   family: string;
   depth: IrisCatalogCapability["depth"];
   prerequisites: string[];
+  /** Canonical evidence requirements; never analysis-definition identifiers. */
   requiredEvidence: string[];
+  /** Analysis definitions this feature may publish when their evidence gates pass. */
+  requiredAnalysisIds: string[];
   evidencePolicy: "all";
   intelligenceOutputs: string[];
   uiSurfaces: string[];
@@ -41,9 +45,24 @@ export interface IrisFeatureState {
 }
 
 const ALL_CAPABILITIES = [...IRIS_CATALOG, ...IRIS_CATALOG_EXPANSION];
+const ANALYSIS_BY_ID = new Map(IRIS_ANALYSIS_ATLAS.map((definition) => [definition.id, definition]));
 
-const defaultEvidence = (capability: IrisCatalogCapability): string[] =>
-  capability.atlas_ids.length > 0 ? [...new Set(capability.atlas_ids)] : [`capability.${capability.id}`];
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.trim().length > 0))];
+}
+
+/**
+ * Catalog atlas references are analytical definitions, not evidence records.
+ * Convert them into the underlying analytical input requirements while keeping
+ * the analysis IDs separately available for publication mapping.
+ */
+const defaultEvidence = (capability: IrisCatalogCapability): string[] => {
+  const analysisInputs = capability.atlas_ids.flatMap((id) => ANALYSIS_BY_ID.get(id)?.inputs ?? []);
+  return unique(analysisInputs.length > 0 ? analysisInputs : [`feature:${capability.id}:evidence`]);
+};
+
+const defaultAnalysisIds = (capability: IrisCatalogCapability): string[] =>
+  unique(capability.atlas_ids.filter((id) => ANALYSIS_BY_ID.has(id)));
 
 const defaultPrerequisites = (capability: IrisCatalogCapability): string[] => {
   if (capability.depth === "core") return ["evidence_validated"];
@@ -87,6 +106,7 @@ export const IRIS_FEATURE_REGISTRY: IrisFeatureDefinition[] = ALL_CAPABILITIES.m
   depth: capability.depth,
   prerequisites: defaultPrerequisites(capability),
   requiredEvidence: defaultEvidence(capability),
+  requiredAnalysisIds: defaultAnalysisIds(capability),
   evidencePolicy: "all",
   intelligenceOutputs: defaultOutputs(capability),
   uiSurfaces: defaultSurfaces(capability),
