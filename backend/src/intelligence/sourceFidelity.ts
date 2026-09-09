@@ -119,7 +119,7 @@ export async function assessSourceFidelity(userId: string) {
   return {
     gate_version: "IRIS_SOURCE_FIDELITY_V6", status, ready_for_higher_order_intelligence: ready, checks,
     limitations: checks.filter(c => c.severity !== "pass").map(c => c.detail),
-    counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilities.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
+    counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilityRows.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
     reconciliation: { canonical_active_transactions: txRows.filter(r => r.is_active).length, raw_current_transactions: rawTxRows.filter(r => r.is_current).length, added: runRows.reduce((n, r) => n + Number(r.added_count ?? 0), 0), modified: runRows.reduce((n, r) => n + Number(r.modified_count ?? 0), 0), removed: runRows.reduce((n, r) => n + Number(r.removed_count ?? 0), 0), canonical_transaction_reconciliation: canonicalReconciliation, financial_composition_base: compositionBase },
     eight_domain_items: completeItems.map(i => i.id),
     missing_by_item: itemRows.map(item => {
