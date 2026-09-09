@@ -44,7 +44,14 @@ const state = {
 
 if (process.argv.includes("--write")) {
   writeFileSync(`${root}/${statePath}`, `${JSON.stringify(state, null, 2)}\n`);
-  console.log(`updated ${statePath}`);
+  for (const file of ["docs/MASTER_STATE.md", "docs/SESSION_HANDOFF.md"]) {
+    const path = `${root}/${file}`;
+    let content = readFileSync(path, "utf8");
+    content = content.replace(/(Latest verified continuity checkpoint:\s*`)[^`]+(`)/, `$1${head}$2`);
+    content = content.replace(/(Current verified tip before this handoff update:\s*)[^\n]+/, `$1${head}`);
+    writeFileSync(path, content);
+  }
+  console.log(`updated ${statePath} and continuity checkpoints to ${head}`);
 } else {
   console.log(JSON.stringify(state, null, 2));
 }
