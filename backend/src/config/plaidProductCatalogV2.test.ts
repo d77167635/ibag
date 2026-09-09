@@ -23,3 +23,9 @@ test("money-movement capabilities remain outside Phase 1 intelligence use", () =
     assert.equal(product.phase1Relevant, false);
   }
 });
+
+test("shared Item states can support multiple distinct Iris capabilities", () => {
+  const refreshMappings = PLAID_PRODUCT_CATALOG_V2.filter((product) => product.plaidProductStates.includes("transactions_refresh"));
+  assert.ok(refreshMappings.some((product) => product.key === "transactions"));
+  assert.ok(refreshMappings.some((product) => product.key === "transactions_refresh"));
+});
