@@ -1,4 +1,5 @@
-import { computeMultiWindowFlow } from "./temporal.js";
+import { computeMultiWindowFlow, type WindowedFlow } from "./temporal.js";
+import { averageCents, toCents } from "./exactMoney.js";
 
 export const IRIS_PREDICTIVE_INTELLIGENCE_V1 = "IRIS_PREDICTIVE_INTELLIGENCE_V1" as const;
 
@@ -14,20 +15,16 @@ export interface PredictiveProjection {
   limitations: string[];
 }
 
-/**
- * Evidence-bound forward projection. It extrapolates observed economic flow
- * rates only; it does not invent future transactions or claim probability.
- */
+/** Evidence-bound projection using the validated temporal dependency as its source window set. */
 export async function computeForwardProjection(
   userId: string,
   horizonDays = 30,
   asOf?: string | null,
+  dependencyFlows?: readonly WindowedFlow[],
 ): Promise<PredictiveProjection> {
-  if (!Number.isInteger(horizonDays) || horizonDays <= 0) {
-    throw new Error("INVALID_PREDICTION_HORIZON");
-  }
+  if (!Number.isInteger(horizonDays) || horizonDays <= 0) throw new Error("INVALID_PREDICTION_HORIZON");
 
-  const flows = await computeMultiWindowFlow(userId, undefined, asOf);
+  const flows = dependencyFlows?.length ? [...dependencyFlows] : await computeMultiWindowFlow(userId, undefined, asOf);
   const usable = flows.filter(flow => flow.economicTxCount > 0);
   const limitations: string[] = [];
 
@@ -45,12 +42,24 @@ export async function computeForwardProjection(
     };
   }
 
-  const rates = usable.map(flow => ({
-    inflow: flow.inflow / flow.windowDays,
-    outflow: flow.outflow / flow.windowDays,
-  }));
-  const projectedDailyInflow = rates.reduce((sum, rate) => sum + rate.inflow, 0) / rates.length;
-  const projectedDailyOutflow = rates.reduce((sum, rate) => sum + rate.outflow, 0) / rates.length;
+  // Convert each authoritative flow amount to integer cents before aggregation.
+  // Division by the window length is performed only after exact cent totals are formed.
+  const dailyInflowRates = usable.map(flow => {
+    const cents = toCents(flow.inflow);
+    return Number(cents) / 100 / flow.windowDays;
+  });
+  const dailyOutflowRates = usable.map(flow => {
+    const cents = toCents(flow.outflow);
+    return Number(cents) / 100 / flow.windowDays;
+  });
+
+  const projectedDailyInflow = averageCents(usable.map(flow => toCents(flow.inflow))) / usable.reduce((sum, flow) => sum + flow.windowDays, 0) * usable.length;
+  const projectedDailyOutflow = averageCents(usable.map(flow => toCents(flow.outflow))) / usable.reduce((sum, flow) => sum + flow.windowDays, 0) * usable.length;
+  const fallbackDailyInflow = dailyInflowRates.reduce((sum, rate) => sum + rate, 0) / dailyInflowRates.length;
+  const fallbackDailyOutflow = dailyOutflowRates.reduce((sum, rate) => sum + rate, 0) / dailyOutflowRates.length;
+
+  const dailyInflow = Number.isFinite(projectedDailyInflow) ? projectedDailyInflow : fallbackDailyInflow;
+  const dailyOutflow = Number.isFinite(projectedDailyOutflow) ? projectedDailyOutflow : fallbackDailyOutflow;
 
   if (usable.length < 2) limitations.push("Only one observation window contains economic activity; regime stability cannot be assessed.");
   limitations.push("Projection assumes observed average daily flow rates persist through the forecast horizon.");
@@ -59,9 +68,9 @@ export async function computeForwardProjection(
   return {
     architecture_version: IRIS_PREDICTIVE_INTELLIGENCE_V1,
     horizon_days: horizonDays,
-    projected_daily_inflow: projectedDailyInflow,
-    projected_daily_outflow: projectedDailyOutflow,
-    projected_net: (projectedDailyInflow - projectedDailyOutflow) * horizonDays,
+    projected_daily_inflow: dailyInflow,
+    projected_daily_outflow: dailyOutflow,
+    projected_net: (dailyInflow - dailyOutflow) * horizonDays,
     model: "multi_window_daily_rate_baseline",
     evidence_state: "predicted",
     observation_windows: usable.map(flow => flow.windowDays),
