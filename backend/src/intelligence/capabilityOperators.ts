@@ -22,7 +22,7 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   { capability_id: "analysis", operator_id: "analysis", version: "1.0.0", status: "planned", execution_stage: "canonical_semantic_analysis", evidence_state: "CALCULATED" },
   { capability_id: "behavioral", operator_id: "behavioral", version: "1.0.0", status: "implemented", execution_stage: "category_behavior", evidence_state: "CALCULATED" },
   { capability_id: "pattern", operator_id: "pattern", version: "1.0.0", status: "planned", execution_stage: "pattern_composition", evidence_state: "CALCULATED" },
-  { capability_id: "relationship", operator_id: "relationship", version: "1.0.0", status: "planned", execution_stage: "financial_reasoning", evidence_state: "INFERRED" },
+  { capability_id: "relationship", operator_id: "relationship", version: "1.0.0", status: "implemented", execution_stage: "financial_reasoning", evidence_state: "INFERRED" },
   { capability_id: "anomaly", operator_id: "anomaly", version: "1.0.0", status: "implemented", execution_stage: "canonical_anomalies", evidence_state: "CALCULATED" },
   { capability_id: "causal", operator_id: "causal", version: "1.0.0", status: "planned", execution_stage: "causal_analysis", evidence_state: "INFERRED" },
   { capability_id: "predictive", operator_id: "predictive", version: "1.0.0", status: "planned", execution_stage: "forward_projection", evidence_state: "PREDICTED" },
