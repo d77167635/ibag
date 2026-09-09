@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { getPlaidAccessToken } from "./tokenStore.js";
 import { plaidClient } from "../plaid/client.js";
 import { PLAID_PRODUCT_CATALOG_V2 } from "../config/plaidProductCatalogV2.js";
+import { evaluatePlaidProductDecision, type PlaidProductState } from "../contracts/plaidProductDecision.js";
 
 const WEIGHT: Record<string, number> = {
   financial_state: 12, cash_flow: 11, liquidity: 11, spending: 10, income: 10,
@@ -16,14 +17,22 @@ const WEIGHT: Record<string, number> = {
 };
 const score = (capabilities: string[]) => capabilities.reduce((sum, capability) => sum + (WEIGHT[capability] ?? 1), 0);
 
-function providerStatus(definition: (typeof PLAID_PRODUCT_CATALOG_V2)[number], raw: any) {
+function providerStatus(definition: (typeof PLAID_PRODUCT_CATALOG_V2)[number], raw: any): PlaidProductState {
   const active = new Set<string>([...(raw.products ?? []), ...(raw.billed_products ?? [])]);
   const consented = new Set<string>(raw.consented_products ?? []);
   const available = new Set<string>(raw.available_products ?? []);
-  if (definition.plaidProductStates.some((state) => active.has(state))) return "active" as const;
-  if (definition.plaidProductStates.some((state) => consented.has(state))) return "consented" as const;
-  if (definition.plaidProductStates.some((state) => available.has(state))) return "available" as const;
-  return "not_available" as const;
+  if (definition.plaidProductStates.some((state) => active.has(state))) return "active";
+  if (definition.plaidProductStates.some((state) => consented.has(state))) return "consented";
+  if (definition.plaidProductStates.some((state) => available.has(state))) return "available";
+  return definition.plaidProductStates.length === 0 ? "unsupported" : "not_available";
+}
+
+function commercialState(term: any): "included" | "pass_through" | "unknown" {
+  if (!term) return "unknown";
+  if (term.pass_through_enabled && (term.plaid_price_cents ?? 0) > 0) return "pass_through";
+  if (term.pricing_status === "active" && (term.plaid_price_cents ?? 0) === 0) return "included";
+  if (term.billing_model === "included") return "included";
+  return "unknown";
 }
 
 export async function selectPlaidProducts(userId: string) {
@@ -34,14 +43,14 @@ export async function selectPlaidProducts(userId: string) {
   if (subscriptionError) throw subscriptionError;
   if (itemsError) throw itemsError;
   if (!subscription || subscription.status !== "active" || (subscription.ends_at && new Date(subscription.ends_at).getTime() <= Date.now())) {
-    return { strategy: "iris_evidence_weighted_product_selection_v6", plan: { key: subscription?.plan_key ?? null, status: subscription?.status ?? "not_entitled" }, catalog_size: PLAID_PRODUCT_CATALOG_V2.length, selected: [], all_eligible_products: [], items: [] };
+    return { strategy: "iris_evidence_weighted_product_selection_v7", plan: { key: subscription?.plan_key ?? null, status: subscription?.status ?? "not_entitled" }, catalog_size: PLAID_PRODUCT_CATALOG_V2.length, selected: [], all_eligible_products: [], items: [] };
   }
 
   const { data: entitlements, error: entitlementError } = await supabaseAdmin.from("ibag_plan_plaid_products")
     .select("product_key,enabled").eq("plan_key", subscription.plan_key).eq("enabled", true);
   if (entitlementError) throw entitlementError;
   const entitled = new Set((entitlements ?? []).map((row) => row.product_key));
-  const definitions = PLAID_PRODUCT_CATALOG_V2.filter((definition) => entitled.has(definition.key));
+  const definitions = PLAID_PRODUCT_CATALOG_V2;
   const { data: terms, error: termsError } = await supabaseAdmin.from("ibag_plaid_product_commercial_terms")
     .select("product_key,billing_model,plaid_price_cents,user_price_cents,price_unit,pricing_status,pass_through_enabled")
     .in("product_key", definitions.map((definition) => definition.key));
@@ -67,26 +76,38 @@ export async function selectPlaidProducts(userId: string) {
       const response = await plaidClient.itemGet({ access_token: token });
       const raw = response.data.item as any;
       const candidates = definitions.map((definition) => {
-        const status = providerStatus(definition, raw);
-        // Exact iBag product identity is authoritative. Plaid state aliases
-        // such as transactions_refresh, balance_plus, and credit_details
-        // cannot silently certify a Trial product.
+        const providerState = providerStatus(definition, raw);
         const evidenceObserved = observedByItemProduct.has(`${item.id}:${definition.key}`);
         const commercial = termByProduct.get(definition.key);
+        const decision = evaluatePlaidProductDecision({
+          productKey: definition.key,
+          providerState,
+          consentState: providerState === "active" || providerState === "consented" ? "consented" : "not_consented",
+          entitlementState: entitled.has(definition.key) ? "entitled" : "not_entitled",
+          commercialState: commercialState(commercial),
+          evidenceState: evidenceObserved ? "observed" : providerState === "not_available" || providerState === "unsupported" ? "not_available" : "not_observed",
+          intelligenceScore: score(definition.irisCapabilities),
+        });
         return {
           product: definition.key,
           display_name: definition.displayName,
           category: definition.category,
           description: definition.description,
-          provider_status: status,
-          evidence_status: evidenceObserved ? "observed" : status === "not_available" ? "not_available" : "not_observed",
+          provider_status: providerState,
+          consent_status: decision.consentState,
+          entitlement_status: decision.entitlementState,
+          commercial_status: decision.commercialState,
+          evidence_status: decision.evidenceState,
+          decision: decision.decision,
+          available_to_iris: decision.eligibleForIris,
           observed_by_iris: evidenceObserved,
-          plan_eligible: true,
-          available_to_iris: evidenceObserved,
+          plan_eligible: decision.entitlementState === "entitled",
           phase1_relevant: definition.phase1Relevant,
           capabilities: definition.irisCapabilities,
-          intelligence_score: score(definition.irisCapabilities),
-          commercial: commercial ?? { billing_model: "included_unless_plaid_charges", pricing_status: "contract_dependent", pass_through_enabled: true },
+          intelligence_score: decision.intelligenceScore,
+          blockers: decision.blockers,
+          decision_reasons: decision.reasons,
+          commercial: commercial ?? { billing_model: "included_unless_plaid_charges", pricing_status: "unknown", pass_through_enabled: false },
         };
       }).sort((a, b) => b.intelligence_score - a.intelligence_score || a.display_name.localeCompare(b.display_name));
       for (const candidate of candidates) {
@@ -107,28 +128,26 @@ export async function selectPlaidProducts(userId: string) {
     }
   }
 
-  const eligible = [...aggregate.values()].sort((a, b) => b.intelligence_score - a.intelligence_score || a.product.localeCompare(b.product));
-  const observed = eligible.filter((candidate) => candidate.observed_item_count > 0);
-  const awaitingObservation = eligible.filter((candidate) => candidate.observed_item_count === 0 && candidate.provider_status !== "not_available");
+  const all = [...aggregate.values()].sort((a, b) => b.intelligence_score - a.intelligence_score || a.product.localeCompare(b.product));
+  const selected = all.filter((candidate) => candidate.decision === "selected");
+  const awaitingObservation = all.filter((candidate) => candidate.decision === "eligible_awaiting_evidence");
   return {
-    strategy: "iris_evidence_weighted_product_selection_v6",
-    plan: { key: subscription.plan_key, status: subscription.status, starts_at: subscription.starts_at, ends_at: subscription.ends_at, entitled_product_count: definitions.length },
+    strategy: "iris_evidence_weighted_product_selection_v7",
+    plan: { key: subscription.plan_key, status: subscription.status, starts_at: subscription.starts_at, ends_at: subscription.ends_at, entitled_product_count: definitions.filter((definition) => entitled.has(definition.key)).length },
     catalog_size: PLAID_PRODUCT_CATALOG_V2.length,
-    selected: observed,
-    all_eligible_products: eligible,
+    selected,
+    all_eligible_products: all.filter((candidate) => candidate.available_to_iris),
     awaiting_observation: awaitingObservation,
-    observed_product_count: observed.length,
-    eligible_product_count: eligible.length,
+    observed_product_count: selected.length,
+    eligible_product_count: all.filter((candidate) => candidate.available_to_iris).length,
     items: itemResults,
     principles: [
-      "Evaluate the complete iBag Plaid product catalog rather than a fixed product subset.",
-      "The user's active subscription plan is a hard entitlement gate.",
-      "Plaid institution support, consent, active state and iBag entitlement remain separate facts.",
-      "Iris ranks eligible products by the Financial Life State capabilities they can unlock.",
-      "Available or consented never counts as observed; only a successful provider response persisted as evidence can be selected for Iris intelligence.",
-      "Exact iBag Trial product identity is required for Trial evidence selection; Plaid state aliases cannot substitute for it.",
-      "A product is not selected merely because itemGet reports it as available, billed, consented, or authorized.",
-      "Commercial terms remain explicit and contract-dependent; Plaid charges can be passed through according to iBag policy.",
+      "Catalog, availability, consent, entitlement, commercial terms, evidence, intelligence value and selection are separate decision dimensions.",
+      "The complete Plaid catalog is evaluated; plan entitlement is a hard gate rather than a catalog filter.",
+      "Available, consented, active, billed, or authorized never counts as observed evidence.",
+      "Only persisted provider evidence in the observed state can be selected for Iris intelligence.",
+      "Commercial terms are explicit; unknown pricing is never silently treated as free.",
+      "Iris may identify an eligible product awaiting evidence without claiming that its data has been observed.",
       "Iris never silently requests consent, activates a product, or performs money movement in Phase 1.",
     ],
   };
