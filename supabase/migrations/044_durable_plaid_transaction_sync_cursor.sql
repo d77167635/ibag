@@ -1,8 +1,14 @@
 -- Durable provider checkpoint for Plaid /transactions/sync.
 -- sync_runs remains the execution/audit record; this table is the canonical
 -- long-lived provider cursor so a later sync never silently restarts at null.
+--
+-- The composite ownership key is created before the dependent foreign key so
+-- a clean migration run is valid on PostgreSQL.
+ALTER TABLE public.plaid_items
+  ADD CONSTRAINT plaid_items_id_user_unique UNIQUE (id, user_id);
+
 CREATE TABLE IF NOT EXISTS public.plaid_transaction_sync_state (
-  id uuid PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  id uuid PRIMARY KEY default extensions.uuid_generate_v4(),
   user_id uuid NOT NULL REFERENCES public.profiles(id),
   item_id uuid NOT NULL,
   cursor text,
