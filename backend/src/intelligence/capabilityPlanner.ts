@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
-export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v5";
+export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v6";
 
 type CapabilityContract = {
   capability_id: string;
@@ -30,7 +30,14 @@ export type CapabilityPlan = {
   limitations: string[];
 };
 
-function asStrings(value: unknown): string[] { return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []; }
+function dependencyIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (typeof entry === "string") return [entry];
+    if (entry && typeof entry === "object" && "capability_id" in entry && typeof entry.capability_id === "string") return [entry.capability_id];
+    return [];
+  });
+}
 
 /** Resolve the governed capability graph against persisted contracts and executable operators. */
 export async function planCapabilities(userId: string, requested: string[]): Promise<CapabilityPlan> {
@@ -57,7 +64,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     const contract = registry.get(id);
     if (!contract) return;
     activePath.add(id);
-    for (const dep of asStrings(contract.dependencies)) visit(dep);
+    for (const dep of dependencyIds(contract.dependencies)) visit(dep);
     activePath.delete(id);
     visited.add(id);
     ordered.push(id);
@@ -78,13 +85,10 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   const observedProducts = [...new Set((products ?? []).map(p => p.product).filter((p): p is string => typeof p === "string"))];
   if (!observedProducts.length) limitations.push("No observed Plaid product domain is available to the planner for this user.");
 
-  // A dependency that is present in the contract graph but absent from the executable
-  // graph cannot be silently ignored. The plan is blocked because executing the child
-  // without its declared dependency would violate the semantic contract.
   for (const id of ordered) {
     const contract = registry.get(id);
     if (!contract) continue;
-    for (const dependency of asStrings(contract.dependencies)) {
+    for (const dependency of dependencyIds(contract.dependencies)) {
       if (!registry.has(dependency)) {
         unsupported.push(dependency);
         limitations.push(`Capability ${id} declares missing dependency contract ${dependency}.`);
@@ -94,7 +98,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
 
   const uniqueUnsupported = [...new Set(unsupported)];
   const contractsUsed = ordered.map(id => registry.get(id)!).filter(Boolean);
-  const edges = contractsUsed.reduce((n, c) => n + asStrings(c.dependencies).filter(d => registry.has(d)).length, 0);
+  const edges = contractsUsed.reduce((n, c) => n + dependencyIds(c.dependencies).filter(d => registry.has(d)).length, 0);
   const nodes = ordered.length;
   const compositions = contractsUsed.filter(c => c.recursive || c.cross_domain).length;
   const status = cycleDetected || missing.length || uniqueUnsupported.length ? "BLOCKED" : limitations.length ? "LIMITED" : "READY";
