@@ -72,3 +72,21 @@ test("fails closed on non-finite account balances", () => {
   assert.equal(result.net_worth_basis, "insufficient_evidence");
   assert.deepEqual(result.invalid_account_ids, ["checking"]);
 });
+
+test("never treats a missing account balance as zero", () => {
+  const result = reconcileFinancialComposition(
+    [
+      { account_id: "checking", item_id: "item-1", account_type: "depository", current_balance: 1000, currency: "USD" },
+      { account_id: "savings", item_id: "item-1", account_type: "depository", current_balance: null, currency: "USD" },
+    ],
+    [],
+    [],
+    [],
+  );
+
+  assert.equal(result.status, "warning");
+  assert.equal(result.net_worth, null);
+  assert.equal(result.net_worth_basis, "insufficient_evidence");
+  assert.deepEqual(result.missing_balance_account_ids, ["savings"]);
+  assert.ok(result.limitations.some((value) => value.includes("never converted to zero")));
+});
