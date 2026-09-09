@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { plaidClient } from "../plaid/client.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { env } from "../config/env.js";
@@ -32,7 +33,7 @@ async function observeProducts(userId: string, itemId: string, accessToken: stri
   const requested = new Set(env.plaidProducts.filter(Boolean));
   const products = new Set([...billed, ...available, ...added, ...requested]);
   for (const product of products) {
-    const flags = { billed: billed.has(product), available: available.has(product), authorized: added.has(product) || billed.has(product), requested: requested.has(product), providerAdded: added.has(product) };
+    const flags = { billed: billed.has(product), available: available.has(product), authorized: added.has(product), requested: requested.has(product), providerAdded: added.has(product) };
     const state = flags.authorized ? "authorized" : flags.available ? "available" : flags.requested ? "not_observed" : "not_requested";
     await productObservation(userId, itemId, product, state, flags, "plaid.itemGet");
   }
@@ -98,7 +99,10 @@ async function normalizeTransaction(userId: string, accountId: string, tx: any) 
 }
 
 export async function fullSyncForItem(itemDbId: string, userId: string, accessToken: string, idempotencyKey?: string) {
-  const key = idempotencyKey ?? `plaid-sync:${itemDbId}`;
+  // A missing key means a new sync invocation. A permanent item-scoped key
+  // would cause a completed historical run to suppress every future sync.
+  // Stable keys remain available to callers retrying the same event.
+  const key = idempotencyKey ?? `plaid-sync:${itemDbId}:${randomUUID()}`;
   const { data: run, error } = await supabaseAdmin.rpc("begin_sync_run", { p_user_id: userId, p_item_id: itemDbId, p_idempotency_key: key });
   if (error || !run?.[0]) throw error ?? new Error("Unable to create sync run");
   const runId = run[0].id as string;
