@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildIrisPublicationRuntime } from "./irisPublicationContext.js";
+import { getIrisFeatureByCapability } from "../contracts/irisFeatureRegistry.js";
 
 test("publication runtime publishes only evidence-ready enabled analyses", () => {
   const runtime = buildIrisPublicationRuntime([
@@ -30,6 +31,21 @@ test("publication runtime publishes only evidence-ready enabled analyses", () =>
   assert.equal(suppressed.some((output) => output.analysis_id === "state.liquidity-position"), true);
 });
 
+test("publication feature coverage is calculated from required analysis IDs, not evidence-key names", () => {
+  const feature = getIrisFeatureByCapability("financial-state");
+  assert.ok(feature);
+  assert.ok(feature.requiredAnalysisIds.includes("state.financial-state"));
+  assert.ok(feature.requiredEvidence.includes("financial_state"));
+
+  const runtime = buildIrisPublicationRuntime([
+    { id: "state.financial-state", evidence_ready: true, missing_inputs: [] },
+  ], ["financial-state"]);
+  const state = runtime.feature_runtime.features.find((item) => item.featureId === feature.featureId);
+  assert.ok(state);
+  assert.equal(state.evidenceCoverage, 1);
+  assert.equal(state.readiness, "ready");
+});
+
 test("publication runtime never turns an unmapped analysis into a claim", () => {
   const runtime = buildIrisPublicationRuntime([
     { id: "unknown.analysis", evidence_ready: true, missing_inputs: [] },
@@ -52,4 +68,5 @@ test("publication boundary records the provider/analysis distinction", () => {
   assert.equal(runtime.publication_boundary.atlas_readiness_is_not_raw_provider_observation, true);
   assert.equal(runtime.publication_boundary.catalog_metadata_is_not_evidence, true);
   assert.equal(runtime.publication_boundary.feature_activation_does_not_activate_provider_products, true);
+  assert.equal(runtime.publication_boundary.feature_evidence_coverage_uses_analysis_mapping, true);
 });
