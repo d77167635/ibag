@@ -11,10 +11,8 @@ type AtlasDefinition = {
   missing_inputs: string[];
 };
 
-export type IrisIntelligenceOutputState =
-  | "ready"
-  | "limited"
-  | "suppressed";
+export type IrisIntelligenceOutputState = "ready" | "limited" | "suppressed";
+export type IrisEvidencePublicationState = "observed" | "calculated" | "inferred" | "limited" | "insufficient_evidence" | "unknown";
 
 export interface IrisIntelligenceOutput {
   analysis_id: string;
@@ -25,89 +23,114 @@ export interface IrisIntelligenceOutput {
   feature_id: string | null;
   capability_id: string | null;
   state: IrisIntelligenceOutputState;
+  evidence_publication_state: IrisEvidencePublicationState;
   evidence_coverage: number;
+  evidence_basis: "atlas_readiness" | "feature_runtime" | "none";
   blockers: string[];
   missing_evidence: string[];
+  provenance: {
+    source: "Iris analysis atlas";
+    analytical_definition_id: string;
+    provider_observations_created: false;
+    financial_values_created: false;
+    money_movement_executed: false;
+  };
+  qualification: string | null;
+}
+
+function unique(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 /**
  * Final publication boundary between analytical definitions and user-facing
- * Iris intelligence. This function never computes financial facts. It only
- * decides whether an already-computed analytical definition may be exposed
- * according to the authoritative feature runtime.
+ * Iris intelligence. This function never computes financial facts. It carries
+ * evidence qualification and provenance through the publication decision.
+ *
+ * The atlas is an analytical readiness boundary, not a raw Plaid observation
+ * ledger. Provider observation lineage remains owned by the governed run and
+ * evidence layers; this runtime must never relabel atlas readiness as raw
+ * provider observation.
  */
 export function buildIrisIntelligenceOutputRuntime(
   atlas: { definitions: AtlasDefinition[] },
   featureRuntime: IrisFeatureRuntimeSnapshot,
 ) {
   const states = new Map(featureRuntime.features.map((state) => [state.featureId, state]));
-  const definitions = atlas.definitions.map((definition) => {
-    const feature = IRIS_FEATURE_REGISTRY.find((candidate) =>
-      candidate.requiredEvidence.includes(definition.id),
-    );
-    const state = feature ? states.get(feature.featureId) : undefined;
+  const definitions = atlas.definitions.flatMap((definition) => {
+    const features = IRIS_FEATURE_REGISTRY.filter((candidate) => candidate.requiredEvidence.includes(definition.id));
 
-    if (!feature || !state) {
-      return {
+    if (features.length === 0) {
+      return [{
         analysis_id: definition.id,
         analysis_name: definition.name,
         family: definition.family,
         output: definition.output,
         purpose: definition.purpose,
-        feature_id: feature?.featureId ?? null,
-        capability_id: feature?.capabilityId ?? null,
+        feature_id: null,
+        capability_id: null,
         state: "suppressed" as const,
+        evidence_publication_state: "insufficient_evidence" as const,
         evidence_coverage: 0,
+        evidence_basis: "none" as const,
         blockers: ["feature_runtime_unmapped"],
         missing_evidence: definition.missing_inputs,
-      } satisfies IrisIntelligenceOutput;
+        provenance: { source: "Iris analysis atlas" as const, analytical_definition_id: definition.id, provider_observations_created: false as const, financial_values_created: false as const, money_movement_executed: false as const },
+        qualification: "Iris cannot publish this analysis because no authoritative feature is mapped to it.",
+      } satisfies IrisIntelligenceOutput];
     }
 
-    if (state.readiness === "ready") {
+    return features.map((feature) => {
+      const state = states.get(feature.featureId);
+      const coverage = state?.evidenceCoverage ?? 0;
+      const blockers = unique(state?.blockers ?? []);
+      const featureReady = state?.readiness === "ready";
+      const featureLimited = state?.readiness === "limited";
+      const atlasReady = definition.evidence_ready;
+
+      if (!state) {
+        return {
+          analysis_id: definition.id, analysis_name: definition.name, family: definition.family, output: definition.output, purpose: definition.purpose,
+          feature_id: feature.featureId, capability_id: feature.capabilityId, state: "suppressed" as const,
+          evidence_publication_state: "insufficient_evidence" as const, evidence_coverage: 0, evidence_basis: "none" as const,
+          blockers: ["feature_runtime_state_missing"], missing_evidence: definition.missing_inputs,
+          provenance: { source: "Iris analysis atlas" as const, analytical_definition_id: definition.id, provider_observations_created: false as const, financial_values_created: false as const, money_movement_executed: false as const },
+          qualification: "Iris cannot publish this analysis until its feature runtime state is available.",
+        } satisfies IrisIntelligenceOutput;
+      }
+
+      if (featureReady && atlasReady) {
+        return {
+          analysis_id: definition.id, analysis_name: definition.name, family: definition.family, output: definition.output, purpose: definition.purpose,
+          feature_id: feature.featureId, capability_id: feature.capabilityId, state: "ready" as const,
+          evidence_publication_state: "calculated" as const, evidence_coverage: coverage, evidence_basis: "atlas_readiness" as const,
+          blockers: [], missing_evidence: [],
+          provenance: { source: "Iris analysis atlas" as const, analytical_definition_id: definition.id, provider_observations_created: false as const, financial_values_created: false as const, money_movement_executed: false as const },
+          qualification: null,
+        } satisfies IrisIntelligenceOutput;
+      }
+
+      if (featureLimited || (featureReady && !atlasReady)) {
+        const missing = unique([...definition.missing_inputs, ...(atlasReady ? [] : feature.requiredEvidence.filter((id) => id !== definition.id))]);
+        return {
+          analysis_id: definition.id, analysis_name: definition.name, family: definition.family, output: definition.output, purpose: definition.purpose,
+          feature_id: feature.featureId, capability_id: feature.capabilityId, state: "limited" as const,
+          evidence_publication_state: "limited" as const, evidence_coverage: coverage, evidence_basis: "feature_runtime" as const,
+          blockers: blockers.length ? blockers : ["analytical_evidence_limited"], missing_evidence: missing,
+          provenance: { source: "Iris analysis atlas" as const, analytical_definition_id: definition.id, provider_observations_created: false as const, financial_values_created: false as const, money_movement_executed: false as const },
+          qualification: "Limited intelligence: the available evidence does not fully support this analysis. Iris should show the limitation and missing evidence rather than present a complete conclusion.",
+        } satisfies IrisIntelligenceOutput;
+      }
+
       return {
-        analysis_id: definition.id,
-        analysis_name: definition.name,
-        family: definition.family,
-        output: definition.output,
-        purpose: definition.purpose,
-        feature_id: feature.featureId,
-        capability_id: feature.capabilityId,
-        state: "ready" as const,
-        evidence_coverage: state.evidenceCoverage,
-        blockers: [],
-        missing_evidence: definition.missing_inputs,
+        analysis_id: definition.id, analysis_name: definition.name, family: definition.family, output: definition.output, purpose: definition.purpose,
+        feature_id: feature.featureId, capability_id: feature.capabilityId, state: "suppressed" as const,
+        evidence_publication_state: "insufficient_evidence" as const, evidence_coverage: coverage, evidence_basis: "feature_runtime" as const,
+        blockers: blockers.length ? blockers : ["evidence_required"], missing_evidence: definition.missing_inputs,
+        provenance: { source: "Iris analysis atlas" as const, analytical_definition_id: definition.id, provider_observations_created: false as const, financial_values_created: false as const, money_movement_executed: false as const },
+        qualification: "This analysis is withheld because the current evidence is insufficient or the feature is blocked/disabled.",
       } satisfies IrisIntelligenceOutput;
-    }
-
-    if (state.readiness === "limited") {
-      return {
-        analysis_id: definition.id,
-        analysis_name: definition.name,
-        family: definition.family,
-        output: definition.output,
-        purpose: definition.purpose,
-        feature_id: feature.featureId,
-        capability_id: feature.capabilityId,
-        state: "limited" as const,
-        evidence_coverage: state.evidenceCoverage,
-        blockers: state.blockers,
-        missing_evidence: definition.missing_inputs,
-      } satisfies IrisIntelligenceOutput;
-    }
-
-    return {
-      analysis_id: definition.id,
-      analysis_name: definition.name,
-      family: definition.family,
-      output: definition.output,
-      purpose: definition.purpose,
-      feature_id: feature.featureId,
-      capability_id: feature.capabilityId,
-      state: "suppressed" as const,
-      evidence_coverage: state.evidenceCoverage,
-      blockers: state.blockers,
-      missing_evidence: definition.missing_inputs,
-    } satisfies IrisIntelligenceOutput;
+    });
   });
 
   const ready = definitions.filter((item) => item.state === "ready");
@@ -115,24 +138,20 @@ export function buildIrisIntelligenceOutputRuntime(
   const suppressed = definitions.filter((item) => item.state === "suppressed");
 
   return {
-    engine_version: "IRIS_INTELLIGENCE_OUTPUT_RUNTIME_V1",
+    engine_version: "IRIS_INTELLIGENCE_OUTPUT_RUNTIME_V2",
     outputs: definitions,
     publishable: [...ready, ...limited],
     ready_outputs: ready,
     limited_outputs: limited,
     suppressed_outputs: suppressed,
-    counts: {
-      defined: definitions.length,
-      publishable: ready.length + limited.length,
-      ready: ready.length,
-      limited: limited.length,
-      suppressed: suppressed.length,
-    },
+    counts: { defined: definitions.length, publishable: ready.length + limited.length, ready: ready.length, limited: limited.length, suppressed: suppressed.length },
     publication_policy: {
-      ready: "Publish normally with evidence/provenance metadata.",
-      limited: "Publish only with explicit evidence limitation/qualification.",
+      ready: "Publish calculated intelligence only when the analytical definition and enabled feature are fully evidence-ready.",
+      limited: "Publish only with explicit evidence limitation, provenance, and missing-evidence qualification.",
       suppressed: "Do not publish as normal intelligence; expose the evidence gap or blocker instead.",
+      atlas_readiness_is_not_raw_provider_observation: true,
       catalog_metadata_alone_is_not_evidence: true,
+      feature_to_analysis_mapping_is_one_to_many: true,
     },
     integrity: {
       financial_values_created: false,
