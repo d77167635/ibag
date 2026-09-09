@@ -5,7 +5,7 @@ import { buildIrisFeatureRuntime } from "./irisFeatureRuntime.js";
 
 test("runtime includes every authoritative Iris feature", () => {
   const runtime = buildIrisFeatureRuntime();
-  assert.equal(runtime.registry_version, "IRIS_FEATURE_REGISTRY_V1");
+  assert.equal(runtime.registry_version, "IRIS_FEATURE_REGISTRY_V2");
   assert.equal(runtime.features.length, IRIS_FEATURE_REGISTRY.length);
   assert.equal(runtime.enabled_count, IRIS_FEATURE_REGISTRY.length);
   assert.equal(runtime.ready_count, 0);
