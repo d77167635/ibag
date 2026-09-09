@@ -43,14 +43,14 @@ export async function assessSourceFidelity(userId: string) {
   const itemHasCurrentLiability = (itemId: string) => rawLiabilityRows.some(r => r.is_current && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state || "") && accountById.get(r.account_id)?.item_id === itemId);
 
   const providerKeys = new Set<string>(), duplicateProviderKeys = new Set<string>();
-  for (const a of accountRows) { const key = `${a.item_id}:${a.plaid_account_id}`; if (providerKeys.has(key)) duplicateProviderKeys.add(key); providerKeys.add(key); }
+  for (const a of accountRows) { const key = String(a.item_id) + ":" + String(a.plaid_account_id); if (providerKeys.has(key)) duplicateProviderKeys.add(key); providerKeys.add(key); }
   const orphanAccounts = accountRows.filter(a => !itemIds.has(a.item_id));
-  orphanAccounts.length ? fail("account_item_lineage", "Account → Item lineage", `${orphanAccounts.length} account(s) reference an unknown Item.`, orphanAccounts.length, 0) : pass("account_item_lineage", "Account → Item lineage", "Every account belongs to a user-owned Plaid Item.", 0, 0);
-  duplicateProviderKeys.size ? fail("account_provider_identity", "Provider account identity", `${duplicateProviderKeys.size} duplicate provider account identity value(s) exist within an Item.`, duplicateProviderKeys.size, 0) : pass("account_provider_identity", "Provider account identity", "Provider account identities are unique within each Item.", 0, 0);
+  orphanAccounts.length ? fail("account_item_lineage", "Account → Item lineage", String(orphanAccounts.length) + " account(s) reference an unknown Item.", orphanAccounts.length, 0) : pass("account_item_lineage", "Account → Item lineage", "Every account belongs to a user-owned Plaid Item.", 0, 0);
+  duplicateProviderKeys.size ? fail("account_provider_identity", "Provider account identity", String(duplicateProviderKeys.size) + " duplicate provider account identity value(s) exist within an Item.", duplicateProviderKeys.size, 0) : pass("account_provider_identity", "Provider account identity", "Provider account identities are unique within each Item.", 0, 0);
 
   const invalidAccountBalances = accountRows.filter(r => r.current_balance != null && !Number.isFinite(Number(r.current_balance)));
   invalidAccountBalances.length
-    ? fail("account_balance_numeric_integrity", "Account balance numeric integrity", `${invalidAccountBalances.length} account balance value(s) are not finite numeric values; monetary composition is withheld.`, invalidAccountBalances.length, 0)
+    ? fail("account_balance_numeric_integrity", "Account balance numeric integrity", String(invalidAccountBalances.length) + " account balance value(s) are not finite numeric values; monetary composition is withheld.", invalidAccountBalances.length, 0)
     : pass("account_balance_numeric_integrity", "Account balance numeric integrity", "All supplied account balances are finite numeric values or null.", 0, 0);
 
   const canonicalReconciliation = reconcileCanonicalTransactions(
@@ -65,9 +65,9 @@ export async function assessSourceFidelity(userId: string) {
     && canonicalReconciliation.active_canonical_with_item === canonicalReconciliation.canonical_active;
   transactionReconciliationReady
     ? pass("transaction_canonical_reconciliation", "Canonical transaction reconciliation", "Active canonical transactions reconcile against current observed provider transactions with account and Item lineage and no duplicate identity risk.", canonicalReconciliation.canonical_active, canonicalReconciliation.canonical_active)
-    : fail("transaction_canonical_reconciliation", "Canonical transaction reconciliation", `Canonical transaction reconciliation is ${canonicalReconciliation.status}; provider identity, current raw linkage, account lineage, or duplicate checks prevent higher-order certification.`, canonicalReconciliation.active_canonical_with_raw, canonicalReconciliation.canonical_active);
+    : fail("transaction_canonical_reconciliation", "Canonical transaction reconciliation", "Canonical transaction reconciliation is " + canonicalReconciliation.status + "; provider identity, current raw linkage, account lineage, or duplicate checks prevent higher-order certification.", canonicalReconciliation.active_canonical_with_raw, canonicalReconciliation.canonical_active);
   const orphanRaw = canonicalReconciliation.orphan_raw.length;
-  orphanRaw ? warn("raw_canonical_reconciliation", "Raw → canonical reconciliation", `${orphanRaw} current raw transaction observation(s) have no active canonical transaction.`, orphanRaw, 0) : pass("raw_canonical_reconciliation", "Raw → canonical reconciliation", "Current raw transaction identities reconcile to canonical transactions.", 0, 0);
+  orphanRaw ? warn("raw_canonical_reconciliation", "Raw → canonical reconciliation", String(orphanRaw) + " current raw transaction observation(s) have no active canonical transaction.", orphanRaw, 0) : pass("raw_canonical_reconciliation", "Raw → canonical reconciliation", "Current raw transaction identities reconcile to canonical transactions.", 0, 0);
 
   const compositionBase = reconcileFinancialComposition(
     accountRows.map(row => ({
@@ -104,16 +104,16 @@ export async function assessSourceFidelity(userId: string) {
 
   const eightDomainReady = completeItems.length > 0;
   eightDomainReady
-    ? pass("canonical_eight_domain_certification", "Eight-domain provider certification", `${completeItems.length} active Item(s) contain all eight canonical Plaid domains with current observed state, raw evidence, and a completed/validated sync on the same Item.`, completeItems.length, ">=1")
+    ? pass("canonical_eight_domain_certification", "Eight-domain provider certification", String(completeItems.length) + " active Item(s) contain all eight canonical Plaid domains with current observed state, raw evidence, and a completed/validated sync on the same Item.", completeItems.length, ">=1")
     : fail("canonical_eight_domain_certification", "Eight-domain provider certification", "No active Item currently has all eight canonical Plaid domains with current observed state, raw evidence, and a completed/validated sync on that same Item.", 0, ">=1");
 
   const missingTransactions = itemRows.filter(i => !productRows.some(r => r.item_id === i.id && r.product === "transactions" && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state || "")));
   const missingBalances = itemRows.filter(i => !productRows.some(r => r.item_id === i.id && r.product === "balance" && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state || "")));
-  missingTransactions.length ? warn("transactions_product_observation", "Transactions provider observation", `${missingTransactions.length} connected Item(s) lack a current observed Transactions state; unrelated Items do not block another certified Item.`, missingTransactions.length, 0) : pass("transactions_product_observation", "Transactions provider observation", "Every connected Item has a current observed Transactions state.", itemRows.length, itemRows.length);
-  missingBalances.length ? warn("balance_product_observation", "Balance provider observation", `${missingBalances.length} connected Item(s) lack a current observed Balance state; unrelated Items do not block another certified Item.`, missingBalances.length, 0) : pass("balance_product_observation", "Balance provider observation", "Every connected Item has a current observed Balance state.", itemRows.length, itemRows.length);
+  missingTransactions.length ? warn("transactions_product_observation", "Transactions provider observation", String(missingTransactions.length) + " connected Item(s) lack a current observed Transactions state; unrelated Items do not block another certified Item.", missingTransactions.length, 0) : pass("transactions_product_observation", "Transactions provider observation", "Every connected Item has a current observed Transactions state.", itemRows.length, itemRows.length);
+  missingBalances.length ? warn("balance_product_observation", "Balance provider observation", String(missingBalances.length) + " connected Item(s) lack a current observed Balance state; unrelated Items do not block another certified Item.", missingBalances.length, 0) : pass("balance_product_observation", "Balance provider observation", "Every connected Item has a current observed Balance state.", itemRows.length, itemRows.length);
 
   const txWithBadEvidence = txRows.filter(r => r.is_active && !["observed", "calculated", "inferred", "limited", "insufficient_evidence", "contradicted", "stale", "predicted", "scenario"].includes(r.classification_evidence || ""));
-  txWithBadEvidence.length ? warn("transaction_semantics_evidence", "Transaction semantic evidence", `${txWithBadEvidence.length} active transactions do not have a recognized semantic classification evidence state.`, txWithBadEvidence.length, 0) : pass("transaction_semantics_evidence", "Transaction semantic evidence", "Active transactions have recognized evidence-backed classification states.", 0, 0);
+  txWithBadEvidence.length ? warn("transaction_semantics_evidence", "Transaction semantic evidence", String(txWithBadEvidence.length) + " active transactions do not have a recognized semantic classification evidence state.", txWithBadEvidence.length, 0) : pass("transaction_semantics_evidence", "Transaction semantic evidence", "Active transactions have recognized evidence-backed classification states.", 0, 0);
   const completedRuns = runRows.filter(r => itemIds.has(r.item_id) && ["completed", "validated"].includes(r.state));
   completedRuns.length ? pass("pagination_checkpoint", "Provider pagination checkpoint", "Completed sync runs retain checkpoint state.", completedRuns.length, completedRuns.length) : warn("pagination_checkpoint", "Provider pagination checkpoint", "No completed/validated sync run is available for the user's Items.", 0, ">=1");
 
