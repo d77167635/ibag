@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
+import { reconcileCanonicalTransactions } from "./canonicalReconciliation.js";
 
 export type FidelitySeverity = "pass" | "warn" | "fail";
 export type FidelityCheck = { id: string; severity: FidelitySeverity; title: string; detail: string; observed: number | string | boolean | null; expected: number | string | boolean | null };
@@ -23,7 +24,7 @@ export async function assessSourceFidelity(userId: string) {
 
   const queryErrors = [items, accounts, tx, rawTx, rawBalances, rawLiabilities, runs, products, rawProducts].filter(q => q.error).map(q => q.error!.message);
   if (queryErrors.length) return {
-    gate_version: "IRIS_SOURCE_FIDELITY_V4", status: "fail" as FidelitySeverity, ready_for_higher_order_intelligence: false,
+    gate_version: "IRIS_SOURCE_FIDELITY_V5", status: "fail" as FidelitySeverity, ready_for_higher_order_intelligence: false,
     checks: [{ id: "query_integrity", severity: "fail" as FidelitySeverity, title: "Evidence store readable", detail: queryErrors.join("; "), observed: null, expected: true }],
     limitations: ["The evidence store could not be completely inspected."], counts: {}, generated_at: new Date().toISOString()
   };
@@ -47,14 +48,21 @@ export async function assessSourceFidelity(userId: string) {
   orphanAccounts.length ? fail("account_item_lineage", "Account → Item lineage", `${orphanAccounts.length} account(s) reference an unknown Item.`, orphanAccounts.length, 0) : pass("account_item_lineage", "Account → Item lineage", "Every account belongs to a user-owned Plaid Item.", 0, 0);
   duplicateProviderKeys.size ? fail("account_provider_identity", "Provider account identity", `${duplicateProviderKeys.size} duplicate provider account identity value(s) exist within an Item.`, duplicateProviderKeys.size, 0) : pass("account_provider_identity", "Provider account identity", "Provider account identities are unique within each Item.", 0, 0);
 
-  const rawProviderIds = new Set(rawTxRows.map(r => r.plaid_transaction_id));
-  const canonicalProviderIds = new Set(txRows.map(r => r.plaid_transaction_id));
-  const orphanCanonical = txRows.filter(r => r.is_active && !rawProviderIds.has(r.plaid_transaction_id));
-  const orphanRaw = rawTxRows.filter(r => r.is_current && !canonicalProviderIds.has(r.plaid_transaction_id));
-  orphanCanonical.length ? fail("transaction_raw_lineage", "Transaction → raw observation lineage", `${orphanCanonical.length} active canonical transaction(s) have no matching raw observation.`, orphanCanonical.length, 0) : pass("transaction_raw_lineage", "Transaction → raw observation lineage", "Active canonical transactions resolve to raw provider observations.", 0, 0);
-  orphanRaw.length ? warn("raw_canonical_reconciliation", "Raw → canonical reconciliation", `${orphanRaw.length} current raw transaction observation(s) have no active canonical transaction.`, orphanRaw.length, 0) : pass("raw_canonical_reconciliation", "Raw → canonical reconciliation", "Current raw transaction identities reconcile to canonical transactions.", 0, 0);
-  const orphanTransactions = txRows.filter(r => r.is_active && !accountIds.has(r.account_id));
-  orphanTransactions.length ? fail("transaction_account_lineage", "Transaction → Account lineage", `${orphanTransactions.length} active canonical transaction(s) reference an unknown account.`, orphanTransactions.length, 0) : pass("transaction_account_lineage", "Transaction → Account lineage", "Canonical transactions resolve to user-owned accounts.", 0, 0);
+  const canonicalReconciliation = reconcileCanonicalTransactions(
+    accountRows.map(row => ({ id: row.id, item_id: row.item_id, plaid_account_id: row.plaid_account_id })),
+    txRows.map(row => ({ id: row.id, account_id: row.account_id, plaid_transaction_id: row.plaid_transaction_id, raw_transaction_id: row.raw_transaction_id, is_active: row.is_active })),
+    rawTxRows.map(row => ({ id: row.id, account_id: row.account_id, plaid_transaction_id: row.plaid_transaction_id, is_current: row.is_current, evidence_state: row.evidence_state })),
+  );
+  const transactionReconciliationReady = canonicalReconciliation.status === "reconciled"
+    && !canonicalReconciliation.double_counting_risk
+    && canonicalReconciliation.active_canonical_with_raw === canonicalReconciliation.canonical_active
+    && canonicalReconciliation.active_canonical_with_account === canonicalReconciliation.canonical_active
+    && canonicalReconciliation.active_canonical_with_item === canonicalReconciliation.canonical_active;
+  transactionReconciliationReady
+    ? pass("transaction_canonical_reconciliation", "Canonical transaction reconciliation", "Active canonical transactions reconcile against current observed provider transactions with account and Item lineage and no duplicate identity risk.", canonicalReconciliation.canonical_active, canonicalReconciliation.canonical_active)
+    : fail("transaction_canonical_reconciliation", "Canonical transaction reconciliation", `Canonical transaction reconciliation is ${canonicalReconciliation.status}; provider identity, current raw linkage, account lineage, or duplicate checks prevent higher-order certification.`, canonicalReconciliation.active_canonical_with_raw, canonicalReconciliation.canonical_active);
+  const orphanRaw = canonicalReconciliation.orphan_raw.length;
+  orphanRaw ? warn("raw_canonical_reconciliation", "Raw → canonical reconciliation", `${orphanRaw} current raw transaction observation(s) have no active canonical transaction.`, orphanRaw, 0) : pass("raw_canonical_reconciliation", "Raw → canonical reconciliation", "Current raw transaction identities reconcile to canonical transactions.", 0, 0);
 
   const latestRunByItem = new Map<string, any>();
   for (const run of runRows) if (!latestRunByItem.has(run.item_id)) latestRunByItem.set(run.item_id, run);
@@ -85,18 +93,18 @@ export async function assessSourceFidelity(userId: string) {
   const status: FidelitySeverity = checks.some(c => c.severity === "fail" && c.id !== "canonical_eight_domain_certification") ? "fail" : checks.some(c => c.severity === "warn") ? "warn" : "pass";
   const certifiedItemReady = completeItems.some(item => itemHasCurrentTx(item.id) && itemHasCurrentBalance(item.id));
   const hardIntegrityFailure = checks.some(c => c.severity === "fail" && c.id !== "canonical_eight_domain_certification");
-  const ready = !hardIntegrityFailure && certifiedItemReady && eightDomainReady;
+  const ready = !hardIntegrityFailure && certifiedItemReady && eightDomainReady && transactionReconciliationReady;
   return {
-    gate_version: "IRIS_SOURCE_FIDELITY_V4", status, ready_for_higher_order_intelligence: ready, checks,
+    gate_version: "IRIS_SOURCE_FIDELITY_V5", status, ready_for_higher_order_intelligence: ready, checks,
     limitations: checks.filter(c => c.severity !== "pass").map(c => c.detail),
-    counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilityRows.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
-    reconciliation: { canonical_active_transactions: txRows.filter(r => r.is_active).length, raw_current_transactions: rawTxRows.filter(r => r.is_current).length, added: runRows.reduce((n, r) => n + Number(r.added_count ?? 0), 0), modified: runRows.reduce((n, r) => n + Number(r.modified_count ?? 0), 0), removed: runRows.reduce((n, r) => n + Number(r.removed_count ?? 0), 0) },
+    counts: { items: itemRows.length, accounts: accountRows.length, canonical_transactions: txRows.length, raw_transaction_observations: rawTxRows.length, raw_balance_observations: rawBalanceRows.length, raw_liability_observations: rawLiabilities.length, sync_runs_inspected: runRows.length, current_product_observations: productRows.length, current_raw_product_observations: rawProductRows.length, eight_domain_ready_items: completeItems.length },
+    reconciliation: { canonical_active_transactions: txRows.filter(r => r.is_active).length, raw_current_transactions: rawTxRows.filter(r => r.is_current).length, added: runRows.reduce((n, r) => n + Number(r.added_count ?? 0), 0), modified: runRows.reduce((n, r) => n + Number(r.modified_count ?? 0), 0), removed: runRows.reduce((n, r) => n + Number(r.removed_count ?? 0), 0), canonical_transaction_reconciliation: canonicalReconciliation },
     eight_domain_items: completeItems.map(i => i.id),
     missing_by_item: itemRows.map(item => {
       const observed = new Set(productRows.filter(r => r.item_id === item.id && OBSERVED_LIFECYCLES.has(r.lifecycle_state) && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
       const raw = new Set(rawProductRows.filter(r => r.item_id === item.id && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state ?? "")).map(r => r.product));
       return { item: item.id, missing_observed: CANONICAL_PRODUCTS.filter(p => !observed.has(p)), missing_raw: CANONICAL_PRODUCTS.filter(p => !(p === "transactions" ? itemHasCurrentTx(item.id) : p === "balance" ? itemHasCurrentBalance(item.id) : p === "liabilities" ? itemHasCurrentLiability(item.id) : raw.has(p))) };
     }),
-    generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary."
+    generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary, and canonical transaction reconciliation is required before higher-order readiness."
   };
 }
