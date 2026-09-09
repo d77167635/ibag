@@ -6,7 +6,7 @@ import {
 } from "../contracts/irisFeatureRegistry.js";
 
 export interface IrisFeatureRuntimeSnapshot {
-  registry_version: "IRIS_FEATURE_REGISTRY_V1";
+  registry_version: "IRIS_FEATURE_REGISTRY_V2";
   features: IrisFeatureState[];
   enabled_count: number;
   ready_count: number;
@@ -31,11 +31,10 @@ export interface IrisFeatureRuntimeInput {
 }
 
 /**
- * Builds the runtime feature state from authoritative registry metadata plus
+ * Builds runtime feature state from authoritative registry metadata plus
  * evidence-engine output. Plaid product selection is intentionally not
- * reimplemented here: provider availability, consent, entitlement,
- * commercial terms, and observed evidence remain owned by the Plaid decision
- * engine. This layer consumes the resulting evidence boundary only.
+ * reimplemented here: provider availability, consent, entitlement, commercial
+ * terms, and observed evidence remain owned by the Plaid decision engine.
  */
 export function buildIrisFeatureRuntime(input: IrisFeatureRuntimeInput = {}): IrisFeatureRuntimeSnapshot {
   const features = IRIS_FEATURE_REGISTRY.map((feature) => {
@@ -51,7 +50,7 @@ export function buildIrisFeatureRuntime(input: IrisFeatureRuntimeInput = {}): Ir
   });
 
   return {
-    registry_version: "IRIS_FEATURE_REGISTRY_V1",
+    registry_version: "IRIS_FEATURE_REGISTRY_V2",
     features,
     enabled_count: features.filter((feature) => feature.activation === "enabled").length,
     ready_count: features.filter((feature) => feature.readiness === "ready").length,
