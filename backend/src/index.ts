@@ -4,6 +4,7 @@ import { env } from "./config/env.js";
 import { linkRouter } from "./routes/link.js";
 import { webhooksRouter, recoverPendingWebhookEvents } from "./routes/webhooks.js";
 import { dashboardRouter } from "./routes/dashboard.js";
+import { unifiedDashboardRouter } from "./routes/unifiedDashboard.js";
 import { sourceTruthRouter } from "./routes/sourceTruth.js";
 import { plaidKnowledgeRouter } from "./routes/plaidKnowledge.js";
 import { irisPlaidKnowledgeRouter } from "./routes/irisPlaidKnowledge.js";
@@ -28,6 +29,6 @@ app.use(cors({ origin: env.corsAllowedOrigins }));
 app.use(express.json({ verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = buf; } }));
 app.use((req, res, next) => { const start = Date.now(); res.on("finish", () => console.log(`${req.method} ${req.path} -> ${res.statusCode} (${Date.now() - start}ms)`)); next(); });
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
-app.use(linkRouter); app.use(webhooksRouter); app.use(dashboardRouter); app.use(irisReliabilityRouter); app.use(irisIntelligenceRouter); app.use(irisSummaryRouter); app.use(sourceTruthRouter); app.use(plaidKnowledgeRouter); app.use(irisPlaidKnowledgeRouter); app.use(plaidSelectionRouter); app.use(plaidSurfaceRouter); app.use(plaidCapabilitiesRouter); app.use(featuresRouter); app.use(irisRouter); app.use(irisExecutionRouter); app.use(irisCatalogRouter); app.use(irisSimulationRouter); app.use(irisDecisionLabRouter); app.use(goalsRouter);
+app.use(linkRouter); app.use(webhooksRouter); app.use(dashboardRouter); app.use(unifiedDashboardRouter); app.use(irisReliabilityRouter); app.use(irisIntelligenceRouter); app.use(irisSummaryRouter); app.use(sourceTruthRouter); app.use(plaidKnowledgeRouter); app.use(irisPlaidKnowledgeRouter); app.use(plaidSelectionRouter); app.use(plaidSurfaceRouter); app.use(plaidCapabilitiesRouter); app.use(featuresRouter); app.use(irisRouter); app.use(irisExecutionRouter); app.use(irisCatalogRouter); app.use(irisSimulationRouter); app.use(irisDecisionLabRouter); app.use(goalsRouter);
 async function start() { const migrated = await migrateLegacyPlaidAccessTokens(); if (migrated > 0) console.log(`Migrated ${migrated} legacy Plaid access token(s) to encrypted storage.`); await recoverPendingWebhookEvents(); app.listen(env.port, () => console.log(`Iris backend listening on :${env.port} (${env.nodeEnv}, Plaid env: ${env.plaidEnv})`)); }
 start().catch((err) => { console.error("Backend startup failed", err); process.exit(1); });
