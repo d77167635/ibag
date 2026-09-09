@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { supabaseAdmin } from "../config/supabase.js";
 import { dispatchGovernedCapability } from "./capabilityDispatcher.js";
+import { executeCapabilityPlan } from "./capabilityExecutionEngine.js";
 import { planCapabilities } from "./capabilityPlanner.js";
 import { evaluateCertificationGate } from "./certificationGate.js";
 import { resolveCanonicalProviderItem, IRIS_CANONICAL_PROVIDER_DOMAINS, type IrisEvidenceScope } from "./evidenceScope.js";
@@ -51,25 +52,22 @@ export async function executeIrisRun(request: RunRequest) {
   if (inputError) { await failExecution(run.id, execution.id, userId, "EXECUTION_INPUT_PERSIST_FAILED", inputError.message); throw new Error(`Unable to persist Iris execution input: ${inputError.message}`); }
 
   try {
-    const dispatchedResults: Record<string, unknown> = {};
-    for (const capabilityId of plan.ordered_capabilities) {
-      const dispatched = await dispatchGovernedCapability({ userId, capabilityId });
-      dispatchedResults[capabilityId] = dispatched.result;
-    }
+    const executed = await executeCapabilityPlan(userId, plan);
+    const dispatchedResults: Record<string, unknown> = Object.fromEntries([...executed.entries()].map(([id, value]) => [id, value.result]));
 
-    let result: any;
+    let result: unknown;
     if (requestedCapabilities.includes(CAPABILITY_ID)) {
-      const aggregate = await dispatchGovernedCapability({ userId, capabilityId: CAPABILITY_ID });
+      const aggregate = await dispatchGovernedCapability({ userId, capabilityId: CAPABILITY_ID, dependencyResults: executed, dependencyRequirements: plan.contracts.filter(c => c.capability_id === CAPABILITY_ID).flatMap(c => Array.isArray(c.dependencies) ? c.dependencies.map((dependency) => ({ capability_id: typeof dependency === "string" ? dependency : (dependency as { capability_id: string }).capability_id, relationship: "requires" as const })) : []) });
       result = aggregate.result;
     } else {
       result = { capability_results: dispatchedResults, capability_plan: plan, evidence_policy: "NO_AI_GENERATED_FINANCIAL_EVIDENCE" };
     }
 
-    const providerSelectedItemId = result?.layer_metrics?.provider_domains?.selected_item_id ?? null;
+    const providerSelectedItemId = (result as { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } } })?.layer_metrics?.provider_domains?.selected_item_id ?? null;
     if (selectedItemId && providerSelectedItemId !== selectedItemId) throw new Error(`EVIDENCE_SCOPE_MISMATCH: execution=${selectedItemId} provider_intelligence=${providerSelectedItemId ?? "null"}`);
     const outputHash = hash(result);
     const finishedAt = new Date().toISOString();
-    const { error: outputError } = await supabaseAdmin.from("iris_execution_outputs").insert({ execution_id: execution.id, output_key: "full_intelligence", output_type: "intelligence_snapshot", value: result, hash: outputHash, evidence_state: "CALCULATED", uncertainty: result?.uncertainty ?? null });
+    const { error: outputError } = await supabaseAdmin.from("iris_execution_outputs").insert({ execution_id: execution.id, output_key: "full_intelligence", output_type: "intelligence_snapshot", value: result, hash: outputHash, evidence_state: "CALCULATED", uncertainty: (result as { uncertainty?: unknown })?.uncertainty ?? null });
     if (outputError) { await failExecution(run.id, execution.id, userId, "EXECUTION_OUTPUT_PERSIST_FAILED", outputError.message); throw new Error(`Unable to persist Iris execution output: ${outputError.message}`); }
 
     let evidenceQuery = supabaseAdmin.from("plaid_raw_product_observations").select("id,item_id,product,raw_response,effective_at,acquired_at").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed");
@@ -80,7 +78,7 @@ export async function executeIrisRun(request: RunRequest) {
       const { error: evidenceInsertError } = await supabaseAdmin.from("iris_run_evidence").insert(evidenceRows);
       if (evidenceInsertError) { await failExecution(run.id, execution.id, userId, "RUN_EVIDENCE_PERSIST_FAILED", evidenceInsertError.message); throw new Error(`Unable to persist Iris run evidence: ${evidenceInsertError.message}`); }
     }
-    const evidenceBoundary = result?.evidence_boundary || finishedAt;
+    const evidenceBoundary = (result as { evidence_boundary?: string })?.evidence_boundary || finishedAt;
     await supabaseAdmin.from("iris_runs").update({ evidence_boundary: evidenceBoundary, evidence_version: "provider-observation-boundary-v2", status: "EXECUTED", completed_at: finishedAt, updated_at: finishedAt }).eq("id", run.id).eq("user_id", userId);
     await supabaseAdmin.from("iris_execution_records").update({ execution_state: "EXECUTED", completed_at: finishedAt, input_hash: inputHash, output_hash: outputHash, output_snapshot: { output_key: "full_intelligence", output_hash: outputHash, evidence_scope: evidenceScope, dispatched_capability: requestedCapabilities, plan_order: plan.ordered_capabilities }, resource_usage: { duration_ms: Date.parse(finishedAt) - Date.parse(asOf), planner_nodes: plan.resource_estimate.nodes, planner_edges: plan.resource_estimate.edges, planner_compositions: plan.resource_estimate.compositions }, validation_status: "UNKNOWN" }).eq("id", execution.id).eq("user_id", userId);
 
