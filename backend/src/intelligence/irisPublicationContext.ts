@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { IRIS_FEATURE_REGISTRY } from "../contracts/irisFeatureRegistry.js";
 import { IRIS_STANDARD_CAPABILITY_IDS } from "./irisCatalog.js";
-import { buildIrisFeatureRuntime, type IrisFeatureRuntimeSnapshot } from "./irisFeatureRuntime.js";
+import { buildIrisFeatureRuntime } from "./irisFeatureRuntime.js";
 import { buildIrisIntelligenceOutputRuntime } from "./irisIntelligenceOutputRuntime.js";
 
 type AtlasDefinitionInput = {
