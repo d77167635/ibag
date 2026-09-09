@@ -16,13 +16,14 @@ import type { PlaidDecisionState } from "./plaidProductDecision.js";
 
 export interface IrisProductRuntimeInput {
   product: string;
+  capabilityIds: string[];
   decision: PlaidDecisionState;
   evidenceStatus: "observed" | "not_observed" | "not_available";
   availableToIris: boolean;
 }
 
 export interface IrisFeatureRuntimeInput {
-  activationByFeatureId?: Record<string, "enabled" | "disabled">;
+  activationByFeatureId?: Record<string, "enabled" | "disabled">>;
   evidenceCoverageByCapabilityId?: Record<string, number>;
   blockersByCapabilityId?: Record<string, string[]>;
   productDecisions?: IrisProductRuntimeInput[];
@@ -42,6 +43,7 @@ export interface IrisFeatureRuntimeState extends IrisFeatureState {
 function productNamesForFeature(feature: IrisFeatureDefinition, products: IrisProductRuntimeInput[]) {
   const related = products.filter((product) =>
     product.availableToIris &&
+    product.capabilityIds.includes(feature.capabilityId) &&
     (product.decision === "selected" || product.decision === "eligible_awaiting_evidence"),
   );
   return {
