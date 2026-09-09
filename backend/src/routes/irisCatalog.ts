@@ -11,11 +11,11 @@ const STANDARD_IDS = [
   "roundups",
   "financial-state",
   "cash-flow",
-  "spending-intelligence",
+  "spending",
   "liquidity",
   "debt",
   "forecast",
-  "behavior-recurrence",
+  "recurrence",
   "causality",
   "decision-lab",
 ];
