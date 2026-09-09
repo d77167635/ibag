@@ -15,18 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Repair known malformed template literal
+      - name: Repair known malformed template literals
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('backend/src/intelligence/sourceFidelity.ts')
           s = p.read_text()
-          replacements = [
-              ('Every connected Item has a current observed Balance state.\\", itemRows.length', 'Every connected Item has a current observed Balance state.", itemRows.length'),
-              ('Every connected Item has a current observed Balance state.`, itemRows.length', 'Every connected Item has a current observed Balance state.", itemRows.length'),
-          ]
-          for old, new in replacements:
-              s = s.replace(old, new, 1)
+          s = s.replace('Every connected Item has a current observed Balance state.`, itemRows.length', 'Every connected Item has a current observed Balance state.", itemRows.length', 1)
+          s = s.replace('Every connected Item has a current observed Balance state.\\", itemRows.length', 'Every connected Item has a current observed Balance state.", itemRows.length', 1)
+          s = s.replace('certified Item.", missingBalances.length', 'certified Item.`, missingBalances.length', 1)
           p.write_text(s)
           PY
       - name: Commit repair
@@ -37,6 +34,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No repair needed.'
           else
-            git commit -m 'Normalize source fidelity string syntax [skip ci]'
+            git commit -m 'Fix source fidelity template literals [skip ci]'
             git push
           fi
