@@ -22,7 +22,7 @@ export function answerProviderQuestion(question: string, evidence: IrisProviderE
   if (/how many|number of|count/.test(q) && /transaction/.test(q)) {
     return `The current provider evidence snapshot contains ${transactions.length} active transaction record${transactions.length === 1 ? "" : "s"} in the retrieved window.`;
   }
-  if (/balance|available/.test(q) && /account|cash|money/.test(q)) {
+  if (/balance|available/.test(q) && /account|cash|money|checking|savings/.test(q)) {
     const matches = accounts.filter((a) => q.includes(String(a.name ?? "").toLowerCase()) || (a.mask && q.includes(String(a.mask))));
     const rows = (matches.length ? matches : accounts).slice(0, 8).map((a) => `${a.name ?? "Account"}: current balance ${money(a.current_balance)}, available ${money(a.available_balance)}`);
     if (rows.length) return `Plaid account balances currently supplied to Iris: ${rows.join("; ")}. These are provider values, not Iris calculations.`;
