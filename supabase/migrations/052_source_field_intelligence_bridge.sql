@@ -29,23 +29,12 @@ revoke all on table public.iris_source_field_intelligence_bindings from public;
 grant select on public.iris_source_field_intelligence_bindings to authenticated;
 grant select,insert,update,delete on public.iris_source_field_intelligence_bindings to service_role;
 
+-- Bindings are global governance metadata, not user financial evidence.
 drop policy if exists iris_source_field_intelligence_bindings_read_own on public.iris_source_field_intelligence_bindings;
-create policy iris_source_field_intelligence_bindings_read_own
+drop policy if exists iris_source_field_intelligence_bindings_read on public.iris_source_field_intelligence_bindings;
+create policy iris_source_field_intelligence_bindings_read
   on public.iris_source_field_intelligence_bindings for select to authenticated
-  using (
-    exists (
-      select 1
-      from public.iris_intelligence_source_fields sf
-      where sf.id = source_field_id
-        and sf.active = true
-        and exists (
-          select 1
-          from public.iris_source_field_observations sfo
-          where sfo.user_id = auth.uid()
-            and sfo.field_path = sf.exact_provider_field_name
-        )
-    )
-  );
+  using (true);
 
 comment on table public.iris_source_field_intelligence_bindings is
   'Governed many-to-many mapping from registered provider source fields to Iris intelligence nodes; mappings never constitute evidence by themselves.';
