@@ -23,7 +23,7 @@ export interface IrisProductRuntimeInput {
 }
 
 export interface IrisFeatureRuntimeInput {
-  activationByFeatureId?: Record<string, "enabled" | "disabled">>;
+  activationByFeatureId?: Record<string, "enabled" | "disabled">;
   evidenceCoverageByCapabilityId?: Record<string, number>;
   blockersByCapabilityId?: Record<string, string[]>;
   productDecisions?: IrisProductRuntimeInput[];
