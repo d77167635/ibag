@@ -61,7 +61,7 @@ export async function selectPlaidProducts(userId: string) {
   if (itemsError) throw itemsError;
 
   const base = {
-    strategy: "iris_evidence_weighted_product_selection_v9",
+    strategy: "iris_evidence_weighted_product_selection_v10",
     catalog_size: PLAID_PRODUCT_CATALOG_V2.length,
   };
   if (!subscription || subscription.status !== "active" || (subscription.ends_at && new Date(subscription.ends_at).getTime() <= Date.now())) {
@@ -84,10 +84,18 @@ export async function selectPlaidProducts(userId: string) {
     .select("item_id,product,lifecycle_state,evidence_state,is_current,acquired_at")
     .eq("user_id", userId).eq("provider", "plaid").eq("is_current", true);
   if (observationsError) throw observationsError;
-  const observedByItemProduct = new Map<string, any>();
+
+  // A persisted observation may identify either an Item product state or a
+  // public capability key. Expand Item-state observations through the
+  // authoritative one-to-many catalog relation so one provider state can
+  // legitimately support every Iris capability mapped to it.
+  const observedByItemCapability = new Set<string>();
   for (const row of observations ?? []) {
-    if (row.lifecycle_state === "observed" && row.evidence_state === "observed") {
-      observedByItemProduct.set(`${row.item_id}:${row.product}`, row);
+    if (row.lifecycle_state !== "observed" || row.evidence_state !== "observed") continue;
+    for (const definition of definitions) {
+      if (row.product === definition.key || definition.plaidProductStates.includes(row.product)) {
+        observedByItemCapability.add(`${row.item_id}:${definition.key}`);
+      }
     }
   }
 
@@ -103,7 +111,7 @@ export async function selectPlaidProducts(userId: string) {
         const providerState = providerStateFor(definition, raw);
         const consentState = consentStateFor(definition, raw);
         const billedState = billedStateFor(definition, raw);
-        const evidenceObserved = observedByItemProduct.has(`${item.id}:${definition.key}`);
+        const evidenceObserved = observedByItemCapability.has(`${item.id}:${definition.key}`);
         const commercial = termByProduct.get(definition.key);
         const decision = evaluatePlaidProductDecision({
           productKey: definition.key,
@@ -213,6 +221,7 @@ export async function selectPlaidProducts(userId: string) {
       "The complete Plaid catalog is evaluated; plan entitlement is a hard gate rather than a catalog filter.",
       "Plaid products/authorization, consent, and billed_products are never inferred from one another.",
       "Available, consented, active, billed, or authorized never counts as observed evidence.",
+      "Persisted provider observations are mapped through the authoritative one-to-many capability relation; a runtime state can support multiple Iris capabilities.",
       "Only persisted provider evidence in the observed state can be selected for Iris intelligence.",
       "Commercial terms are explicit; unknown pricing is never silently treated as free.",
       "Iris may identify an eligible product awaiting evidence without claiming that its data has been observed.",
