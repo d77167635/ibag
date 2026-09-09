@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { reconcileCanonicalTransactions } from "./canonicalReconciliation.js";
 
+export const IRIS_CANONICAL_PROVIDER_DOMAINS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
+
 export type EvidenceNodeKind = "provider" | "calculation" | "intelligence" | "inference" | "limitation";
 export type EvidenceState = "observed" | "calculated" | "inferred" | "limited" | "insufficient_evidence";
 export type EvidenceRelation = "supports" | "derived_from" | "constrains" | "compares_with" | "limits";
@@ -107,16 +109,19 @@ export interface ProviderLineageVerification {
   transactionsWithAccount: number;
   transactionsWithItem: number;
   observedProductDomains: number;
+  observedCanonicalProductDomains: string[];
+  missingCanonicalProductDomains: string[];
+  canonicalProductDomainCoverageComplete: boolean;
   lineageComplete: boolean;
   transactionReconciliation: ReturnType<typeof reconcileCanonicalTransactions>;
 }
 
-/** Verifies provider lineage and requires canonical transactions to reconcile to current observed provider transactions. */
+/** Verifies provider lineage, exact eight-domain same-Item coverage, and canonical transaction reconciliation. */
 export async function verifyProviderLineage(supabase: SupabaseClient, userId: string): Promise<ProviderLineageVerification> {
-  const [{ data: accountRows, count: observedAccounts, error: accountError }, { data: transactionRows, count: observedTransactions, error: transactionError }, { count: observedProductDomains, error: productError }, { data: rawTransactionRows, error: rawTransactionError }] = await Promise.all([
+  const [{ data: accountRows, count: observedAccounts, error: accountError }, { data: transactionRows, count: observedTransactions, error: transactionError }, { data: productRows, error: productError }, { data: rawTransactionRows, error: rawTransactionError }] = await Promise.all([
     supabase.from("plaid_accounts").select("id,item_id,plaid_account_id", { count: "exact" }).eq("user_id", userId),
     supabase.from("transactions").select("id,account_id,plaid_transaction_id,raw_transaction_id,is_active", { count: "exact" }).eq("user_id", userId).eq("is_active", true),
-    supabase.from("plaid_product_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("evidence_state", "observed").eq("lifecycle_state", "observed"),
+    supabase.from("plaid_product_observations").select("product,item_id").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("evidence_state", "observed").eq("lifecycle_state", "observed"),
     supabase.from("plaid_raw_transactions").select("id,account_id,plaid_transaction_id,is_current,evidence_state").eq("user_id", userId),
   ]);
   if (accountError) throw accountError;
@@ -127,22 +132,40 @@ export async function verifyProviderLineage(supabase: SupabaseClient, userId: st
   const accounts = accountRows ?? [];
   const rows = transactionRows ?? [];
   const rawRows = rawTransactionRows ?? [];
+  const observedProducts = productRows ?? [];
   const transactionsWithAccount = rows.filter((row: any) => Boolean(row.account_id) && accounts.some((account: any) => account.id === row.account_id)).length;
   const transactionsWithItem = rows.filter((row: any) => {
     const account = accounts.find((candidate: any) => candidate.id === row.account_id);
     return Boolean(account?.item_id);
   }).length;
   const transactionReconciliation = reconcileCanonicalTransactions(accounts, rows, rawRows);
+
+  const itemProductSets = new Map<string, Set<string>>();
+  for (const row of observedProducts as Array<{ item_id: string; product: string }>) {
+    const set = itemProductSets.get(row.item_id) ?? new Set<string>();
+    set.add(row.product);
+    itemProductSets.set(row.item_id, set);
+  }
+  const completeItems = [...itemProductSets.entries()].filter(([, products]) => IRIS_CANONICAL_PROVIDER_DOMAINS.every((domain) => products.has(domain))).map(([itemId]) => itemId);
+  const selectedItemIds = new Set(accounts.map((account: any) => account.item_id).filter(Boolean));
+  const completeSelectedItems = completeItems.filter((itemId) => selectedItemIds.has(itemId));
+  const observedCanonicalProductDomains = completeSelectedItems.length > 0 ? [...IRIS_CANONICAL_PROVIDER_DOMAINS] : [...new Set(observedProducts.filter((row: any) => selectedItemIds.has(row.item_id)).map((row: any) => row.product))].filter((product): product is string => IRIS_CANONICAL_PROVIDER_DOMAINS.includes(product as typeof IRIS_CANONICAL_PROVIDER_DOMAINS[number]));
+  const missingCanonicalProductDomains = IRIS_CANONICAL_PROVIDER_DOMAINS.filter((domain) => !observedCanonicalProductDomains.includes(domain));
+  const canonicalProductDomainCoverageComplete = completeSelectedItems.length > 0;
   const lineageComplete = (observedTransactions ?? 0) === transactionsWithAccount
     && transactionsWithAccount === transactionsWithItem
-    && transactionReconciliation.status === "reconciled";
+    && transactionReconciliation.status === "reconciled"
+    && canonicalProductDomainCoverageComplete;
 
   return {
     observedAccounts: observedAccounts ?? 0,
     observedTransactions: observedTransactions ?? 0,
     transactionsWithAccount,
     transactionsWithItem,
-    observedProductDomains: observedProductDomains ?? 0,
+    observedProductDomains: observedProducts.length,
+    observedCanonicalProductDomains,
+    missingCanonicalProductDomains,
+    canonicalProductDomainCoverageComplete,
     lineageComplete,
     transactionReconciliation,
   };
