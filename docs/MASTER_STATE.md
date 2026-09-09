@@ -6,7 +6,7 @@
 - Product: Iris
 - Repository: `d77167635/ibag`
 - Default branch: `main`
-- Latest verified continuity checkpoint: `e649903c26006bd31e6052fc7181648273cf958a`
+- Latest verified continuity checkpoint: `268de7acc9c0f38643e258b1c6fea217197c925a`
 - Repository status: active, public, non-archived
 
 ## Core product boundary
@@ -31,13 +31,12 @@
 - `backend/src/config/plaidCapabilityRegistry.ts` separates public product surfaces from runtime Item product states and exposes Item-state coverage.
 - `backend/src/services/plaidProductSelectionV4.ts` evaluates active-plan entitlement, commercial terms, provider runtime state, and persisted observed evidence as distinct facts.
 - `backend/src/routes/plaidSurface.ts` and `backend/src/routes/plaidCapabilities.ts` expose Plaid source/capability observability.
-- `backend/src/intelligence/irisCatalog.ts` and `irisCatalogExpansion.ts` provide the Iris capability catalog foundation and now expose one canonical Iris Standard preference baseline.
+- `backend/src/intelligence/irisCatalog.ts` and `irisCatalogExpansion.ts` provide the Iris capability catalog foundation and one canonical Iris Standard preference baseline.
 - `backend/src/routes/irisCatalog.ts` and `backend/src/routes/irisIntelligence.ts` consume that same canonical baseline rather than maintaining duplicate lists.
 - `backend/src/intelligence/irisCatalog.test.ts` certifies the ten-item standard baseline and its preference-not-ceiling semantics.
-- `frontend/src/components/PlaidDashboard.tsx` provides the Plaid-facing dashboard surface.
-- `frontend/src/components/IrisCatalog.tsx` and `IrisIntelligenceWorkspace.tsx` provide the Iris feature/workspace foundation.
-- Recursive ontology-driven workspace navigation and entity/detail foundations exist and should be extended rather than duplicated.
-- `backend/src/intelligence/irisIntelligenceOutputRuntime.ts` is the final publication boundary: it preserves feature readiness, explicit evidence qualification, one-to-many feature/analysis mapping, and provenance integrity without creating provider observations or financial facts.
+- `backend/src/intelligence/irisIntelligenceOutputRuntime.ts` is the final governed publication boundary: it preserves feature readiness, explicit evidence qualification, one-to-many feature/analysis mapping, and provenance integrity without creating provider observations or financial facts.
+- `backend/src/intelligence/irisPublicationContext.ts` is now the shared publication-context builder used by Iris intelligence surfaces.
+- `/iris/intelligence` and `/dashboard/intelligence` now consume the same feature/output publication boundary.
 - `.github/workflows/iris-backend-ci.yml` runs backend dependency installation, intelligence tests, and TypeScript build on pushes/PRs to `main`.
 
 ## Plaid capability contract
