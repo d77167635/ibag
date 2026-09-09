@@ -6,7 +6,8 @@
  * activating a feature never activates a provider product and never fabricates
  * evidence.
  */
-import { IRIS_CATALOG, IRIS_CATALOG_EXPANSION } from "../intelligence/irisCatalog.js";
+import { IRIS_CATALOG } from "../intelligence/irisCatalog.js";
+import { IRIS_CATALOG_EXPANSION } from "../intelligence/irisCatalogExpansion.js";
 import type { IrisCatalogCapability } from "../intelligence/irisCatalog.js";
 
 export type IrisFeatureActivation = "enabled" | "disabled";
@@ -50,11 +51,7 @@ const defaultSurfaces = (capability: IrisCatalogCapability): string[] => [
   "iris_interaction",
 ];
 
-/**
- * One authoritative feature registry derived from the existing Iris
- * capability catalog. No second copy of capability names or descriptions is
- * maintained here.
- */
+/** One authoritative feature registry derived from the Iris capability catalogs. */
 export const IRIS_FEATURE_REGISTRY: IrisFeatureDefinition[] = ALL_CAPABILITIES.map((capability) => ({
   featureId: `feature.${capability.id}`,
   capabilityId: capability.id,
@@ -92,55 +89,16 @@ export function evaluateIrisFeatureState(
   const blockers = [...(input.blockers ?? [])];
 
   if (input.activation === "disabled") {
-    return {
-      featureId: feature.featureId,
-      activation: "disabled",
-      readiness: "blocked",
-      evidenceCoverage: coverage,
-      blockers: ["feature_disabled", ...blockers],
-      available: false,
-    };
+    return { featureId: feature.featureId, activation: "disabled", readiness: "blocked", evidenceCoverage: coverage, blockers: ["feature_disabled", ...blockers], available: false };
   }
-
   if (blockers.length > 0) {
-    return {
-      featureId: feature.featureId,
-      activation: "enabled",
-      readiness: "blocked",
-      evidenceCoverage: coverage,
-      blockers,
-      available: false,
-    };
+    return { featureId: feature.featureId, activation: "enabled", readiness: "blocked", evidenceCoverage: coverage, blockers, available: false };
   }
-
   if (coverage >= 1) {
-    return {
-      featureId: feature.featureId,
-      activation: "enabled",
-      readiness: "ready",
-      evidenceCoverage: coverage,
-      blockers: [],
-      available: true,
-    };
+    return { featureId: feature.featureId, activation: "enabled", readiness: "ready", evidenceCoverage: coverage, blockers: [], available: true };
   }
-
   if (coverage > 0) {
-    return {
-      featureId: feature.featureId,
-      activation: "enabled",
-      readiness: "limited",
-      evidenceCoverage: coverage,
-      blockers: ["partial_evidence"],
-      available: true,
-    };
+    return { featureId: feature.featureId, activation: "enabled", readiness: "limited", evidenceCoverage: coverage, blockers: ["partial_evidence"], available: true };
   }
-
-  return {
-    featureId: feature.featureId,
-    activation: "enabled",
-    readiness: "insufficient_evidence",
-    evidenceCoverage: 0,
-    blockers: ["evidence_required"],
-    available: false,
-  };
+  return { featureId: feature.featureId, activation: "enabled", readiness: "insufficient_evidence", evidenceCoverage: 0, blockers: ["evidence_required"], available: false };
 }
