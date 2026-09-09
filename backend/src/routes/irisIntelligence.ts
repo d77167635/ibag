@@ -1,11 +1,7 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
-import { supabaseAdmin } from "../config/supabase.js";
-import { IRIS_FEATURE_REGISTRY } from "../contracts/irisFeatureRegistry.js";
 import { executeIrisRun } from "../intelligence/irisExecution.js";
-import { buildIrisFeatureRuntime } from "../intelligence/irisFeatureRuntime.js";
-import { buildIrisIntelligenceOutputRuntime } from "../intelligence/irisIntelligenceOutputRuntime.js";
-import { IRIS_STANDARD_CAPABILITY_IDS } from "../intelligence/irisCatalog.js";
+import { buildIrisPublicationContext } from "../intelligence/irisPublicationContext.js";
 
 export const irisIntelligenceRouter = Router();
 
@@ -32,43 +28,11 @@ irisIntelligenceRouter.get("/iris/intelligence", requireAuth, async (req: Authed
         certification_gate: result.certification_gate ?? null,
       });
     }
+
     const full = result.result as any;
     const metrics = full.layer_metrics ?? {};
     const atlasDefinitions = full.intelligence_atlas?.definitions ?? [];
-    const readyAtlasIds = new Set(
-      atlasDefinitions.filter((definition: any) => definition.evidence_ready === true).map((definition: any) => definition.id),
-    );
-
-    const { data: preference, error: preferenceError } = await supabaseAdmin
-      .from("iris_user_intelligence_preferences")
-      .select("selected_capability_ids")
-      .eq("user_id", req.userId!)
-      .maybeSingle();
-    if (preferenceError) throw preferenceError;
-
-    const hasStoredPreference = !!preference;
-    const selectedIds = hasStoredPreference && Array.isArray(preference?.selected_capability_ids)
-      ? preference.selected_capability_ids.filter((id: unknown): id is string => typeof id === "string")
-      : [...IRIS_STANDARD_CAPABILITY_IDS];
-    const activations = Object.fromEntries(
-      IRIS_FEATURE_REGISTRY.map((feature) => [
-        feature.featureId,
-        selectedIds.includes(feature.capabilityId) ? "enabled" : "disabled",
-      ]),
-    );
-    const evidenceCoverage = Object.fromEntries(
-      IRIS_FEATURE_REGISTRY.map((feature) => {
-        const required = feature.requiredEvidence;
-        if (required.length === 0) return [feature.featureId, 0];
-        const satisfied = required.filter((id) => readyAtlasIds.has(id)).length;
-        return [feature.featureId, satisfied / required.length];
-      }),
-    );
-    const featureRuntime = buildIrisFeatureRuntime({ activations, evidenceCoverage });
-    const intelligenceOutputRuntime = buildIrisIntelligenceOutputRuntime(
-      { definitions: atlasDefinitions },
-      featureRuntime,
-    );
+    const publication = await buildIrisPublicationContext(req.userId!, atlasDefinitions);
 
     return res.json({
       ...full,
@@ -92,8 +56,10 @@ irisIntelligenceRouter.get("/iris/intelligence", requireAuth, async (req: Authed
       category_drift: full.layer_behavioral?.categoryDrift,
       reasoning: full.layer_reasoning,
       maximum_intelligence: full.layer_max_intelligence,
-      feature_runtime: featureRuntime,
-      intelligence_output_runtime: intelligenceOutputRuntime,
+      selected_capability_ids: publication.selected_capability_ids,
+      feature_runtime: publication.feature_runtime,
+      intelligence_output_runtime: publication.intelligence_output_runtime,
+      publication_boundary: publication.publication_boundary,
     });
   } catch (err) {
     console.error("iris/intelligence error:", err);
