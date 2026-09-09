@@ -1,7 +1,7 @@
-export const SOURCE_FIELD_INTELLIGENCE_BRIDGE_VERSION = "IRIS_SOURCE_FIELD_INTELLIGENCE_BRIDGE_V1";
+export const SOURCE_FIELD_INTELLIGENCE_BRIDGE_VERSION = "IRIS_SOURCE_FIELD_INTELLIGENCE_BRIDGE_V2";
 
 export type SourceFieldBinding = {
-  sourceFieldPath: string;
+  sourceFieldId: string;
   intelligenceNodeId: string;
   fieldKey: string;
   fieldRole: string;
@@ -13,6 +13,7 @@ export type SourceFieldBinding = {
 
 export type SourceFieldIntelligenceEdge = {
   sourceFieldObservationId: string;
+  sourceFieldId: string;
   intelligenceNodeId: string;
   fieldKey: string;
   edgeRole: "source_field_to_intelligence";
@@ -23,21 +24,26 @@ export type SourceFieldIntelligenceEdge = {
   reason: string | null;
 };
 
-/** Resolves observed source-field evidence into explicitly governed intelligence bindings. */
+/**
+ * Resolves observed source-field evidence into explicitly governed intelligence bindings.
+ * Binding by persisted source-field identity prevents collisions such as `name` or `amount`
+ * appearing in multiple provider products.
+ */
 export function resolveSourceFieldIntelligenceBindings(
-  observations: Array<{ id: string; field_path: string; evidence_state: string }>,
+  observations: Array<{ id: string; source_field_id: string; evidence_state: string }>,
   bindings: SourceFieldBinding[],
 ): SourceFieldIntelligenceEdge[] {
   const activeBindings = bindings.filter((binding) => binding.active);
   const edges: SourceFieldIntelligenceEdge[] = [];
 
   for (const observation of observations) {
-    const matching = activeBindings.filter((binding) => binding.sourceFieldPath === observation.field_path);
+    const matching = activeBindings.filter((binding) => binding.sourceFieldId === observation.source_field_id);
     for (const binding of matching) {
       const state = normalizeEvidenceState(observation.evidence_state);
       const publishable = binding.evidenceCompatible && state === "observed";
       edges.push({
         sourceFieldObservationId: observation.id,
+        sourceFieldId: observation.source_field_id,
         intelligenceNodeId: binding.intelligenceNodeId,
         fieldKey: binding.fieldKey,
         edgeRole: "source_field_to_intelligence",
