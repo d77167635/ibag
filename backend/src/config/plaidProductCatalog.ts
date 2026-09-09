@@ -55,5 +55,19 @@ export const PLAID_PRODUCT_CATALOG: readonly PlaidProductDefinition[] = [
 ] as const;
 
 export const PLAID_PRODUCT_BY_KEY = new Map(PLAID_PRODUCT_CATALOG.map((product) => [product.key, product]));
-export const PLAID_PRODUCT_STATE_TO_CATALOG_KEY = new Map<string, string>();
-for (const product of PLAID_PRODUCT_CATALOG) for (const state of product.plaidProductStates) PLAID_PRODUCT_STATE_TO_CATALOG_KEY.set(state, product.key);
+
+/**
+ * Canonical Item-state-to-capability relation.
+ *
+ * This is intentionally one-to-many: a single Plaid runtime state can support
+ * several distinct catalog capabilities. No capability may be selected merely
+ * because a state is cataloged; runtime availability, consent, entitlement,
+ * billing and observed evidence remain separate facts.
+ */
+export const PLAID_PRODUCT_STATE_TO_CATALOG_KEYS = new Map<string, readonly string[]>();
+for (const product of PLAID_PRODUCT_CATALOG) {
+  for (const state of product.plaidProductStates) {
+    const existing = PLAID_PRODUCT_STATE_TO_CATALOG_KEYS.get(state) ?? [];
+    PLAID_PRODUCT_STATE_TO_CATALOG_KEYS.set(state, [...existing, product.key]);
+  }
+}
