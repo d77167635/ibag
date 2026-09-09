@@ -1,10 +1,9 @@
 /**
- * Authoritative Iris decision boundary for a Plaid product.
+ * Authoritative Iris decision boundary for a Plaid capability.
  *
- * These dimensions are intentionally independent. Catalog existence does not
- * mean availability; availability does not mean consent; consent does not
- * mean entitlement; entitlement does not mean evidence; and evidence does not
- * by itself mean Iris should use a capability.
+ * Provider availability, authorization/products, consent, billing,
+ * entitlement, commercial terms, and observed evidence are independent
+ * dimensions. None may be inferred from another dimension.
  */
 export type PlaidProductState =
   | "cataloged"
@@ -24,6 +23,7 @@ export type PlaidEvidenceState = "observed" | "not_observed" | "not_available";
 export type PlaidConsentState = "consented" | "not_consented" | "unknown";
 export type PlaidEntitlementState = "entitled" | "not_entitled" | "unknown";
 export type PlaidCommercialState = "included" | "pass_through" | "unknown";
+export type PlaidBilledState = "billed" | "not_billed" | "unknown";
 export type PlaidSelectionBlocker =
   | "no_active_plan"
   | "not_entitled"
@@ -36,6 +36,7 @@ export interface PlaidProductDecisionInput {
   productKey: string;
   providerState: PlaidProductState;
   consentState: PlaidConsentState;
+  billedState: PlaidBilledState;
   entitlementState: PlaidEntitlementState;
   commercialState: PlaidCommercialState;
   evidenceState: PlaidEvidenceState;
@@ -48,6 +49,7 @@ export interface PlaidProductDecision {
   eligibleForIris: boolean;
   providerState: PlaidProductState;
   consentState: PlaidConsentState;
+  billedState: PlaidBilledState;
   entitlementState: PlaidEntitlementState;
   commercialState: PlaidCommercialState;
   evidenceState: PlaidEvidenceState;
@@ -59,7 +61,8 @@ export interface PlaidProductDecision {
 /**
  * Deterministic policy evaluation. This function performs no I/O and never
  * promotes an unobserved provider capability to an observed intelligence
- * capability.
+ * capability. Billing is reported independently and is never treated as
+ * authorization or evidence.
  */
 export function evaluatePlaidProductDecision(
   input: PlaidProductDecisionInput,
@@ -77,7 +80,7 @@ export function evaluatePlaidProductDecision(
     reasons.push("Plaid does not currently make this product available for this connection.");
   }
 
-  if (input.consentState !== "consented" && input.providerState !== "active") {
+  if (input.consentState !== "consented") {
     blockers.push("consent_required");
     reasons.push("User authorization is required before Iris can use this product.");
   }
@@ -95,6 +98,12 @@ export function evaluatePlaidProductDecision(
     reasons.push("The product is eligible for consideration but has not been observed as evidence yet.");
   }
 
+  if (input.billedState === "billed") {
+    reasons.push("Plaid reports this product as billed; billing is tracked separately from authorization and evidence.");
+  } else if (input.billedState === "unknown") {
+    reasons.push("Plaid billing state is unknown; no billing assumption is made.");
+  }
+
   const hardBlockers = blockers.filter((blocker) => blocker !== "evidence_required");
   if (hardBlockers.length > 0) {
     return {
@@ -103,6 +112,7 @@ export function evaluatePlaidProductDecision(
       eligibleForIris: false,
       providerState: input.providerState,
       consentState: input.consentState,
+      billedState: input.billedState,
       entitlementState: input.entitlementState,
       commercialState: input.commercialState,
       evidenceState: input.evidenceState,
@@ -119,6 +129,7 @@ export function evaluatePlaidProductDecision(
       eligibleForIris: true,
       providerState: input.providerState,
       consentState: input.consentState,
+      billedState: input.billedState,
       entitlementState: input.entitlementState,
       commercialState: input.commercialState,
       evidenceState: input.evidenceState,
@@ -135,6 +146,7 @@ export function evaluatePlaidProductDecision(
     eligibleForIris: true,
     providerState: input.providerState,
     consentState: input.consentState,
+    billedState: input.billedState,
     entitlementState: input.entitlementState,
     commercialState: input.commercialState,
     evidenceState: input.evidenceState,
