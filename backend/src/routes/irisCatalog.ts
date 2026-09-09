@@ -1,24 +1,13 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { supabaseAdmin } from "../config/supabase.js";
-import { IRIS_CATALOG, IRIS_CATALOG_VERSION, getIrisCatalogCapability } from "../intelligence/irisCatalog.js";
+import { IRIS_CATALOG, IRIS_CATALOG_VERSION, IRIS_STANDARD_CAPABILITY_IDS, getIrisCatalogCapability } from "../intelligence/irisCatalog.js";
 import { IRIS_CATALOG_EXPANSION } from "../intelligence/irisCatalogExpansion.js";
 
 export const irisCatalogRouter = Router();
 const CATALOG = [...IRIS_CATALOG, ...IRIS_CATALOG_EXPANSION];
 const STANDARD_LIMIT = 10;
-const STANDARD_IDS = [
-  "roundups",
-  "financial-state",
-  "cash-flow",
-  "spending",
-  "liquidity",
-  "debt",
-  "forecast",
-  "recurrence",
-  "causality",
-  "decision-lab",
-];
+const STANDARD_IDS = [...IRIS_STANDARD_CAPABILITY_IDS];
 
 const isKnown = (id: string) => !!getIrisCatalogCapability(id) || IRIS_CATALOG_EXPANSION.some(c => c.id === id);
 
