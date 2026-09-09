@@ -9,6 +9,8 @@ import { detectRecurringSeriesEvidenceBounded } from "./recurringEvidence.js";
 import { syncLiabilitiesForItem } from "../intelligence/liabilities.js";
 import { observeActivatedTrialProducts } from "./plaidTrialProductObservation.js";
 
+const SYNC_LEASE_SECONDS = 900;
+
 const updateSyncRun = async (id: string, patch: Record<string, unknown>) => {
   const { error } = await supabaseAdmin.from("sync_runs").update(patch).eq("id", id);
   if (error) throw error;
@@ -70,7 +72,7 @@ async function checkpointDurableTransactionCursor(userId: string, itemId: string
     cursor: cursor ?? null,
     pages_processed: pages,
     last_checkpoint_at: now,
-    last_success_at: cursor ? now : null,
+    last_success_at: now,
   }, { onConflict: "item_id,user_id" });
   if (error) throw error;
 }
@@ -98,70 +100,114 @@ async function normalizeTransaction(userId: string, accountId: string, tx: any) 
   if (error) throw error;
 }
 
+async function acquireSyncLease(userId: string, itemDbId: string, owner: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc("acquire_plaid_sync_lease", {
+    p_user_id: userId,
+    p_item_id: itemDbId,
+    p_lease_owner: owner,
+    p_lease_seconds: SYNC_LEASE_SECONDS,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+async function renewSyncLease(userId: string, itemDbId: string, owner: string): Promise<void> {
+  const { data, error } = await supabaseAdmin.rpc("renew_plaid_sync_lease", {
+    p_user_id: userId,
+    p_item_id: itemDbId,
+    p_lease_owner: owner,
+    p_lease_seconds: SYNC_LEASE_SECONDS,
+  });
+  if (error) throw error;
+  if (data !== true) throw new Error("Plaid sync lease was lost before the provider checkpoint could be renewed");
+}
+
+async function releaseSyncLease(userId: string, itemDbId: string, owner: string): Promise<void> {
+  const { error } = await supabaseAdmin.rpc("release_plaid_sync_lease", {
+    p_user_id: userId,
+    p_item_id: itemDbId,
+    p_lease_owner: owner,
+  });
+  if (error) throw error;
+}
+
 export async function fullSyncForItem(itemDbId: string, userId: string, accessToken: string, idempotencyKey?: string) {
-  // A missing key means a new sync invocation. A permanent item-scoped key
-  // would cause a completed historical run to suppress every future sync.
-  // Stable keys remain available to callers retrying the same event.
-  const key = idempotencyKey ?? `plaid-sync:${itemDbId}:${randomUUID()}`;
-  const { data: run, error } = await supabaseAdmin.rpc("begin_sync_run", { p_user_id: userId, p_item_id: itemDbId, p_idempotency_key: key });
-  if (error || !run?.[0]) throw error ?? new Error("Unable to create sync run");
-  const runId = run[0].id as string;
-  const priorState = run[0].state as string;
-  if (["completed", "validated"].includes(priorState)) return;
-  let added = 0, modified = 0, removed = 0;
+  const leaseOwner = randomUUID();
+  const leaseAcquired = await acquireSyncLease(userId, itemDbId, leaseOwner);
+  if (!leaseAcquired) throw new Error("Plaid Item sync already in progress; retry after the active sync releases its lease");
+
   try {
-    await updateSyncRun(runId, { state: "authorized", started_at: new Date().toISOString() });
-    const providerProducts = await observeProducts(userId, itemDbId, accessToken);
-    await updateSyncRun(runId, { state: "started" });
-    const accountsResp = await plaidClient.accountsGet({ access_token: accessToken });
-    const accountMap = new Map<string, string>();
-    await updateSyncRun(runId, { state: "receiving" });
-    for (const acct of accountsResp.data.accounts) {
-      const { data: row, error: accountError } = await supabaseAdmin.from("plaid_accounts").upsert({ user_id: userId, item_id: itemDbId, plaid_account_id: acct.account_id, name: acct.name, official_name: acct.official_name, mask: acct.mask, type: acct.type, subtype: acct.subtype, current_balance: acct.balances.current, available_balance: acct.balances.available, credit_limit: acct.balances.limit, balance_updated_at: new Date().toISOString() }, { onConflict: "plaid_account_id" }).select().single();
-      if (accountError) throw accountError;
-      accountMap.set(acct.account_id, row.id);
+    // A missing key means a new sync invocation. A permanent item-scoped key
+    // would cause a completed historical run to suppress every future sync.
+    // Stable keys remain available to callers retrying the same event.
+    const key = idempotencyKey ?? `plaid-sync:${itemDbId}:${randomUUID()}`;
+    const { data: run, error } = await supabaseAdmin.rpc("begin_sync_run", { p_user_id: userId, p_item_id: itemDbId, p_idempotency_key: key });
+    if (error || !run?.[0]) throw error ?? new Error("Unable to create sync run");
+    const runId = run[0].id as string;
+    const priorState = run[0].state as string;
+    if (["completed", "validated"].includes(priorState)) return;
+    let added = 0, modified = 0, removed = 0;
+    try {
+      await updateSyncRun(runId, { state: "authorized", started_at: new Date().toISOString() });
+      const providerProducts = await observeProducts(userId, itemDbId, accessToken);
+      await updateSyncRun(runId, { state: "started" });
+      const accountsResp = await plaidClient.accountsGet({ access_token: accessToken });
+      const accountMap = new Map<string, string>();
+      await updateSyncRun(runId, { state: "receiving" });
+      for (const acct of accountsResp.data.accounts) {
+        const { data: row, error: accountError } = await supabaseAdmin.from("plaid_accounts").upsert({ user_id: userId, item_id: itemDbId, plaid_account_id: acct.account_id, name: acct.name, official_name: acct.official_name, mask: acct.mask, type: acct.type, subtype: acct.subtype, current_balance: acct.balances.current, available_balance: acct.balances.available, credit_limit: acct.balances.limit, balance_updated_at: new Date().toISOString() }, { onConflict: "plaid_account_id" }).select().single();
+        if (accountError) throw accountError;
+        accountMap.set(acct.account_id, row.id);
+        const now = new Date().toISOString();
+        const { error: retireBalanceError } = await supabaseAdmin.from("plaid_raw_balances").update({ is_current: false }).eq("user_id", userId).eq("account_id", row.id).eq("is_current", true);
+        if (retireBalanceError) throw retireBalanceError;
+        const { error: balanceError } = await supabaseAdmin.from("plaid_raw_balances").insert({ user_id: userId, account_id: row.id, raw_response: acct, provider_object_id: acct.account_id, effective_at: now, acquired_at: now, evidence_state: "observed", provenance: { source: "plaid.accountsGet", item_id: itemDbId }, is_current: true });
+        if (balanceError) throw balanceError;
+      }
+      await markProductObserved(userId, itemDbId, "balance", "plaid.accountsGet");
+
+      const durableCursor = await getDurableTransactionCursor(userId, itemDbId);
+      let cursor: string | undefined = durableCursor.cursor;
+      let hasMore = true;
+      let pages = durableCursor.pages;
+      while (hasMore) {
+        await renewSyncLease(userId, itemDbId, leaseOwner);
+        await updateSyncRun(runId, { state: "provider_fetching", cursor });
+        const response = await plaidClient.transactionsSync({ access_token: accessToken, cursor });
+        await updateSyncRun(runId, { state: "validating" });
+        for (const tx of response.data.added ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); added++; }
+        for (const tx of response.data.modified ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid modified transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); modified++; }
+        for (const tx of response.data.removed ?? []) { if (!tx.transaction_id) continue; const { error: rawError } = await supabaseAdmin.rpc("retire_plaid_transaction_observation", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id }); if (rawError) throw rawError; const { error: normalizedError } = await supabaseAdmin.rpc("retire_normalized_transaction", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id, p_reason: "provider_removed" }); if (normalizedError) throw normalizedError; removed++; }
+        cursor = response.data.next_cursor;
+        hasMore = response.data.has_more;
+        pages++;
+        await checkpointDurableTransactionCursor(userId, itemDbId, cursor, pages);
+        await updateSyncRun(runId, { state: "committing", cursor, pages_processed: pages, added_count: added, modified_count: modified, removed_count: removed, last_checkpoint_at: new Date().toISOString() });
+      }
+
+      await markProductObserved(userId, itemDbId, "transactions", "plaid.transactionsSync");
+      await observeActivatedTrialProducts(userId, itemDbId, accessToken, providerProducts.added);
+      await updateSyncRun(runId, { state: "reconciling" });
+      const liabilityResult = await syncLiabilitiesForItem(userId, itemDbId, accessToken);
+      if (liabilityResult.observed) await markProductObserved(userId, itemDbId, "liabilities", "plaid.liabilities");
+      for (const accountId of accountMap.values()) await recomputeRoundupsForAccount(userId, accountId, accessToken);
+      await detectRecurringSeriesEvidenceBounded(userId);
+      await updateSyncRun(runId, { state: "intelligence_refresh" });
       const now = new Date().toISOString();
-      const { error: retireBalanceError } = await supabaseAdmin.from("plaid_raw_balances").update({ is_current: false }).eq("user_id", userId).eq("account_id", row.id).eq("is_current", true);
-      if (retireBalanceError) throw retireBalanceError;
-      const { error: balanceError } = await supabaseAdmin.from("plaid_raw_balances").insert({ user_id: userId, account_id: row.id, raw_response: acct, provider_object_id: acct.account_id, effective_at: now, acquired_at: now, evidence_state: "observed", provenance: { source: "plaid.accountsGet", item_id: itemDbId }, is_current: true });
-      if (balanceError) throw balanceError;
+      const { error: itemError } = await supabaseAdmin.from("plaid_items").update({ last_synced_at: now, status: "active" }).eq("id", itemDbId).eq("user_id", userId);
+      if (itemError) throw itemError;
+      await updateSyncRun(runId, { state: "validated", completed_at: now, last_checkpoint_at: now, added_count: added, modified_count: modified, removed_count: removed });
+      await updateSyncRun(runId, { state: "completed" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown sync failure";
+      try { await updateSyncRun(runId, { state: "retryable", error_message: message, completed_at: new Date().toISOString() }); } catch (checkpointError) { console.error("Unable to checkpoint failed sync:", checkpointError); }
+      throw error;
     }
-    await markProductObserved(userId, itemDbId, "balance", "plaid.accountsGet");
-
-    const durableCursor = await getDurableTransactionCursor(userId, itemDbId);
-    let cursor: string | undefined = durableCursor.cursor;
-    let hasMore = true;
-    let pages = durableCursor.pages;
-    while (hasMore) {
-      await updateSyncRun(runId, { state: "provider_fetching", cursor });
-      const response = await plaidClient.transactionsSync({ access_token: accessToken, cursor });
-      await updateSyncRun(runId, { state: "validating" });
-      for (const tx of response.data.added ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); added++; }
-      for (const tx of response.data.modified ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid modified transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); modified++; }
-      for (const tx of response.data.removed ?? []) { if (!tx.transaction_id) continue; const { error: rawError } = await supabaseAdmin.rpc("retire_plaid_transaction_observation", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id }); if (rawError) throw rawError; const { error: normalizedError } = await supabaseAdmin.rpc("retire_normalized_transaction", { p_user_id: userId, p_plaid_transaction_id: tx.transaction_id, p_reason: "provider_removed" }); if (normalizedError) throw normalizedError; removed++; }
-      cursor = response.data.next_cursor;
-      hasMore = response.data.has_more;
-      pages++;
-      await checkpointDurableTransactionCursor(userId, itemDbId, cursor, pages);
-      await updateSyncRun(runId, { state: "committing", cursor, pages_processed: pages, added_count: added, modified_count: modified, removed_count: removed, last_checkpoint_at: new Date().toISOString() });
+  } finally {
+    try {
+      await releaseSyncLease(userId, itemDbId, leaseOwner);
+    } catch (releaseError) {
+      console.error("Unable to release Plaid sync lease; it will expire automatically:", releaseError);
     }
-
-    await markProductObserved(userId, itemDbId, "transactions", "plaid.transactionsSync");
-    await observeActivatedTrialProducts(userId, itemDbId, accessToken, providerProducts.added);
-    await updateSyncRun(runId, { state: "reconciling" });
-    const liabilityResult = await syncLiabilitiesForItem(userId, itemDbId, accessToken);
-    if (liabilityResult.observed) await markProductObserved(userId, itemDbId, "liabilities", "plaid.liabilities");
-    for (const accountId of accountMap.values()) await recomputeRoundupsForAccount(userId, accountId, accessToken);
-    await detectRecurringSeriesEvidenceBounded(userId);
-    await updateSyncRun(runId, { state: "intelligence_refresh" });
-    const now = new Date().toISOString();
-    const { error: itemError } = await supabaseAdmin.from("plaid_items").update({ last_synced_at: now, status: "active" }).eq("id", itemDbId).eq("user_id", userId);
-    if (itemError) throw itemError;
-    await updateSyncRun(runId, { state: "validated", completed_at: now, last_checkpoint_at: now, added_count: added, modified_count: modified, removed_count: removed });
-    await updateSyncRun(runId, { state: "completed" });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown sync failure";
-    try { await updateSyncRun(runId, { state: "retryable", error_message: message, completed_at: new Date().toISOString() }); } catch (checkpointError) { console.error("Unable to checkpoint failed sync:", checkpointError); }
-    throw error;
   }
 }
