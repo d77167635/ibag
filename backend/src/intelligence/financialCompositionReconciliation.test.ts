@@ -55,3 +55,20 @@ test("fails on duplicate canonical account identity", () => {
   assert.deepEqual(result.duplicate_account_ids, ["duplicate"]);
   assert.equal(result.double_counting_risk, true);
 });
+
+test("fails closed on non-finite account balances", () => {
+  const result = reconcileFinancialComposition(
+    [
+      { account_id: "checking", item_id: "item-1", account_type: "depository", current_balance: Number.NaN, currency: "USD" },
+      { account_id: "savings", item_id: "item-1", account_type: "depository", current_balance: 1000, currency: "USD" },
+    ],
+    [],
+    [],
+    [],
+  );
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.net_worth, null);
+  assert.equal(result.net_worth_basis, "insufficient_evidence");
+  assert.deepEqual(result.invalid_account_ids, ["checking"]);
+});
