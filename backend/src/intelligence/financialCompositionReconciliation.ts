@@ -4,7 +4,7 @@ export interface AccountBalanceComponent {
   account_id: string;
   item_id: string;
   account_type: string;
-  current_balance: number;
+  current_balance: number | null;
   currency?: string | null;
 }
 
@@ -42,6 +42,7 @@ export interface FinancialCompositionReconciliation {
   currencies: string[];
   duplicate_account_ids: string[];
   invalid_account_ids: string[];
+  missing_balance_account_ids: string[];
   investment_account_overlap: string[];
   liability_account_overlap: string[];
   asset_account_overlap: string[];
@@ -50,10 +51,10 @@ export interface FinancialCompositionReconciliation {
 }
 
 /**
- * Reconciles financial composition without treating overlapping provider products
- * as additive. Account balances are the sole net-worth basis here; specialized
- * holdings, liability and asset-report values are retained as corroborating
- * domains until explicit identity/valuation reconciliation exists.
+ * Reconciles financial composition without overlapping provider products being
+ * treated as additive. A complete account-balance set is required before any
+ * additive composition is published; null balance evidence is never converted
+ * to zero.
  */
 export function reconcileFinancialComposition(
   accounts: AccountBalanceComponent[],
@@ -62,17 +63,23 @@ export function reconcileFinancialComposition(
   assets: AssetReportValue[],
 ): FinancialCompositionReconciliation {
   const duplicateAccountIds = [...new Set(accounts.map((row) => row.account_id).filter((id, index, all) => all.indexOf(id) !== index))].sort();
-  const invalidAccountIds = [...new Set(accounts.filter((row) => !Number.isFinite(row.current_balance)).map((row) => row.account_id))].sort();
+  const invalidAccountIds = [...new Set(accounts.filter((row) => row.current_balance != null && !Number.isFinite(row.current_balance)).map((row) => row.account_id))].sort();
+  const missingBalanceAccountIds = [...new Set(accounts.filter((row) => row.current_balance == null).map((row) => row.account_id))].sort();
   const currencies = [...new Set(accounts.map((row) => row.currency).filter((value): value is string => Boolean(value)).map((value) => value.toUpperCase()))].sort();
   const currencySafe = currencies.length <= 1;
+  const balancesComplete = missingBalanceAccountIds.length === 0;
   const depository = accounts.filter((row) => row.account_type.toLowerCase() === "depository");
   const investments = accounts.filter((row) => row.account_type.toLowerCase() === "investment");
   const debt = accounts.filter((row) => ["credit", "loan"].includes(row.account_type.toLowerCase()));
-  const sum = (rows: Array<{ current_balance: number }>) => rows.length ? rows.reduce((total, row) => total + row.current_balance, 0) : null;
-  const liquidAssets = currencySafe && invalidAccountIds.length === 0 ? sum(depository) : null;
-  const investmentAccounts = currencySafe && invalidAccountIds.length === 0 ? sum(investments) : null;
-  const debtAccounts = currencySafe && invalidAccountIds.length === 0 ? sum(debt) : null;
-  const netWorth = currencySafe && invalidAccountIds.length === 0 && accounts.length > 0 ? (liquidAssets ?? 0) + (investmentAccounts ?? 0) - (debtAccounts ?? 0) : null;
+  const sum = (rows: Array<{ current_balance: number | null }>) => rows.length && rows.every((row) => row.current_balance != null && Number.isFinite(row.current_balance))
+    ? rows.reduce((total, row) => total + (row.current_balance as number), 0)
+    : null;
+  const liquidAssets = currencySafe && balancesComplete && invalidAccountIds.length === 0 ? sum(depository) : null;
+  const investmentAccounts = currencySafe && balancesComplete && invalidAccountIds.length === 0 ? sum(investments) : null;
+  const debtAccounts = currencySafe && balancesComplete && invalidAccountIds.length === 0 ? sum(debt) : null;
+  const netWorth = currencySafe && balancesComplete && invalidAccountIds.length === 0 && accounts.length > 0
+    ? (liquidAssets ?? 0) + (investmentAccounts ?? 0) - (debtAccounts ?? 0)
+    : null;
 
   const accountIds = new Set(accounts.map((row) => row.account_id));
   const investmentAccountOverlap = holdings.filter((row) => row.account_id && accountIds.has(row.account_id)).map((row) => row.holding_id).sort();
@@ -88,10 +95,11 @@ export function reconcileFinancialComposition(
     "Holding, liability-product, and asset-report values are corroborating observations until explicit provider-object identity and valuation-period reconciliation is available.",
     "A net-worth value is not certified across mixed currencies; currency conversion is not performed at this boundary.",
     "Non-finite account balances are never aggregated into financial composition.",
+    "Missing account balance evidence is never converted to zero; additive composition remains unavailable until the required balances are observed.",
   ];
   const doubleCountingRisk = duplicateAccountIds.length > 0 || investmentAccountOverlap.length > 0 || liabilityAccountOverlap.length > 0 || assetAccountOverlap.length > 0;
   const failed = duplicateAccountIds.length > 0 || invalidAccountIds.length > 0;
-  const warning = !currencySafe || doubleCountingRisk || accounts.length === 0;
+  const warning = !currencySafe || doubleCountingRisk || accounts.length === 0 || !balancesComplete;
 
   return {
     status: failed ? "failed" : warning ? "warning" : "reconciled",
@@ -106,6 +114,7 @@ export function reconcileFinancialComposition(
     currencies,
     duplicate_account_ids: duplicateAccountIds,
     invalid_account_ids: invalidAccountIds,
+    missing_balance_account_ids: missingBalanceAccountIds,
     investment_account_overlap: investmentAccountOverlap,
     liability_account_overlap: liabilityAccountOverlap,
     asset_account_overlap: assetAccountOverlap,
