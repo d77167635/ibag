@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { classifyCapabilityContract, type CapabilityContract } from "./capabilityReadiness.js";
 
-const contract = (key: string, metadata: Record<string, unknown>): CapabilityContract => ({
+const contract = (key: string, metadata: Record<string, unknown>, active = true): CapabilityContract => ({
   key,
   label: key,
   capability_group: "test",
   description: null,
   metadata,
-  active: true,
+  active,
 });
 
 test("catalog presence is discoverable, not automatically ready", () => {
@@ -31,4 +31,17 @@ test("a non-ready dependency blocks downstream readiness", () => {
   const candidate = contract("analysis", { dependencies: ["source"], evidence_ready: true, runtime_proven: true });
   assert.equal(classifyCapabilityContract(candidate, [candidate, dependency]), "blocked");
   assert.equal(classifyCapabilityContract(dependency, [candidate, dependency]), "discoverable");
+});
+
+test("an inactive dependency blocks downstream readiness", () => {
+  const dependency = contract("source", { evidence_ready: true, runtime_proven: true }, false);
+  const candidate = contract("analysis", { dependencies: ["source"], evidence_ready: true, runtime_proven: true });
+  assert.equal(classifyCapabilityContract(candidate, [candidate, dependency]), "blocked");
+});
+
+test("cyclic dependencies fail closed instead of becoming ready", () => {
+  const a = contract("a", { dependencies: ["b"], evidence_ready: true, runtime_proven: true });
+  const b = contract("b", { dependencies: ["a"], evidence_ready: true, runtime_proven: true });
+  assert.equal(classifyCapabilityContract(a, [a, b]), "blocked");
+  assert.equal(classifyCapabilityContract(b, [a, b]), "blocked");
 });
