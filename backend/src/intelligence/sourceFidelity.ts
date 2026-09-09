@@ -74,7 +74,7 @@ export async function assessSourceFidelity(userId: string) {
       account_id: String(row.id),
       item_id: String(row.item_id),
       account_type: String(row.type || ""),
-      current_balance: Number(row.current_balance),
+      current_balance: row.current_balance == null ? null : Number(row.current_balance),
       currency: typeof row.iso_currency_code === "string" ? row.iso_currency_code : null,
     })),
     [],
@@ -86,6 +86,7 @@ export async function assessSourceFidelity(userId: string) {
     && compositionBase.net_worth_basis === "account_balances_only"
     && !compositionBase.double_counting_risk
     && compositionBase.duplicate_account_ids.length === 0
+    && compositionBase.missing_balance_account_ids.length === 0
     && compositionBase.currencies.length <= 1;
   compositionBaseSafe
     ? pass("financial_composition_base", "Financial composition base safety", "Account identities, finite balances, and account-balance currency are safe for a non-overlapping base composition; specialized provider values remain non-additive until separately reconciled.", compositionBase.net_worth, "account_balances_only")
@@ -132,6 +133,6 @@ export async function assessSourceFidelity(userId: string) {
       const raw = new Set(rawProductRows.filter(r => r.item_id === item.id && OBSERVED_PROVIDER_EVIDENCE.has(r.evidence_state || "")).map(r => r.product));
       return { item: item.id, missing_observed: CANONICAL_PRODUCTS.filter(p => !observed.has(p)), missing_raw: CANONICAL_PRODUCTS.filter(p => !(p === "transactions" ? itemHasCurrentTx(item.id) : p === "balance" ? itemHasCurrentBalance(item.id) : p === "liabilities" ? itemHasCurrentLiability(item.id) : raw.has(p))) };
     }),
-    generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary, canonical transaction reconciliation is required before higher-order readiness, and account-balance composition must be finite, currency-safe, and free of duplicate identity risk."
+    generated_at: new Date().toISOString(), principle: "Plaid observations remain source-of-truth provider evidence; Iris may interpret them only within the certified same-Item evidence boundary, canonical transaction reconciliation is required before higher-order readiness, and account-balance composition must be finite, currency-safe, complete, and free of duplicate identity risk."
   };
 }
