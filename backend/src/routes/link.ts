@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Router } from "express";
 import type { CountryCode, Products } from "plaid";
 import { plaidClient } from "../plaid/client.js";
@@ -18,6 +19,10 @@ function safePlaidError(err: unknown) {
     error_type: e?.response?.data?.error_type,
     request_id: e?.response?.data?.request_id,
   };
+}
+
+function linkExchangeIdempotencyKey(publicToken: string): string {
+  return `plaid-link-exchange:${createHash("sha256").update(publicToken).digest("hex")}`;
 }
 
 linkRouter.post("/link/token", requireAuth, async (req: AuthedRequest, res) => {
@@ -103,7 +108,10 @@ linkRouter.post("/link/exchange", requireAuth, async (req: AuthedRequest, res) =
       itemDbId = itemRow.id;
     }
     if (!itemDbId) throw new Error("Plaid Item persistence did not return an Item id");
-    await fullSyncForItem(itemDbId, req.userId!, accessToken, `plaid-link-exchange:${itemDbId}`);
+    // The idempotency key is derived from the one-time public token rather than
+    // the persistent Item. A future reconnect/resync must not be suppressed by
+    // a historical successful Link exchange for the same Item.
+    await fullSyncForItem(itemDbId, req.userId!, accessToken, linkExchangeIdempotencyKey(public_token));
     res.json({ item_id: itemDbId, institution_name: institutionName, status: "ready" });
   } catch (err) {
     console.error("link/exchange error", safePlaidError(err));
