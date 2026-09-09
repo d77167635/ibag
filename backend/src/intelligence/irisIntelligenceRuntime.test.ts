@@ -14,6 +14,9 @@ test("runtime defaults to insufficient evidence rather than inventing readiness"
   assert.ok(state);
   assert.equal(state.readiness, "insufficient_evidence");
   assert.equal(state.available, false);
+  assert.ok(state.prerequisites.includes("evidence_validated"));
+  assert.ok(state.educationSurfaces.includes("what_it_means"));
+  assert.ok(state.interactionModes.includes("trace"));
 });
 
 test("complete certified evidence makes an enabled feature ready", () => {
@@ -26,6 +29,19 @@ test("complete certified evidence makes an enabled feature ready", () => {
   assert.equal(state.readiness, "ready");
   assert.equal(state.available, true);
   assert.deepEqual(state.observedSupportingProducts, ["transactions"]);
+});
+
+test("explicit evidence statuses are authoritative over a fallback coverage number", () => {
+  const runtime = buildIrisIntelligenceRuntime({
+    evidenceCoverageByCapabilityId: { "financial-state": 1 },
+    evidenceStatusByFeatureId: {
+      [featureId]: { "state.financial-state": "stale" },
+    },
+  });
+  const state = runtime.states.find((item) => item.featureId === featureId);
+  assert.ok(state);
+  assert.equal(state.evidenceCoverage, 0);
+  assert.equal(state.readiness, "insufficient_evidence");
 });
 
 test("partial evidence remains limited", () => {
