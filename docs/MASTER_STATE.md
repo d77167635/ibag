@@ -6,12 +6,12 @@
 - Product: Iris
 - Repository: `d77167635/ibag`
 - Default branch: `main`
-- Last verified commit at initialization of this continuity system: `7a94afe13b6bdbfd339829d5dcc0a7492d03627c`
+- Latest verified continuity checkpoint before this update: `423bcebf3617995138e025bea189e8fd3dd8a5c2`
 - Repository status: active, public, non-archived
 
 ## Core product boundary
-- **Plaid Dashboard** = provider/source observability. It answers: "What financial information is iBag actually receiving from Plaid?"
-- **Iris Dashboard** = synthesized intelligence. It answers: "What can Iris understand from the available evidence?"
+- **Plaid Dashboard** = provider/source observability. It answers: "What financial information is actually available/received from Plaid?"
+- **Iris Dashboard** = synthesized intelligence. It answers: "What can Iris understand from available evidence?"
 - **Iris Features** = independently controllable intelligence capabilities. A feature may span many workspaces/views.
 - **Iris Product Selection** = selects useful Plaid capabilities subject to availability, institution support, user consent, plan entitlement, product cost, and intelligence value.
 
@@ -24,30 +24,32 @@
 - Provider/source observability must not be mixed with Iris interpretation.
 
 ## Architecture
-`Plaid Product Universe → Product Catalog → Availability/Entitlement/Cost → Provider Observations → Canonical Financial Life State → Relational Ontology → Iris Intelligence Engine → Iris Feature Registry → Iris Dashboard/Workspaces`
+`Plaid Product Universe → Product Catalog → Availability/Consent/Entitlement/Cost → Provider Observations → Canonical Financial Life State → Relational Ontology → Iris Intelligence Engine → Iris Feature Registry → Iris Dashboard/Workspaces`
 
-## Current known implementation direction
-- Ontology-driven Iris workspace architecture exists in the repository.
-- Recursive workspace navigation is intended to derive from the ontology rather than a fixed page count.
-- Entity intelligence is being expanded toward: entity → observations → relationships → changes → evidence → interpretation.
-- Field-level provider-to-intelligence lineage has been implemented in recent work.
-- Intelligence aggregation has been moved through a dispatcher in recent work.
-- Deployment has recently been standardized around Node 22 for Supabase Realtime compatibility.
+## Verified implementation foundations
+- `backend/src/config/plaidProductCatalogV2.ts` contains the expanded application product/capability catalog.
+- `backend/src/config/plaidCapabilityRegistry.ts` separates public product surfaces from runtime Item product states and exposes Item-state coverage.
+- `backend/src/services/plaidProductSelectionV4.ts` evaluates active-plan entitlement, commercial terms, provider runtime state, and persisted observed evidence as distinct facts.
+- `backend/src/routes/plaidSurface.ts` and `backend/src/routes/plaidCapabilities.ts` expose Plaid source/capability observability.
+- `backend/src/intelligence/irisCatalog.ts` and `irisCatalogExpansion.ts` provide the existing Iris capability catalog foundation.
+- `frontend/src/components/PlaidDashboard.tsx` provides the Plaid-facing dashboard surface.
+- `frontend/src/components/IrisCatalog.tsx` and `IrisIntelligenceWorkspace.tsx` provide the Iris feature/workspace foundation.
+- Recursive ontology-driven workspace navigation and entity/detail foundations exist and should be extended rather than duplicated.
 
-## Plaid capability layer — target contract
-For every supported Plaid product/domain, maintain:
-- product identity and version
+## Plaid capability contract
+For every supported product/domain, maintain:
+- stable product identity and version
 - capability/data domains
 - institution/connection availability
 - consent requirements
-- observation/evidence state
+- provider observation/evidence state
 - plan entitlement
 - Plaid cost classification
-- iBag/user charge configuration when applicable
+- user charge/pass-through configuration when applicable
 - intelligence contributions
 - lineage and freshness
 
-Initial commercial rule: products are included unless Plaid charges iBag for the product. Product pricing must be configuration/data, not hardcoded into intelligence logic.
+Initial commercial rule: products are included unless Plaid charges the platform for the product. Product pricing must be configuration/data, not hardcoded into intelligence logic.
 
 ## Iris Feature contract
 Every feature should have:
@@ -65,7 +67,12 @@ Every feature should have:
 Feature activation must never manufacture missing evidence.
 
 ## Current priority
-Build the durable continuity system first, then complete the authoritative Plaid Product Catalog + Product Capability Matrix + Plan Entitlement/Cost Matrix + Iris Product Selection Engine + Iris Feature Registry, followed by deep recursive entity intelligence and full user-facing workspaces.
+1. Finish authoritative Plaid catalog/capability coverage and runtime-state verification.
+2. Complete plan entitlement, consent, availability, and commercial-cost semantics without conflating them with evidence.
+3. Strengthen Iris Product Selection as a first-class decision layer.
+4. Make Plaid Dashboard consume the authoritative product catalog and runtime evidence cleanly.
+5. Make Iris Feature Registry authoritative for independently enabled/disabled intelligence capabilities.
+6. Continue recursive financial-life entity intelligence and deep workspaces.
 
 ## Completion principle
 There is no arbitrary artifact-count target. Completion is capability-based: the system is complete only when the required architecture, evidence contracts, intelligence hierarchy, user controls, explainability, education, and deployed user experience are implemented and verified.
@@ -73,7 +80,7 @@ There is no arbitrary artifact-count target. Completion is capability-based: the
 ## Session protocol
 1. Read this file.
 2. Read `ARCHITECTURE.md`, `DECISIONS.md`, `ROADMAP.md`, and `SESSION_HANDOFF.md`.
-3. Inspect the current repository/commit before modifying anything.
-4. Verify whether claimed deployments or tests are actually current.
+3. Inspect the current `main` commit before modifying anything.
+4. Verify deployment/test status instead of relying on chat claims.
 5. Continue the highest-priority unfinished capability; do not recreate completed work.
-6. Commit implementation and update continuity records.
+6. Commit meaningful implementation changes and update continuity records.
