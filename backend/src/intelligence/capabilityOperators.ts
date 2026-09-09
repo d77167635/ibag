@@ -25,7 +25,7 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   { capability_id: "relationship", operator_id: "relationship", version: "1.0.0", status: "implemented", execution_stage: "financial_reasoning", evidence_state: "INFERRED" },
   { capability_id: "anomaly", operator_id: "anomaly", version: "1.0.0", status: "implemented", execution_stage: "canonical_anomalies", evidence_state: "CALCULATED" },
   { capability_id: "causal", operator_id: "causal", version: "1.0.0", status: "planned", execution_stage: "causal_analysis", evidence_state: "INFERRED" },
-  { capability_id: "predictive", operator_id: "predictive", version: "1.0.0", status: "planned", execution_stage: "forward_projection", evidence_state: "PREDICTED" },
+  { capability_id: "predictive", operator_id: "predictive", version: "1.0.0", status: "implemented", execution_stage: "forward_projection", evidence_state: "PREDICTED" },
   { capability_id: "scenario", operator_id: "scenario", version: "1.0.0", status: "planned", execution_stage: "counterfactual_analysis", evidence_state: "SCENARIO" },
   { capability_id: "decision", operator_id: "decision", version: "1.0.0", status: "planned", execution_stage: "decision_intelligence", evidence_state: "INFERRED" },
   { capability_id: "recommendation", operator_id: "recommendation", version: "1.0.0", status: "planned", execution_stage: "optimization_and_goals", evidence_state: "INFERRED" },
