@@ -3,7 +3,7 @@
  *
  * Membership here means Plaid documents the identifier in Item product state
  * fields. It does not mean available, entitled, consented, billed, active,
- * or observed for an iBag user.
+ * or observed for an Iris user.
  */
 export const PLAID_ITEM_PRODUCT_STATES = [
   "assets", "auth", "balance", "balance_plus", "beacon", "identity", "identity_match",
