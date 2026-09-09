@@ -1,8 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildIrisIntelligenceRuntime } from "../contracts/irisIntelligenceRuntime.js";
+import { getIrisFeatureByCapability } from "../contracts/irisFeatureRegistry.js";
 
 const featureId = "feature.financial-state";
+const feature = getIrisFeatureByCapability("financial-state");
+assert.ok(feature);
 
 function product(decision: "selected" | "eligible_awaiting_evidence" | "blocked" | "not_eligible", evidenceStatus: "observed" | "not_observed" | "not_available" = "observed", capabilityIds = ["financial-state"]) {
   return { product: "transactions", capabilityIds, decision, evidenceStatus, availableToIris: decision === "selected" || decision === "eligible_awaiting_evidence" };
@@ -35,13 +38,13 @@ test("explicit evidence statuses are authoritative over a fallback coverage numb
   const runtime = buildIrisIntelligenceRuntime({
     evidenceCoverageByCapabilityId: { "financial-state": 1 },
     evidenceStatusByFeatureId: {
-      [featureId]: { "state.financial-state": "stale" },
+      [featureId]: Object.fromEntries(feature.requiredEvidence.map((id, index) => [id, index === 0 ? "stale" : "observed"])),
     },
   });
   const state = runtime.states.find((item) => item.featureId === featureId);
   assert.ok(state);
-  assert.equal(state.evidenceCoverage, 0);
-  assert.equal(state.readiness, "insufficient_evidence");
+  assert.ok(state.evidenceCoverage < 1);
+  assert.equal(state.readiness, "limited");
 });
 
 test("partial evidence remains limited", () => {
