@@ -1,4 +1,3 @@
-import { supabaseAdmin } from "../config/supabase.js";
 import { IRIS_FEATURE_REGISTRY } from "../contracts/irisFeatureRegistry.js";
 import { IRIS_STANDARD_CAPABILITY_IDS } from "./irisCatalog.js";
 import { buildIrisFeatureRuntime } from "./irisFeatureRuntime.js";
@@ -75,8 +74,11 @@ export function buildIrisPublicationRuntime(
 /**
  * Builds the single publication context shared by Iris intelligence surfaces.
  * Atlas readiness is analytical evidence, not a raw provider-observation claim.
+ * The provider-backed dependency is loaded lazily so the pure publication
+ * runtime remains executable in environments without production secrets.
  */
 export async function buildIrisPublicationContext(userId: string, atlasDefinitions: AtlasDefinitionInput[]) {
+  const { supabaseAdmin } = await import("../config/supabase.js");
   const { data: preference, error } = await supabaseAdmin
     .from("iris_user_intelligence_preferences")
     .select("selected_capability_ids")
