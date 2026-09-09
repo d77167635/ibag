@@ -5,7 +5,7 @@ This file is the compact bridge between chat sessions.
 ## Last verified repository state
 - Repository: `d77167635/ibag`
 - Branch: `main`
-- Current verified tip before this handoff update: cf0e56570b3300e8cddadae6419432bf4008ebad
+- Current verified tip before this handoff update: 09aa1280024cf322f9b63fb364e5f01b4bfb6b1e
 - The current tip includes the durable continuity documents and `docs/CHANGELOG.md`.
 
 ## Verified implementation state
