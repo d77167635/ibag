@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyCapabilityContract, type CapabilityContract } from "./recursiveCapabilityGraph.js";
+import { classifyCapabilityContract, type CapabilityContract } from "./capabilityReadiness.js";
 
 const contract = (key: string, metadata: Record<string, unknown>): CapabilityContract => ({
   key,
