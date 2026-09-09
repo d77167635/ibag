@@ -26,9 +26,9 @@ test("a missing declared dependency blocks composition", () => {
   assert.equal(classifyCapabilityContract(candidate, [candidate]), "blocked");
 });
 
-test("a declared dependency can remain discoverable without falsely becoming ready", () => {
+test("a non-ready dependency blocks downstream readiness", () => {
   const dependency = contract("source", { evidence_ready: false, runtime_proven: false });
   const candidate = contract("analysis", { dependencies: ["source"], evidence_ready: true, runtime_proven: true });
-  assert.equal(classifyCapabilityContract(candidate, [candidate, dependency]), "ready");
+  assert.equal(classifyCapabilityContract(candidate, [candidate, dependency]), "blocked");
   assert.equal(classifyCapabilityContract(dependency, [candidate, dependency]), "discoverable");
 });
