@@ -1,4 +1,5 @@
 import { IRIS_FEATURE_REGISTRY } from "../contracts/irisFeatureRegistry.js";
+import type { IrisFeatureActivation } from "../contracts/irisFeatureRegistry.js";
 import { IRIS_STANDARD_CAPABILITY_IDS } from "./irisCatalog.js";
 import { buildIrisFeatureRuntime } from "./irisFeatureRuntime.js";
 import { buildIrisIntelligenceOutputRuntime } from "./irisIntelligenceOutputRuntime.js";
@@ -13,26 +14,22 @@ type AtlasDefinitionInput = {
   output?: string;
 };
 
-/**
- * Pure publication-runtime adapter. It performs no provider I/O and accepts
- * only the analytical readiness boundary already produced by Iris execution.
- */
 export function buildIrisPublicationRuntime(
   atlasDefinitions: AtlasDefinitionInput[],
   selectedCapabilityIds: string[],
 ) {
-  const activations = Object.fromEntries(
+  const activations: Record<string, IrisFeatureActivation> = Object.fromEntries(
     IRIS_FEATURE_REGISTRY.map((feature) => [
       feature.featureId,
       selectedCapabilityIds.includes(feature.capabilityId) ? "enabled" : "disabled",
     ]),
-  );
+  ) as Record<string, IrisFeatureActivation>;
 
   const readyAtlasIds = new Set(
     atlasDefinitions.filter((definition) => definition.evidence_ready === true).map((definition) => definition.id),
   );
 
-  const evidenceCoverage = Object.fromEntries(
+  const evidenceCoverage: Record<string, number> = Object.fromEntries(
     IRIS_FEATURE_REGISTRY.map((feature) => {
       const required = feature.requiredEvidence;
       if (required.length === 0) return [feature.featureId, 0];
