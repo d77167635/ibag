@@ -7,6 +7,7 @@ test("observed entitled active product is selected", () => {
     productKey: "transactions",
     providerState: "active",
     consentState: "consented",
+    billedState: "not_billed",
     entitlementState: "entitled",
     commercialState: "included",
     evidenceState: "observed",
@@ -14,6 +15,7 @@ test("observed entitled active product is selected", () => {
   });
   assert.equal(result.decision, "selected");
   assert.equal(result.eligibleForIris, true);
+  assert.equal(result.billedState, "not_billed");
   assert.deepEqual(result.blockers, []);
 });
 
@@ -22,6 +24,7 @@ test("available product is eligible but cannot be selected without evidence", ()
     productKey: "income",
     providerState: "available",
     consentState: "consented",
+    billedState: "not_billed",
     entitlementState: "entitled",
     commercialState: "included",
     evidenceState: "not_observed",
@@ -37,6 +40,7 @@ test("catalog membership cannot bypass entitlement", () => {
     productKey: "investments",
     providerState: "active",
     consentState: "consented",
+    billedState: "not_billed",
     entitlementState: "not_entitled",
     commercialState: "included",
     evidenceState: "observed",
@@ -52,6 +56,7 @@ test("unknown commercial terms never become an assumed free selection", () => {
     productKey: "identity",
     providerState: "active",
     consentState: "consented",
+    billedState: "unknown",
     entitlementState: "entitled",
     commercialState: "unknown",
     evidenceState: "observed",
@@ -67,6 +72,7 @@ test("consented-but-unobserved remains distinct from observed", () => {
     productKey: "balance",
     providerState: "consented",
     consentState: "consented",
+    billedState: "not_billed",
     entitlementState: "entitled",
     commercialState: "included",
     evidenceState: "not_observed",
@@ -75,4 +81,37 @@ test("consented-but-unobserved remains distinct from observed", () => {
   assert.equal(result.decision, "eligible_awaiting_evidence");
   assert.equal(result.evidenceState, "not_observed");
   assert.ok(result.reasons.some((reason) => reason.includes("not been observed")));
+});
+
+test("billed state never masquerades as active authorization", () => {
+  const result = evaluatePlaidProductDecision({
+    productKey: "income",
+    providerState: "available",
+    consentState: "consented",
+    billedState: "billed",
+    entitlementState: "entitled",
+    commercialState: "pass_through",
+    evidenceState: "not_observed",
+    intelligenceScore: 40,
+  });
+  assert.equal(result.providerState, "available");
+  assert.equal(result.billedState, "billed");
+  assert.equal(result.decision, "eligible_awaiting_evidence");
+  assert.ok(!result.reasons.some((reason) => reason.includes("authorized")));
+});
+
+test("active authorization does not imply consent unless consent is explicitly observed", () => {
+  const result = evaluatePlaidProductDecision({
+    productKey: "transactions",
+    providerState: "active",
+    consentState: "unknown",
+    billedState: "not_billed",
+    entitlementState: "entitled",
+    commercialState: "included",
+    evidenceState: "observed",
+    intelligenceScore: 50,
+  });
+  assert.equal(result.decision, "blocked");
+  assert.equal(result.consentState, "unknown");
+  assert.ok(result.blockers.includes("consent_required"));
 });
