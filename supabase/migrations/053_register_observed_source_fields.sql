@@ -28,7 +28,7 @@ with family_map(product, node_key) as (
   group by s.provider, s.product, s.field_path
 ), registry_rows as (
   select
-    f.node_id as family_node_id,
+    f.id as family_node_id,
     o.provider,
     o.product,
     o.field_path,
