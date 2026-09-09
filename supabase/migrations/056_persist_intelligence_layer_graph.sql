@@ -17,23 +17,26 @@ with layer_rows(key,label,description) as (
     ('outcome','Outcome Intelligence','Observes outcomes of decisions and compares them with expected consequences.'),
     ('learning','Learning Intelligence','Uses verified outcomes to improve future reasoning and user-specific intelligence.'),
     ('emergent','Emergent Intelligence','Synthesizes higher-order discoveries from governed lower-order intelligence.')
-), inserted as (
-  insert into public.iris_intelligence_nodes(key,label,node_type,description,domain_key,metadata,active)
-  select key,label,'intelligence_layer',description,'iris',jsonb_build_object('capability_id',key,'graph_role','recursive_intelligence_layer','graph_version','IRIS_RECURSIVE_LAYER_GRAPH_V1'),true
-  from layer_rows
-  on conflict (key) do update set
-    label=excluded.label,
-    node_type=excluded.node_type,
-    description=excluded.description,
-    domain_key=excluded.domain_key,
-    metadata=excluded.metadata,
-    active=excluded.active
-  returning id,key
+)
+insert into public.iris_intelligence_nodes(key,label,node_type,description,domain_key,metadata,active)
+select key,label,'intelligence_layer',description,'iris',jsonb_build_object('capability_id',key,'graph_role','recursive_intelligence_layer','graph_version','IRIS_RECURSIVE_LAYER_GRAPH_V1'),true
+from layer_rows
+on conflict (key) do update set
+  label=excluded.label,
+  node_type=excluded.node_type,
+  description=excluded.description,
+  domain_key=excluded.domain_key,
+  metadata=excluded.metadata,
+  active=excluded.active;
+
+with layer_keys(key) as (
+  values ('analysis'),('temporal'),('behavioral'),('pattern'),('relationship'),('anomaly'),('causal'),('predictive'),('scenario'),('decision'),('recommendation'),('outcome'),('learning'),('emergent')
 )
 insert into public.iris_intelligence_edges(from_node_id,to_node_id,relation,metadata)
 select root.id,layer.id,'governs_intelligence_layer',jsonb_build_object('graph_version','IRIS_RECURSIVE_LAYER_GRAPH_V1')
 from public.iris_intelligence_nodes root
-join inserted layer on true
+join layer_keys layer_key on true
+join public.iris_intelligence_nodes layer on layer.key=layer_key.key and layer.node_type='intelligence_layer'
 where root.key='iris'
 on conflict do nothing;
 
@@ -41,53 +44,17 @@ with dependency_rows(from_key,to_key) as (
   values
     ('analysis','temporal'),
     ('behavioral','analysis'),
-    ('pattern','analysis'),
-    ('pattern','behavioral'),
-    ('relationship','analysis'),
-    ('relationship','behavioral'),
-    ('relationship','pattern'),
-    ('anomaly','analysis'),
-    ('anomaly','temporal'),
-    ('anomaly','behavioral'),
-    ('anomaly','pattern'),
-    ('causal','analysis'),
-    ('causal','temporal'),
-    ('causal','behavioral'),
-    ('causal','pattern'),
-    ('causal','relationship'),
-    ('predictive','analysis'),
-    ('predictive','temporal'),
-    ('predictive','behavioral'),
-    ('predictive','pattern'),
-    ('predictive','relationship'),
-    ('predictive','causal'),
-    ('scenario','predictive'),
-    ('scenario','causal'),
-    ('scenario','relationship'),
-    ('decision','predictive'),
-    ('decision','causal'),
-    ('decision','relationship'),
-    ('decision','scenario'),
-    ('recommendation','decision'),
-    ('recommendation','scenario'),
-    ('recommendation','causal'),
-    ('outcome','predictive'),
-    ('outcome','decision'),
-    ('outcome','recommendation'),
-    ('learning','decision'),
-    ('learning','recommendation'),
-    ('learning','outcome'),
-    ('emergent','analysis'),
-    ('emergent','behavioral'),
-    ('emergent','pattern'),
-    ('emergent','relationship'),
-    ('emergent','causal'),
-    ('emergent','predictive'),
-    ('emergent','scenario'),
-    ('emergent','decision'),
-    ('emergent','recommendation'),
-    ('emergent','learning'),
-    ('emergent','outcome')
+    ('pattern','analysis'),('pattern','behavioral'),
+    ('relationship','analysis'),('relationship','behavioral'),('relationship','pattern'),
+    ('anomaly','analysis'),('anomaly','temporal'),('anomaly','behavioral'),('anomaly','pattern'),
+    ('causal','analysis'),('causal','temporal'),('causal','behavioral'),('causal','pattern'),('causal','relationship'),
+    ('predictive','analysis'),('predictive','temporal'),('predictive','behavioral'),('predictive','pattern'),('predictive','relationship'),('predictive','causal'),
+    ('scenario','predictive'),('scenario','causal'),('scenario','relationship'),
+    ('decision','predictive'),('decision','causal'),('decision','relationship'),('decision','scenario'),
+    ('recommendation','decision'),('recommendation','scenario'),('recommendation','causal'),
+    ('outcome','predictive'),('outcome','decision'),('outcome','recommendation'),
+    ('learning','decision'),('learning','recommendation'),('learning','outcome'),
+    ('emergent','analysis'),('emergent','behavioral'),('emergent','pattern'),('emergent','relationship'),('emergent','causal'),('emergent','predictive'),('emergent','scenario'),('emergent','decision'),('emergent','recommendation'),('emergent','learning'),('emergent','outcome')
 )
 insert into public.iris_intelligence_edges(from_node_id,to_node_id,relation,metadata)
 select from_node.id,to_node.id,'depends_on',jsonb_build_object('graph_version','IRIS_RECURSIVE_LAYER_GRAPH_V1')
