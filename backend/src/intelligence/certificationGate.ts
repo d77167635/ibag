@@ -70,8 +70,15 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
 
   const providerDomains = (output?.value as any)?.layer_metrics?.provider_domains as any;
   const crossDomain = providerDomains?.derived?.cross_domain_reconciliation as any;
+  const composition = providerDomains?.derived?.financial_composition_reconciliation as any;
   const crossDomainReady = crossDomain?.state === "reconciled" && crossDomain?.net_worth_basis === "account_balances_only" && crossDomain?.checks?.transaction_account_lineage === true && crossDomain?.checks?.currency_safe === true;
+  const compositionReady = composition?.status === "reconciled"
+    && composition?.net_worth_basis === "account_balances_only"
+    && composition?.double_counting_risk === false
+    && Array.isArray(composition?.duplicate_account_ids) && composition.duplicate_account_ids.length === 0
+    && Array.isArray(composition?.currencies) && composition.currencies.length <= 1;
   check("iris.reconciliation.cross_domain", crossDomainReady, "Cross-domain financial evidence reconciles sufficiently for governed certification, with account balances as the non-overlapping net-worth basis.", crossDomain ? `Cross-domain reconciliation is ${String(crossDomain.state)} or one of its core safety checks is not satisfied; certification remains blocked.` : "The governed output does not contain a cross-domain reconciliation result.");
+  check("iris.reconciliation.financial_composition", compositionReady, "Financial composition reconciles without duplicate account identity, mixed-currency aggregation, or double-counting risk.", composition ? `Financial composition is ${String(composition.status)} or its net-worth/overlap safeguards are not satisfied; certification remains blocked.` : "The governed output does not contain a financial composition reconciliation result.");
 
   const canonicalReconciliation = reconcileCanonicalTransactions(
     (accounts ?? []).map(row => ({ id: row.id, item_id: row.item_id, plaid_account_id: row.plaid_account_id })),
@@ -98,7 +105,7 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
       complete_item_count: completeItems.length, complete_item_ids: completeItems, selected_item_id: selectedItemId, run_evidence_item_ids: evidenceItemIds,
     },
     reconciliation_snapshot: {
-      status: transactionReconciliationReady && evidenceMatchesSelectedItem && evidenceHasRequiredDomains && crossDomainReady ? "PASS" : "FAIL",
+      status: transactionReconciliationReady && evidenceMatchesSelectedItem && evidenceHasRequiredDomains && crossDomainReady && compositionReady ? "PASS" : "FAIL",
       canonical_transaction_reconciliation: canonicalReconciliation,
       roundup_event_count: roundupCount ?? 0,
       current_product_observation_count: productCount ?? 0,
@@ -106,7 +113,8 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
       run_evidence_item_ids: evidenceItemIds,
       run_evidence_required_domains: evidenceHasRequiredDomains,
       cross_domain_reconciliation: crossDomain ?? null,
-      scope: "provider_item_plus_identity_lineage_plus_cross_domain_reconciliation",
+      financial_composition_reconciliation: composition ?? null,
+      scope: "provider_item_plus_identity_lineage_plus_cross_domain_reconciliation_plus_financial_composition",
     },
   };
 }
