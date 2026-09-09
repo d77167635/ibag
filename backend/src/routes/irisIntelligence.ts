@@ -5,21 +5,9 @@ import { IRIS_FEATURE_REGISTRY } from "../contracts/irisFeatureRegistry.js";
 import { executeIrisRun } from "../intelligence/irisExecution.js";
 import { buildIrisFeatureRuntime } from "../intelligence/irisFeatureRuntime.js";
 import { buildIrisIntelligenceOutputRuntime } from "../intelligence/irisIntelligenceOutputRuntime.js";
+import { IRIS_STANDARD_CAPABILITY_IDS } from "../intelligence/irisCatalog.js";
 
 export const irisIntelligenceRouter = Router();
-
-const IRIS_STANDARD_CAPABILITY_IDS = [
-  "roundups",
-  "financial-state",
-  "cash-flow",
-  "spending",
-  "liquidity",
-  "debt",
-  "forecast",
-  "recurrence",
-  "causality",
-  "decision-lab",
-];
 
 /**
  * Canonical Iris intelligence read path.
