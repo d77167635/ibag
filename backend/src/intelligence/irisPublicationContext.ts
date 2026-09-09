@@ -1,14 +1,10 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { IRIS_FEATURE_REGISTRY } from "../contracts/irisFeatureRegistry.js";
 import { IRIS_STANDARD_CAPABILITY_IDS } from "./irisCatalog.js";
-import { buildIrisFeatureRuntime } from "./irisFeatureRuntime.js";
+import { buildIrisFeatureRuntime, type IrisFeatureRuntimeSnapshot } from "./irisFeatureRuntime.js";
 import { buildIrisIntelligenceOutputRuntime } from "./irisIntelligenceOutputRuntime.js";
 
-/**
- * Builds the single publication context shared by Iris intelligence surfaces.
- * Atlas readiness is analytical evidence, not a raw provider-observation claim.
- */
-export async function buildIrisPublicationContext(userId: string, atlasDefinitions: Array<{
+type AtlasDefinitionInput = {
   id: string;
   evidence_ready?: boolean;
   missing_inputs?: string[];
@@ -16,22 +12,20 @@ export async function buildIrisPublicationContext(userId: string, atlasDefinitio
   name?: string;
   purpose?: string;
   output?: string;
-}>) {
-  const { data: preference, error } = await supabaseAdmin
-    .from("iris_user_intelligence_preferences")
-    .select("selected_capability_ids")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw error;
+};
 
-  const selectedIds = preference && Array.isArray(preference.selected_capability_ids)
-    ? preference.selected_capability_ids.filter((id: unknown): id is string => typeof id === "string")
-    : [...IRIS_STANDARD_CAPABILITY_IDS];
-
+/**
+ * Pure publication-runtime adapter. It performs no provider I/O and accepts
+ * only the analytical readiness boundary already produced by Iris execution.
+ */
+export function buildIrisPublicationRuntime(
+  atlasDefinitions: AtlasDefinitionInput[],
+  selectedCapabilityIds: string[],
+) {
   const activations = Object.fromEntries(
     IRIS_FEATURE_REGISTRY.map((feature) => [
       feature.featureId,
-      selectedIds.includes(feature.capabilityId) ? "enabled" : "disabled",
+      selectedCapabilityIds.includes(feature.capabilityId) ? "enabled" : "disabled",
     ]),
   );
 
@@ -50,20 +44,22 @@ export async function buildIrisPublicationContext(userId: string, atlasDefinitio
 
   const featureRuntime = buildIrisFeatureRuntime({ activations, evidenceCoverage });
   const intelligenceOutputRuntime = buildIrisIntelligenceOutputRuntime(
-    { definitions: atlasDefinitions.map((definition) => ({
-      id: definition.id,
-      family: definition.family ?? "unknown",
-      name: definition.name ?? definition.id,
-      purpose: definition.purpose ?? "",
-      output: definition.output ?? "",
-      evidence_ready: definition.evidence_ready === true,
-      missing_inputs: definition.missing_inputs ?? [],
-    })) },
+    {
+      definitions: atlasDefinitions.map((definition) => ({
+        id: definition.id,
+        family: definition.family ?? "unknown",
+        name: definition.name ?? definition.id,
+        purpose: definition.purpose ?? "",
+        output: definition.output ?? "",
+        evidence_ready: definition.evidence_ready === true,
+        missing_inputs: definition.missing_inputs ?? [],
+      })),
+    },
     featureRuntime,
   );
 
   return {
-    selected_capability_ids: selectedIds,
+    selected_capability_ids: selectedCapabilityIds,
     feature_runtime: featureRuntime,
     intelligence_output_runtime: intelligenceOutputRuntime,
     publication_boundary: {
@@ -74,4 +70,23 @@ export async function buildIrisPublicationContext(userId: string, atlasDefinitio
       suppressed_outputs_are_not_normal_intelligence_claims: true,
     },
   };
+}
+
+/**
+ * Builds the single publication context shared by Iris intelligence surfaces.
+ * Atlas readiness is analytical evidence, not a raw provider-observation claim.
+ */
+export async function buildIrisPublicationContext(userId: string, atlasDefinitions: AtlasDefinitionInput[]) {
+  const { data: preference, error } = await supabaseAdmin
+    .from("iris_user_intelligence_preferences")
+    .select("selected_capability_ids")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+
+  const selectedCapabilityIds = preference && Array.isArray(preference.selected_capability_ids)
+    ? preference.selected_capability_ids.filter((id: unknown): id is string => typeof id === "string")
+    : [...IRIS_STANDARD_CAPABILITY_IDS];
+
+  return buildIrisPublicationRuntime(atlasDefinitions, selectedCapabilityIds);
 }
