@@ -104,6 +104,21 @@ const ADDITIONAL_PRODUCTS: readonly PlaidProductDefinition[] = [
     description: "Bank-payment checkout capabilities where supported.", phase1Relevant: false,
     irisCapabilities: ["payments", "money_movement"], plaidProductStates: ["pay_by_bank"], pricing: "included_unless_plaid_charges",
   },
+  {
+    key: "virtual_accounts", displayName: "Virtual Accounts", category: "payments",
+    description: "Europe payment virtual-account capabilities for payment lifecycle visibility and supported payouts/refunds.", phase1Relevant: false,
+    irisCapabilities: ["payments", "cash_flow", "reconciliation", "money_movement"], plaidProductStates: [], pricing: "included_unless_plaid_charges",
+  },
+  {
+    key: "payouts", displayName: "Payouts", category: "payments",
+    description: "Supported Europe payout capabilities layered on Virtual Accounts.", phase1Relevant: false,
+    irisCapabilities: ["payments", "money_movement", "cash_flow"], plaidProductStates: [], pricing: "included_unless_plaid_charges",
+  },
+  {
+    key: "variable_recurring_payments", displayName: "Variable Recurring Payments", category: "payments",
+    description: "UK variable recurring payment consent and payment capabilities.", phase1Relevant: false,
+    irisCapabilities: ["payments", "recurring", "cash_flow", "money_movement"], plaidProductStates: [], pricing: "included_unless_plaid_charges",
+  },
 ];
 
 /** Complete application capability catalog; runtime state remains authoritative. */
