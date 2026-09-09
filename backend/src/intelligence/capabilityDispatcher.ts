@@ -2,6 +2,7 @@ import { computeFullIntelligence } from "./orchestrator.js";
 import { computeMultiWindowFlow } from "./temporal.js";
 import { computeCategoryDrift } from "./behavioral.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
+import { computeFinancialReasoning } from "./relational.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
 export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
@@ -57,6 +58,11 @@ export async function dispatchGovernedCapability({ userId, capabilityId, paramet
     case "anomaly": {
       const windowDays = typeof parameters.windowDays === "number" ? parameters.windowDays : undefined;
       const result = await computeCanonicalAnomalies(userId, windowDays);
+      return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result };
+    }
+    case "relationship": {
+      const asOf = typeof parameters.asOf === "string" ? parameters.asOf : undefined;
+      const result = await computeFinancialReasoning(userId, asOf);
       return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result };
     }
     default:
