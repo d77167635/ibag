@@ -6,7 +6,7 @@
 - Product: Iris
 - Repository: `d77167635/ibag`
 - Default branch: `main`
-- Latest verified continuity checkpoint before this update: `423bcebf3617995138e025bea189e8fd3dd8a5c2`
+- Latest verified continuity checkpoint: `46dabc4c47eeecac30bcbe10cb28fb8232fc8eb5`
 - Repository status: active, public, non-archived
 
 ## Core product boundary
@@ -35,6 +35,8 @@
 - `frontend/src/components/PlaidDashboard.tsx` provides the Plaid-facing dashboard surface.
 - `frontend/src/components/IrisCatalog.tsx` and `IrisIntelligenceWorkspace.tsx` provide the Iris feature/workspace foundation.
 - Recursive ontology-driven workspace navigation and entity/detail foundations exist and should be extended rather than duplicated.
+- `backend/src/intelligence/irisIntelligenceOutputRuntime.ts` is now the final publication boundary: it preserves feature readiness, explicit evidence qualification, one-to-many feature/analysis mapping, and provenance integrity without creating provider observations or financial facts.
+- `.github/workflows/iris-backend-ci.yml` now runs backend dependency installation, intelligence tests, and TypeScript build on pushes/PRs to `main`.
 
 ## Plaid capability contract
 For every supported product/domain, maintain:
@@ -72,7 +74,8 @@ Feature activation must never manufacture missing evidence.
 3. Strengthen Iris Product Selection as a first-class decision layer.
 4. Make Plaid Dashboard consume the authoritative product catalog and runtime evidence cleanly.
 5. Make Iris Feature Registry authoritative for independently enabled/disabled intelligence capabilities.
-6. Continue recursive financial-life entity intelligence and deep workspaces.
+6. Complete governed publication into the shared dashboard/read-model contract and expose provenance, freshness, evidence gaps, and next-best investigation paths in the UI.
+7. Continue recursive financial-life entity intelligence and deep workspaces.
 
 ## Completion principle
 There is no arbitrary artifact-count target. Completion is capability-based: the system is complete only when the required architecture, evidence contracts, intelligence hierarchy, user controls, explainability, education, and deployed user experience are implemented and verified.
