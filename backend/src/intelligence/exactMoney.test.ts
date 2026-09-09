@@ -15,5 +15,5 @@ test("averages cents without floating-point accumulation", () => {
 });
 
 test("averages daily rates using exact integer-cent numerators", () => {
-  assert.equal(averageDailyRate([{ cents: 10000n, days: 10 }, { cents: 30000n, days: 30 }]), 100);
+  assert.equal(averageDailyRate([{ cents: 10000n, days: 10 }, { cents: 30000n, days: 30 }]), 10);
 });
