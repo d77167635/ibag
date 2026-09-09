@@ -14,4 +14,8 @@
 - Updated `/iris/catalog` to consume the same canonical standard baseline directly from the catalog module.
 - Preserved the boundary that analytical atlas readiness is not raw Plaid observation and that limited intelligence must remain explicitly qualified.
 - Updated the master continuity record with the new publication and verification boundary.
+- Refactored the Plaid Item-state relationship from a lossy one-to-one map to an explicit one-to-many `PLAID_PRODUCT_STATE_TO_CATALOG_KEYS` relation, preserving all catalog capabilities that share a runtime state.
+- Added `plaidCapabilityRegistry.test.ts` to certify that every documented Item product state is mapped, every catalog state reference is valid, and one-to-many state/capability relationships remain supported.
+- Added the Plaid capability certification test to the backend CI test command.
+- Removed stale product-identity wording from the canonical Plaid Item-state contract; the product identity is Iris and the repository name is implementation metadata only.
 - Next: complete authoritative runtime product coverage, strengthen selection/entitlement/cost semantics, complete Plaid Dashboard observability, integrate governed intelligence output into the shared dashboard contract, and continue recursive financial-life intelligence.
