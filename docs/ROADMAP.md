@@ -6,9 +6,9 @@ This roadmap tracks capability completion, not artifact count.
 - [x] Master project state
 - [x] Architecture ledger
 - [x] Decision ledger
-- [ ] Automated project-status command
-- [ ] Machine-readable project state
-- [ ] Automated session-handoff update/check
+- [x] Automated project-status command
+- [x] Machine-readable project state
+- [x] Automated session-handoff update/check
 
 ## 2. Plaid Product Capability Layer
 - [ ] Complete authoritative catalog of every supported Plaid product/domain
@@ -103,4 +103,4 @@ This roadmap tracks capability completion, not artifact count.
 - [ ] End-to-end observable user-flow verification
 
 ## Completion definition
-The roadmap is complete only when the implemented capabilities satisfy their evidence, lineage, backend, frontend, user-control, explainability, and deployment contracts. New evidence-supported capabilities may be added beyond this list.
+The roadmap is complete only when the implemented capabilities satisfy their evidence, lineage, backend, frontend, user-control, explainability, education, and deployment contracts. New evidence-supported capabilities may be added beyond this list.
