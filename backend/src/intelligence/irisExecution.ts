@@ -17,7 +17,7 @@ type RunRequest = { userId: string; requestId?: string; surface?: string; mode?:
 function hash(value: unknown): string { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 function errorText(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
-/** Single governed execution boundary. Provider-domain evidence is scoped to one authorized Item when a complete eight-domain Item exists; legitimate user-level aggregates remain explicitly aggregate. */
+/** Single governed execution boundary. AI never supplies financial evidence; every financial result originates from authorized persisted observations or deterministic derived calculations. */
 export async function executeIrisRun(request: RunRequest) {
   const userId = request.userId;
   const requestId = request.requestId?.trim() || randomUUID();
@@ -35,12 +35,11 @@ export async function executeIrisRun(request: RunRequest) {
 
   const selectedItemId = await resolveCanonicalProviderItem(userId);
   const evidenceScope: IrisEvidenceScope = { kind: selectedItemId ? "provider_item" : "user_aggregate", selectedItemId, canonicalProviderDomains: IRIS_CANONICAL_PROVIDER_DOMAINS };
-
   const plan = await planCapabilities(userId, requestedCapabilities);
   if (plan.status === "BLOCKED") throw new Error(`CAPABILITY_PLAN_BLOCKED: ${plan.limitations.join(" | ")}`);
 
-  const initialManifest = { user_id: userId, request_id: requestId, surface, mode, requested_capabilities: requestedCapabilities, capability_plan: plan, evidence_scope: evidenceScope, as_of: asOf, planner_version: PLANNER_VERSION, orchestrator_version: ORCHESTRATOR_VERSION, certification_policy_version: CERTIFICATION_POLICY_VERSION };
-  const { data: run, error: runError } = await supabaseAdmin.from("iris_runs").insert({ request_id: requestId, user_id: userId, request_surface: surface, request_mode: mode, requested_capabilities: requestedCapabilities, status: "PLANNED", as_of: asOf, evidence_boundary: asOf, evidence_version: "provider-observation-boundary-v2", resource_budget: { max_execution_time_ms: 120000, max_graph_nodes: 10000, max_graph_edges: 30000, max_compositions: 5000, max_investigations: 500 }, execution_policy: { evidence_gated: true, certify_only_after_validation: true, server_authoritative: true, capability_plan_status: plan.status, evidence_scope_kind: evidenceScope.kind, selected_item_id: selectedItemId, canonical_provider_domains: [...IRIS_CANONICAL_PROVIDER_DOMAINS] }, planner_version: PLANNER_VERSION, orchestrator_version: ORCHESTRATOR_VERSION, certification_policy_version: CERTIFICATION_POLICY_VERSION, financial_context_hash: hash({ user_id: userId, as_of: asOf, evidence_scope: evidenceScope }), evidence_manifest_hash: hash(initialManifest), started_at: asOf, updated_at: asOf }).select("*").single();
+  const initialManifest = { user_id: userId, request_id: requestId, surface, mode, requested_capabilities: requestedCapabilities, capability_plan: plan, evidence_scope: evidenceScope, as_of: asOf, planner_version: PLANNER_VERSION, orchestrator_version: ORCHESTRATOR_VERSION, certification_policy_version: CERTIFICATION_POLICY_VERSION, financial_evidence_policy: "NO_AI_GENERATED_FINANCIAL_EVIDENCE" };
+  const { data: run, error: runError } = await supabaseAdmin.from("iris_runs").insert({ request_id: requestId, user_id: userId, request_surface: surface, request_mode: mode, requested_capabilities: requestedCapabilities, status: "PLANNED", as_of: asOf, evidence_boundary: asOf, evidence_version: "provider-observation-boundary-v2", resource_budget: { max_execution_time_ms: 120000, max_graph_nodes: 10000, max_graph_edges: 30000, max_compositions: 5000, max_investigations: 500 }, execution_policy: { evidence_gated: true, no_ai_generated_financial_evidence: true, certify_only_after_validation: true, server_authoritative: true, capability_plan_status: plan.status, evidence_scope_kind: evidenceScope.kind, selected_item_id: selectedItemId, canonical_provider_domains: [...IRIS_CANONICAL_PROVIDER_DOMAINS] }, planner_version: PLANNER_VERSION, orchestrator_version: ORCHESTRATOR_VERSION, certification_policy_version: CERTIFICATION_POLICY_VERSION, financial_context_hash: hash({ user_id: userId, as_of: asOf, evidence_scope: evidenceScope }), evidence_manifest_hash: hash(initialManifest), started_at: asOf, updated_at: asOf }).select("*").single();
   if (runError || !run) throw new Error(`Unable to create Iris run: ${runError?.message || "unknown error"}`);
 
   const { data: execution, error: executionError } = await supabaseAdmin.from("iris_execution_records").insert({ run_id: run.id, user_id: userId, capability_id: CAPABILITY_ID, operator_id: OPERATOR_ID, operator_version: OPERATOR_VERSION, execution_state: "EXECUTING", started_at: asOf, evidence_state: "CALCULATED", validation_status: "UNKNOWN", certification_status: "PENDING", input_manifest: initialManifest }).select("*").single();
@@ -52,8 +51,20 @@ export async function executeIrisRun(request: RunRequest) {
   if (inputError) { await failExecution(run.id, execution.id, userId, "EXECUTION_INPUT_PERSIST_FAILED", inputError.message); throw new Error(`Unable to persist Iris execution input: ${inputError.message}`); }
 
   try {
-    const dispatched = await dispatchGovernedCapability({ userId, capabilityId: CAPABILITY_ID });
-    const result = dispatched.result;
+    const dispatchedResults: Record<string, unknown> = {};
+    for (const capabilityId of plan.ordered_capabilities) {
+      const dispatched = await dispatchGovernedCapability({ userId, capabilityId });
+      dispatchedResults[capabilityId] = dispatched.result;
+    }
+
+    let result: any;
+    if (requestedCapabilities.includes(CAPABILITY_ID)) {
+      const aggregate = await dispatchGovernedCapability({ userId, capabilityId: CAPABILITY_ID });
+      result = aggregate.result;
+    } else {
+      result = { capability_results: dispatchedResults, capability_plan: plan, evidence_policy: "NO_AI_GENERATED_FINANCIAL_EVIDENCE" };
+    }
+
     const providerSelectedItemId = result?.layer_metrics?.provider_domains?.selected_item_id ?? null;
     if (selectedItemId && providerSelectedItemId !== selectedItemId) throw new Error(`EVIDENCE_SCOPE_MISMATCH: execution=${selectedItemId} provider_intelligence=${providerSelectedItemId ?? "null"}`);
     const outputHash = hash(result);
@@ -71,7 +82,7 @@ export async function executeIrisRun(request: RunRequest) {
     }
     const evidenceBoundary = result?.evidence_boundary || finishedAt;
     await supabaseAdmin.from("iris_runs").update({ evidence_boundary: evidenceBoundary, evidence_version: "provider-observation-boundary-v2", status: "EXECUTED", completed_at: finishedAt, updated_at: finishedAt }).eq("id", run.id).eq("user_id", userId);
-    await supabaseAdmin.from("iris_execution_records").update({ execution_state: "EXECUTED", completed_at: finishedAt, input_hash: inputHash, output_hash: outputHash, output_snapshot: { output_key: "full_intelligence", output_hash: outputHash, evidence_scope: evidenceScope, dispatched_capability: dispatched.capability_id, dispatched_operator: dispatched.operator_id, dispatched_operator_version: dispatched.operator_version }, resource_usage: { duration_ms: Date.parse(finishedAt) - Date.parse(asOf), planner_nodes: plan.resource_estimate.nodes, planner_edges: plan.resource_estimate.edges, planner_compositions: plan.resource_estimate.compositions }, validation_status: "UNKNOWN" }).eq("id", execution.id).eq("user_id", userId);
+    await supabaseAdmin.from("iris_execution_records").update({ execution_state: "EXECUTED", completed_at: finishedAt, input_hash: inputHash, output_hash: outputHash, output_snapshot: { output_key: "full_intelligence", output_hash: outputHash, evidence_scope: evidenceScope, dispatched_capability: requestedCapabilities, plan_order: plan.ordered_capabilities }, resource_usage: { duration_ms: Date.parse(finishedAt) - Date.parse(asOf), planner_nodes: plan.resource_estimate.nodes, planner_edges: plan.resource_estimate.edges, planner_compositions: plan.resource_estimate.compositions }, validation_status: "UNKNOWN" }).eq("id", execution.id).eq("user_id", userId);
 
     const gate = await evaluateCertificationGate({ runId: run.id, executionId: execution.id, userId, inputHash, outputHash });
     const validationRows = Object.entries(gate.checks).map(([ruleId, gateCheck]) => ({ run_id: run.id, execution_id: execution.id, user_id: userId, rule_id: ruleId, rule_version: CERTIFICATION_POLICY_VERSION, status: gateCheck.status, severity: gateCheck.status === "PASS" ? "INFO" : "CRITICAL", expected: { status: "PASS" }, actual: { status: gateCheck.status }, details: { message: gateCheck.details, gate_version: CERTIFICATION_POLICY_VERSION } }));
