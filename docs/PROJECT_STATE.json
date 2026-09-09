@@ -1,0 +1,33 @@
+{
+  "project": "Iris",
+  "repository": "d77167635/ibag",
+  "branch": "main",
+  "head": "c0d2af737c8f61a90fb5dc5f9fb8522c5d57fd2b",
+  "generated_at": "2026-09-09T19:05:23.012Z",
+  "continuity": {
+    "master_state": "docs/MASTER_STATE.md",
+    "architecture": "docs/ARCHITECTURE.md",
+    "decisions": "docs/DECISIONS.md",
+    "roadmap": "docs/ROADMAP.md",
+    "session_handoff": "docs/SESSION_HANDOFF.md",
+    "source_of_truth": "current GitHub main commit; continuity documents describe verified state and must not override live repository state"
+  },
+  "roadmap": {
+    "completed_items": 3,
+    "open_items": 81
+  },
+  "environment_transition": {
+    "status": "in_transition",
+    "render": "old Render services are being replaced; new service is not yet connected",
+    "supabase": "current Supabase remains connected to the old environment and is not yet the clean-slate production database",
+    "plaid": "fresh production-authoritative observations are not established until the environment transition and reset are complete"
+  },
+  "rules": [
+    "No fabricated financial data",
+    "Provider observations are evidence, not intelligence",
+    "Unknown is not zero",
+    "Readiness is distinct from publication",
+    "No money movement in the current scope",
+    "Build by capability, not artifact count"
+  ]
+}
