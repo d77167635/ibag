@@ -5,6 +5,7 @@ import {
   evaluateIrisFeatureState,
   getIrisFeatureByCapability,
 } from "../contracts/irisFeatureRegistry.js";
+import { IRIS_ANALYSIS_ATLAS } from "./analysisAtlas.js";
 
 test("Iris feature registry is derived from the complete capability catalog", () => {
   assert.ok(IRIS_FEATURE_REGISTRY.length > 0);
@@ -14,6 +15,26 @@ test("Iris feature registry is derived from the complete capability catalog", ()
   assert.ok(IRIS_FEATURE_REGISTRY.every((feature) => feature.version.length > 0));
   assert.ok(IRIS_FEATURE_REGISTRY.every((feature) => feature.prerequisites.length > 0));
   assert.ok(IRIS_FEATURE_REGISTRY.every((feature) => feature.evidencePolicy === "all"));
+});
+
+test("analysis definitions and evidence requirements remain separate", () => {
+  const atlasIds = new Set(IRIS_ANALYSIS_ATLAS.map((definition) => definition.id));
+  assert.ok(IRIS_FEATURE_REGISTRY.every((feature) => feature.requiredAnalysisIds.every((id) => atlasIds.has(id))));
+  assert.ok(IRIS_FEATURE_REGISTRY.every((feature) => feature.requiredEvidence.every((id) => !atlasIds.has(id))));
+  assert.ok(IRIS_FEATURE_REGISTRY.some((feature) => feature.requiredAnalysisIds.length > 0));
+  assert.ok(IRIS_FEATURE_REGISTRY.some((feature) => feature.requiredEvidence.length > 0));
+});
+
+test("every registered Iris feature can be independently activated without a ten-feature ceiling", () => {
+  assert.ok(IRIS_FEATURE_REGISTRY.length > 10);
+  const states = IRIS_FEATURE_REGISTRY.map((feature) => evaluateIrisFeatureState(feature, {
+    activation: "enabled",
+    evidenceCoverage: 1,
+  }));
+  assert.equal(states.length, IRIS_FEATURE_REGISTRY.length);
+  assert.ok(states.every((state) => state.activation === "enabled"));
+  assert.ok(states.every((state) => state.readiness === "ready"));
+  assert.ok(states.every((state) => state.available));
 });
 
 test("disabled feature cannot become available from evidence", () => {
