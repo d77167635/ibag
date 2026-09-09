@@ -78,14 +78,9 @@ function provenance(analysisId: string): IrisIntelligenceOutput["provenance"] {
 }
 
 /**
- * Final publication boundary between analytical definitions and user-facing
- * Iris intelligence. This function never computes financial facts. It carries
- * evidence qualification and provenance through the publication decision.
- *
- * The atlas is an analytical readiness boundary, not a raw provider-observation
- * ledger. Provider observation lineage remains owned by the governed run and
- * evidence layers; this runtime must never relabel atlas readiness as raw
- * provider observation.
+ * Final publication boundary. Feature-to-analysis mapping comes exclusively
+ * from requiredAnalysisIds; evidence requirements are deliberately separate
+ * from analysis-definition identifiers.
  */
 export function buildIrisIntelligenceOutputRuntime(
   atlas: { definitions: AtlasDefinition[] },
@@ -93,7 +88,7 @@ export function buildIrisIntelligenceOutputRuntime(
 ): IrisIntelligenceOutputRuntime {
   const states = new Map(featureRuntime.features.map((state) => [state.featureId, state]));
   const definitions: IrisIntelligenceOutput[] = atlas.definitions.flatMap((definition): IrisIntelligenceOutput[] => {
-    const features = IRIS_FEATURE_REGISTRY.filter((candidate) => candidate.requiredEvidence.includes(definition.id));
+    const features = IRIS_FEATURE_REGISTRY.filter((candidate) => candidate.requiredAnalysisIds.includes(definition.id));
 
     if (features.length === 0) {
       return [{
@@ -166,7 +161,7 @@ export function buildIrisIntelligenceOutputRuntime(
       if (featureLimited || (featureReady && !atlasReady)) {
         const missing = unique([
           ...definition.missing_inputs,
-          ...(atlasReady ? [] : feature.requiredEvidence.filter((id) => id !== definition.id)),
+          ...(atlasReady ? [] : definition.missing_inputs),
         ]);
         return {
           analysis_id: definition.id,
@@ -207,9 +202,9 @@ export function buildIrisIntelligenceOutputRuntime(
     });
   });
 
-  const ready = definitions.filter((item): boolean => item.state === "ready");
-  const limited = definitions.filter((item): boolean => item.state === "limited");
-  const suppressed = definitions.filter((item): boolean => item.state === "suppressed");
+  const ready = definitions.filter((item) => item.state === "ready");
+  const limited = definitions.filter((item) => item.state === "limited");
+  const suppressed = definitions.filter((item) => item.state === "suppressed");
 
   return {
     engine_version: "IRIS_INTELLIGENCE_OUTPUT_RUNTIME_V2",
@@ -218,13 +213,7 @@ export function buildIrisIntelligenceOutputRuntime(
     ready_outputs: ready,
     limited_outputs: limited,
     suppressed_outputs: suppressed,
-    counts: {
-      defined: definitions.length,
-      publishable: ready.length + limited.length,
-      ready: ready.length,
-      limited: limited.length,
-      suppressed: suppressed.length,
-    },
+    counts: { defined: definitions.length, publishable: ready.length + limited.length, ready: ready.length, limited: limited.length, suppressed: suppressed.length },
     publication_policy: {
       ready: "Publish calculated intelligence only when the analytical definition and enabled feature are fully evidence-ready.",
       limited: "Publish only with explicit evidence limitation, provenance, and missing-evidence qualification.",
