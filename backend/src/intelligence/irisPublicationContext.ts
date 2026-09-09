@@ -29,12 +29,17 @@ export function buildIrisPublicationRuntime(
     atlasDefinitions.filter((definition) => definition.evidence_ready === true).map((definition) => definition.id),
   );
 
+  /**
+   * Atlas readiness is analytical readiness, so it must be evaluated against
+   * the feature's explicit analysis mapping. requiredEvidence contains
+   * semantic evidence requirements and must never be compared to analysis IDs.
+   */
   const evidenceCoverage: Record<string, number> = Object.fromEntries(
     IRIS_FEATURE_REGISTRY.map((feature) => {
-      const required = feature.requiredEvidence;
-      if (required.length === 0) return [feature.featureId, 0];
-      const satisfied = required.filter((id) => readyAtlasIds.has(id)).length;
-      return [feature.featureId, satisfied / required.length];
+      const requiredAnalyses = feature.requiredAnalysisIds;
+      if (requiredAnalyses.length === 0) return [feature.featureId, 0];
+      const satisfied = requiredAnalyses.filter((id) => readyAtlasIds.has(id)).length;
+      return [feature.featureId, satisfied / requiredAnalyses.length];
     }),
   );
 
@@ -64,6 +69,7 @@ export function buildIrisPublicationRuntime(
       feature_activation_does_not_activate_provider_products: true,
       limited_outputs_require_explicit_qualification: true,
       suppressed_outputs_are_not_normal_intelligence_claims: true,
+      feature_evidence_coverage_uses_analysis_mapping: true,
     },
   };
 }
