@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
+import { reconcileCrossDomainState } from "./crossDomainReconciliation.js";
 
 const PRODUCTS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
 type Product = typeof PRODUCTS[number];
@@ -36,7 +37,7 @@ export async function buildProviderDomainIntelligence(userId: string) {
   const selectedItemId = [...byItem.entries()].filter(([, products]) => PRODUCTS.every(product => products.has(product))).map(([itemId]) => itemId).sort()[0] ?? null;
   const boundary = await getCertifiedEvidenceBoundary(userId);
   const selectedProducts = selectedItemId ? byItem.get(selectedItemId) ?? new Set<string>() : new Set<string>();
-  const result: any = { architecture_version: "IRIS_PROVIDER_DOMAIN_INTELLIGENCE_V3", evidence_boundary: boundary, selected_item_id: selectedItemId, evidence_ready: selectedItemId !== null && PRODUCTS.every(product => selectedProducts.has(product)), domains: {}, utilization: { products: [], analyses: [], source_observations: {}, same_item: true }, limitations: [] as string[] };
+  const result: any = { architecture_version: "IRIS_PROVIDER_DOMAIN_INTELLIGENCE_V4", evidence_boundary: boundary, selected_item_id: selectedItemId, evidence_ready: selectedItemId !== null && PRODUCTS.every(product => selectedProducts.has(product)), domains: {}, utilization: { products: [], analyses: [], source_observations: {}, same_item: true }, limitations: [] as string[] };
   if (!selectedItemId) { result.limitations.push("No single active Item currently contains all eight canonical Plaid evidence domains."); return result; }
 
   const source = (product: Product) => {
@@ -67,12 +68,28 @@ export async function buildProviderDomainIntelligence(userId: string) {
   const statementAccountIds = new Set(statementAccounts.map((a: any) => String(a?.account_id ?? "")).filter(Boolean));
   const transactionAccountIds = new Set(txRows.filter(r => r.item_id === selectedItemId).map(r => r.account_id));
   const statementTransactionAccountOverlap = [...statementAccountIds].filter(id => transactionAccountIds.has(id)).length;
+  const transactionLineageComplete = txRows.filter(r => r.item_id === selectedItemId).every(r => Boolean(r.account_id) && accountToItem.get(r.account_id) === selectedItemId);
+  const assetReportValue = sumNumbers(assetItems, ["value", "current_value", "market_value"]);
+  const investmentHoldingValue = sumNumbers(investmentHoldings, ["institution_value", "market_value"]);
+  const crossDomainReconciliation = reconcileCrossDomainState({
+    accountBalanceCount: accountRows.length,
+    transactionAccountCount: transactionAccountIds.size,
+    transactionLineageComplete,
+    balanceCurrencySafe: balanceCurrency.safe,
+    investmentAccountBalance,
+    investmentHoldingValue,
+    liabilityAccountBalance: debtAccountBalance,
+    liabilityProductBalance: liabilityBalance,
+    assetReportValue,
+    statementAccountCount: statementAccounts.length,
+    statementTransactionAccountOverlap,
+  });
 
   result.domains = {
     auth: { account_records: authAccounts.length, source_observation_ids: authSource.ids, response_received: Boolean(authPayload) },
     identity: { record_count: identityAccounts.length, source_observation_ids: identitySource.ids, response_received: Boolean(identityPayload) },
     assets: { asset_items: assetItems.length, report_received: Boolean(assetPayload), source_observation_ids: assetSource.ids, numeric_value_used_for_net_worth: false },
-    investments: { holding_records: investmentHoldings.length, security_records: investmentSecurities.length, holding_value_observed: sumNumbers(investmentHoldings, ["institution_value", "market_value"]), source_observation_ids: investmentSource.ids, numeric_holdings_used_for_net_worth: false },
+    investments: { holding_records: investmentHoldings.length, security_records: investmentSecurities.length, holding_value_observed: investmentHoldingValue, source_observation_ids: investmentSource.ids, numeric_holdings_used_for_net_worth: false },
     liabilities: { liability_records: liabilityRecords.length, liability_balance_observed: liabilityBalance, source_observation_ids: liabilitySource.ids },
     statements: { statement_records: statements.length, statement_accounts: statementAccounts.length, transaction_account_overlap: statementTransactionAccountOverlap, source_observation_ids: statementSource.ids, response_received: Boolean(statementPayload), dollar_reconciliation: null },
     transactions: { transaction_records: transactionSource.specialized.length, source_observation_ids: transactionSource.ids },
@@ -103,14 +120,16 @@ export async function buildProviderDomainIntelligence(userId: string) {
   result.derived = {
     net_worth: netWorth,
     net_worth_components: { liquid_assets: liquidBalance, investment_accounts: investmentAccountBalance, debt_accounts: debtAccountBalance, liabilities_product_balance: liabilityBalance, basis: "mutually_exclusive_plaid_account_balances", assets_report_excluded_from_net_worth: true, investment_holdings_excluded_from_net_worth: true },
-    portfolio: { market_value: sumNumbers(investmentHoldings, ["institution_value", "market_value"]), holdings: investmentHoldings.length, securities: investmentSecurities.length, source_observation_ids: investmentSource.ids },
+    portfolio: { market_value: investmentHoldingValue, holdings: investmentHoldings.length, securities: investmentSecurities.length, source_observation_ids: investmentSource.ids },
     statement_reconciliation: { statement_records: statements.length, statement_accounts: statementAccounts.length, transaction_records: txRows.filter(r => r.item_id === selectedItemId).length, transaction_account_overlap: statementTransactionAccountOverlap, statement_to_transaction_coverage: statementAccounts.length > 0 ? statementTransactionAccountOverlap / statementAccounts.length : null, dollar_reconciliation: null, limitation: "Account-overlap coverage is not a dollar reconciliation; no dollar reconciliation is asserted without statement-period and transaction-amount matching." },
     account_integrity: { auth_records: authAccounts.length, identity_records: identityAccounts.length, balance_accounts: accountRows.length, identity_auth_match: authAccounts.length > 0 && identityAccounts.length > 0 ? authAccounts.length === identityAccounts.length : null },
     liability_state: { liability_records: liabilityRecords.length, liability_balance: liabilityBalance, account_balance_basis: debtAccountBalance },
+    cross_domain_reconciliation: crossDomainReconciliation,
   };
   if (!balanceCurrency.safe) result.limitations.push("Plaid balance evidence does not expose one unambiguous currency across the selected Item; monetary aggregation is withheld.");
   if (assetItems.length) result.limitations.push("Plaid Assets report is consumed for asset-position evidence, but its account balances are excluded from net worth to prevent overlap.");
   if (investmentHoldings.length) result.limitations.push("Plaid Investments holdings are consumed for portfolio analysis, but their values are excluded from net worth to prevent overlap with investment account balances.");
   if (liabilityBalance !== null && debtAccountBalance !== null) result.limitations.push("Plaid Liabilities balance is retained as a separate product observation and not subtracted again from account-balance net worth.");
+  result.limitations.push(...crossDomainReconciliation.limitations);
   return result;
 }
