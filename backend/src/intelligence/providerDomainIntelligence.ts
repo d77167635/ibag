@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
 import { reconcileCrossDomainState } from "./crossDomainReconciliation.js";
+import { reconcileFinancialComposition } from "./financialCompositionReconciliation.js";
 
 const PRODUCTS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
 type Product = typeof PRODUCTS[number];
@@ -20,7 +21,7 @@ export async function buildProviderDomainIntelligence(userId: string) {
   const [{ data: authorities, error: authorityError }, { data: rawProducts, error: rawError }, { data: accounts, error: accountError }, { data: rawTransactions, error: txError }, { data: rawBalances, error: balanceError }, { data: rawLiabilities, error: liabilityError }] = await Promise.all([
     supabaseAdmin.from("plaid_product_observations").select("id,item_id,product,acquired_at").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("lifecycle_state", "observed").eq("evidence_state", "observed"),
     supabaseAdmin.from("plaid_raw_product_observations").select("id,item_id,product,raw_response,acquired_at").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
-    supabaseAdmin.from("plaid_accounts").select("id,item_id,type,subtype,current_balance,available_balance,credit_limit").eq("user_id", userId),
+    supabaseAdmin.from("plaid_accounts").select("id,item_id,type,subtype,current_balance,available_balance,credit_limit,iso_currency_code").eq("user_id", userId),
     supabaseAdmin.from("plaid_raw_transactions").select("id,account_id,acquired_at,raw_response").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
     supabaseAdmin.from("plaid_raw_balances").select("id,account_id,acquired_at,raw_response").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
     supabaseAdmin.from("plaid_raw_liabilities").select("id,account_id,raw_response,acquired_at").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
@@ -37,7 +38,7 @@ export async function buildProviderDomainIntelligence(userId: string) {
   const selectedItemId = [...byItem.entries()].filter(([, products]) => PRODUCTS.every(product => products.has(product))).map(([itemId]) => itemId).sort()[0] ?? null;
   const boundary = await getCertifiedEvidenceBoundary(userId);
   const selectedProducts = selectedItemId ? byItem.get(selectedItemId) ?? new Set<string>() : new Set<string>();
-  const result: any = { architecture_version: "IRIS_PROVIDER_DOMAIN_INTELLIGENCE_V4", evidence_boundary: boundary, selected_item_id: selectedItemId, evidence_ready: selectedItemId !== null && PRODUCTS.every(product => selectedProducts.has(product)), domains: {}, utilization: { products: [], analyses: [], source_observations: {}, same_item: true }, limitations: [] as string[] };
+  const result: any = { architecture_version: "IRIS_PROVIDER_DOMAIN_INTELLIGENCE_V5", evidence_boundary: boundary, selected_item_id: selectedItemId, evidence_ready: selectedItemId !== null && PRODUCTS.every(product => selectedProducts.has(product)), domains: {}, utilization: { products: [], analyses: [], source_observations: {}, same_item: true }, limitations: [] as string[] };
   if (!selectedItemId) { result.limitations.push("No single active Item currently contains all eight canonical Plaid evidence domains."); return result; }
 
   const source = (product: Product) => {
@@ -85,6 +86,34 @@ export async function buildProviderDomainIntelligence(userId: string) {
     statementTransactionAccountOverlap,
   });
 
+  const composition = reconcileFinancialComposition(
+    accountRows.map((a: any) => ({
+      account_id: String(a.id),
+      item_id: String(a.item_id),
+      account_type: String(a.type ?? ""),
+      current_balance: Number(a.current_balance),
+      currency: typeof a.iso_currency_code === "string" ? a.iso_currency_code : null,
+    })),
+    investmentHoldings.filter((row: any) => row?.id != null).map((row: any) => ({
+      holding_id: String(row.id),
+      account_id: row.account_id != null ? String(row.account_id) : null,
+      market_value: numberAt(row, ["institution_value", "market_value"]),
+      currency: typeof row.iso_currency_code === "string" ? row.iso_currency_code : null,
+    })),
+    liabilityRecords.filter((row: any) => row?.id != null).map((row: any) => ({
+      liability_id: String(row.id),
+      account_id: row.account_id != null ? String(row.account_id) : null,
+      balance: numberAt(row, ["last_statement_balance", "current_balance", "balance"]),
+      currency: typeof row.iso_currency_code === "string" ? row.iso_currency_code : null,
+    })),
+    assetItems.filter((row: any) => row?.id != null).map((row: any) => ({
+      asset_id: String(row.id),
+      account_id: row.account_id != null ? String(row.account_id) : null,
+      value: numberAt(row, ["value", "current_value", "market_value"]),
+      currency: typeof row.iso_currency_code === "string" ? row.iso_currency_code : null,
+    })),
+  );
+
   result.domains = {
     auth: { account_records: authAccounts.length, source_observation_ids: authSource.ids, response_received: Boolean(authPayload) },
     identity: { record_count: identityAccounts.length, source_observation_ids: identitySource.ids, response_received: Boolean(identityPayload) },
@@ -118,18 +147,19 @@ export async function buildProviderDomainIntelligence(userId: string) {
 
   result.utilization = { products: PRODUCTS.filter(product => { const s = source(product); return Boolean(s.authority && (s.authoritativeSpecialized ? s.specialized.length : s.generic.length)); }), analyses: [...new Set(consumptionPlans.flatMap(p => p.analyses))], source_observations: Object.fromEntries(PRODUCTS.map(product => [product, source(product).ids])), same_item: true, rule: "Only current observed provider evidence from the selected eight-product Item is used. Specialized account-scoped sources are authoritative for transactions, balance and liabilities. Assets report balances and investment holdings are excluded from net worth to prevent overlap with canonical account balances. Consumption records describe the exact domain analysis actually performed here; they do not certify higher-order combination execution." };
   result.derived = {
-    net_worth: netWorth,
-    net_worth_components: { liquid_assets: liquidBalance, investment_accounts: investmentAccountBalance, debt_accounts: debtAccountBalance, liabilities_product_balance: liabilityBalance, basis: "mutually_exclusive_plaid_account_balances", assets_report_excluded_from_net_worth: true, investment_holdings_excluded_from_net_worth: true },
+    net_worth: composition.net_worth,
+    net_worth_components: { liquid_assets: composition.liquid_assets, investment_accounts: composition.investment_accounts, debt_accounts: composition.debt_accounts, liabilities_product_balance: liabilityBalance, basis: composition.net_worth_basis, assets_report_excluded_from_net_worth: true, investment_holdings_excluded_from_net_worth: true },
     portfolio: { market_value: investmentHoldingValue, holdings: investmentHoldings.length, securities: investmentSecurities.length, source_observation_ids: investmentSource.ids },
     statement_reconciliation: { statement_records: statements.length, statement_accounts: statementAccounts.length, transaction_records: txRows.filter(r => r.item_id === selectedItemId).length, transaction_account_overlap: statementTransactionAccountOverlap, statement_to_transaction_coverage: statementAccounts.length > 0 ? statementTransactionAccountOverlap / statementAccounts.length : null, dollar_reconciliation: null, limitation: "Account-overlap coverage is not a dollar reconciliation; no dollar reconciliation is asserted without statement-period and transaction-amount matching." },
     account_integrity: { auth_records: authAccounts.length, identity_records: identityAccounts.length, balance_accounts: accountRows.length, identity_auth_match: authAccounts.length > 0 && identityAccounts.length > 0 ? authAccounts.length === identityAccounts.length : null },
     liability_state: { liability_records: liabilityRecords.length, liability_balance: liabilityBalance, account_balance_basis: debtAccountBalance },
     cross_domain_reconciliation: crossDomainReconciliation,
+    financial_composition_reconciliation: composition,
   };
   if (!balanceCurrency.safe) result.limitations.push("Plaid balance evidence does not expose one unambiguous currency across the selected Item; monetary aggregation is withheld.");
   if (assetItems.length) result.limitations.push("Plaid Assets report is consumed for asset-position evidence, but its account balances are excluded from net worth to prevent overlap.");
   if (investmentHoldings.length) result.limitations.push("Plaid Investments holdings are consumed for portfolio analysis, but their values are excluded from net worth to prevent overlap with investment account balances.");
   if (liabilityBalance !== null && debtAccountBalance !== null) result.limitations.push("Plaid Liabilities balance is retained as a separate product observation and not subtracted again from account-balance net worth.");
-  result.limitations.push(...crossDomainReconciliation.limitations);
+  result.limitations.push(...composition.limitations, ...crossDomainReconciliation.limitations);
   return result;
 }
