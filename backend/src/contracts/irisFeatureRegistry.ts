@@ -1,38 +1,16 @@
-/**
- * Authoritative Iris feature boundary.
- *
- * Plaid products answer what source capabilities exist. Iris features answer
- * what intelligence the user can activate. These are intentionally separate:
- * activating a feature never activates a provider product and never fabricates
- * evidence.
- */
-import { IRIS_CATALOG } from "../intelligence/irisCatalog.js";
-import { IRIS_CATALOG_EXPANSION } from "../intelligence/irisCatalogExpansion.js";
-import { IRIS_ANALYSIS_ATLAS } from "../intelligence/analysisAtlas.js";
-import type { IrisCatalogCapability } from "../intelligence/irisCatalog.js";
+import { IRIS_ANALYSIS_ATLAS } from "../intelligence/irisAnalysisAtlas.js";
 
 export type IrisFeatureActivation = "enabled" | "disabled";
 export type IrisFeatureReadiness = "ready" | "limited" | "insufficient_evidence" | "blocked";
-export type IrisEvidenceStatus = "observed" | "validated" | "fresh" | "stale" | "limited" | "insufficient_evidence" | "retired" | "missing";
+export type IrisEvidenceStatus = "observed" | "validated" | "fresh" | "stale" | "retired" | "missing";
 
 export interface IrisFeatureDefinition {
   featureId: string;
-  version: string;
-  capabilityId: string;
   name: string;
   description: string;
-  family: string;
-  depth: IrisCatalogCapability["depth"];
-  prerequisites: string[];
-  /** Canonical evidence requirements; never analysis-definition identifiers. */
   requiredEvidence: string[];
-  /** Analysis definitions this feature may publish when their evidence gates pass. */
   requiredAnalysisIds: string[];
-  evidencePolicy: "all";
-  intelligenceOutputs: string[];
-  uiSurfaces: string[];
-  educationSurfaces: string[];
-  interactionModes: string[];
+  defaultActivation: IrisFeatureActivation;
 }
 
 export interface IrisFeatureState {
@@ -44,83 +22,33 @@ export interface IrisFeatureState {
   available: boolean;
 }
 
-const ALL_CAPABILITIES = [...IRIS_CATALOG, ...IRIS_CATALOG_EXPANSION];
-const ANALYSIS_BY_ID = new Map(IRIS_ANALYSIS_ATLAS.map((definition) => [definition.id, definition]));
-
-function unique(values: string[]): string[] {
-  return [...new Set(values.filter((value) => value.trim().length > 0))];
+function requiredEvidenceForAnalyses(analysisIds: string[], featureId: string): string[] {
+  const keys = new Set<string>();
+  for (const analysisId of analysisIds) {
+    const definition = IRIS_ANALYSIS_ATLAS.find((analysis) => analysis.id === analysisId);
+    for (const input of definition?.inputs ?? []) keys.add(input);
+  }
+  if (keys.size === 0) keys.add(`feature:${featureId}:evidence`);
+  return [...keys].sort();
 }
 
 /**
- * Catalog atlas references are analytical definitions, not evidence records.
- * Convert them into the underlying analytical input requirements while keeping
- * the analysis IDs separately available for publication mapping.
+ * Authoritative executable feature registry. Analysis-definition IDs and
+ * semantic evidence requirement keys are deliberately separate namespaces.
  */
-const defaultEvidence = (capability: IrisCatalogCapability): string[] => {
-  const analysisInputs = capability.atlas_ids.flatMap((id) => ANALYSIS_BY_ID.get(id)?.inputs ?? []);
-  return unique(analysisInputs.length > 0 ? analysisInputs : [`feature:${capability.id}:evidence`]);
-};
+export const IRIS_FEATURE_REGISTRY: IrisFeatureDefinition[] = IRIS_ANALYSIS_ATLAS.map((analysis) => {
+  const featureId = analysis.capabilityId ?? analysis.id;
+  return {
+    featureId,
+    name: analysis.name,
+    description: analysis.description,
+    requiredEvidence: requiredEvidenceForAnalyses([analysis.id], featureId),
+    requiredAnalysisIds: [analysis.id],
+    defaultActivation: "enabled",
+  };
+});
 
-const defaultAnalysisIds = (capability: IrisCatalogCapability): string[] =>
-  unique(capability.atlas_ids.filter((id) => ANALYSIS_BY_ID.has(id)));
-
-const defaultPrerequisites = (capability: IrisCatalogCapability): string[] => {
-  if (capability.depth === "core") return ["evidence_validated"];
-  if (capability.depth === "advanced") return ["evidence_validated", "analytical_readiness"];
-  return ["evidence_validated", "analytical_readiness", "provenance_complete"];
-};
-
-const defaultOutputs = (capability: IrisCatalogCapability): string[] => [
-  `${capability.family}.observations`,
-  `${capability.family}.analysis`,
-  `${capability.family}.explanations`,
-];
-
-const defaultSurfaces = (capability: IrisCatalogCapability): string[] => [
-  "iris_dashboard",
-  `workspace:${capability.family}`,
-  "iris_interaction",
-];
-
-const defaultEducation = (_capability: IrisCatalogCapability): string[] => [
-  "what_it_means",
-  "why_it_matters",
-  "evidence_and_limits",
-];
-
-const defaultInteraction = (_capability: IrisCatalogCapability): string[] => [
-  "inspect",
-  "explain",
-  "trace",
-  "compare",
-];
-
-/** One authoritative feature registry derived from the complete Iris capability catalogs. */
-export const IRIS_FEATURE_REGISTRY: IrisFeatureDefinition[] = ALL_CAPABILITIES.map((capability) => ({
-  featureId: `feature.${capability.id}`,
-  version: "1.0.0",
-  capabilityId: capability.id,
-  name: capability.name,
-  description: capability.description,
-  family: capability.family,
-  depth: capability.depth,
-  prerequisites: defaultPrerequisites(capability),
-  requiredEvidence: defaultEvidence(capability),
-  requiredAnalysisIds: defaultAnalysisIds(capability),
-  evidencePolicy: "all",
-  intelligenceOutputs: defaultOutputs(capability),
-  uiSurfaces: defaultSurfaces(capability),
-  educationSurfaces: defaultEducation(capability),
-  interactionModes: defaultInteraction(capability),
-}));
-
-export function getIrisFeature(featureId: string): IrisFeatureDefinition | null {
-  return IRIS_FEATURE_REGISTRY.find((feature) => feature.featureId === featureId) ?? null;
-}
-
-export function getIrisFeatureByCapability(capabilityId: string): IrisFeatureDefinition | null {
-  return IRIS_FEATURE_REGISTRY.find((feature) => feature.capabilityId === capabilityId) ?? null;
-}
+export const IRIS_FEATURE_REGISTRY_VERSION = "IRIS_FEATURE_REGISTRY_V2" as const;
 
 /**
  * Deterministic readiness evaluator. Evidence may be supplied as an already
@@ -137,10 +65,11 @@ export function evaluateIrisFeatureState(
   },
 ): IrisFeatureState {
   let coverage = input.evidenceCoverage ?? 0;
-  if (input.evidenceStatusById) {
+  const evidenceStatusById = input.evidenceStatusById;
+  if (evidenceStatusById) {
     const required = feature.requiredEvidence;
     const validStatuses = new Set<IrisEvidenceStatus>(["observed", "validated", "fresh"]);
-    const satisfied = required.filter((id) => validStatuses.has(input.evidenceStatusById[id] ?? "missing")).length;
+    const satisfied = required.filter((id) => validStatuses.has(evidenceStatusById[id] ?? "missing")).length;
     coverage = required.length === 0 ? 1 : satisfied / required.length;
   }
   coverage = Math.max(0, Math.min(1, coverage));
@@ -158,5 +87,5 @@ export function evaluateIrisFeatureState(
   if (coverage > 0) {
     return { featureId: feature.featureId, activation: "enabled", readiness: "limited", evidenceCoverage: coverage, blockers: ["partial_evidence"], available: true };
   }
-  return { featureId: feature.featureId, activation: "enabled", readiness: "insufficient_evidence", evidenceCoverage: 0, blockers: ["evidence_required"], available: false };
+  return { featureId: feature.featureId, activation: "enabled", readiness: "insufficient_evidence", evidenceCoverage: 0, blockers: ["insufficient_evidence"], available: false };
 }
