@@ -14,8 +14,11 @@ export interface CategoryDrift {
   baselineTransactionCount: number;
 }
 
-/** LAYER 5/6 — spending behavior excludes transfers and other non-economic movements. */
-export async function computeCategoryDrift(userId: string, recentDays = 30, baselineDays = 90): Promise<CategoryDrift[]> {
+/** Spending behavior is bound to the temporal dependency's declared baseline scope. */
+export async function computeCategoryDrift(userId: string, recentDays = 30, baselineDays = 90, dependencyWindows: readonly number[] = []): Promise<CategoryDrift[]> {
+  if (dependencyWindows.length && !dependencyWindows.includes(baselineDays)) {
+    throw new Error("CAPABILITY_DEPENDENCY_SCOPE_MISMATCH: behavioral baseline is not represented by temporal evidence");
+  }
   const baselineStart = new Date(Date.now() - baselineDays * 86_400_000).toISOString().slice(0, 10);
   const recentStart = new Date(Date.now() - recentDays * 86_400_000).toISOString().slice(0, 10);
   const txs = await getCanonicalTransactions(userId, baselineStart);
