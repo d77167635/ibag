@@ -1,0 +1,39 @@
+name: Repair source fidelity syntax
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/src/intelligence/sourceFidelity.ts'
+      - '.github/workflows/repair-source-fidelity.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repair known malformed template literal
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('backend/src/intelligence/sourceFidelity.ts')
+          s = p.read_text()
+          old = 'Every connected Item has a current observed Balance state.\\", itemRows.length'
+          new = 'Every connected Item has a current observed Balance state.`, itemRows.length'
+          if old in s:
+              p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/src/intelligence/sourceFidelity.ts
+          if git diff --cached --quiet; then
+            echo 'No repair needed.'
+          else
+            git commit -m 'Fix source fidelity template literal [skip ci]'
+            git push
+          fi
