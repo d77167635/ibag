@@ -66,6 +66,11 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   const output = outputs?.find(o => o.hash === outputHash);
   check("iris.output.semantic_state", !!output && output.value != null && output.evidence_state !== "OBSERVED", "Output is persisted as derived intelligence and is not misclassified as observed evidence.", "Output is missing, hash-mismatched, or incorrectly classified as observed evidence.");
 
+  const providerDomains = (output?.value as any)?.layer_metrics?.provider_domains as any;
+  const crossDomain = providerDomains?.derived?.cross_domain_reconciliation as any;
+  const crossDomainReady = crossDomain?.state === "reconciled" && crossDomain?.net_worth_basis === "account_balances_only" && crossDomain?.checks?.transaction_account_lineage === true && crossDomain?.checks?.currency_safe === true;
+  check("iris.reconciliation.cross_domain", crossDomainReady, "Cross-domain financial evidence reconciles sufficiently for governed certification, with account balances as the non-overlapping net-worth basis.", crossDomain ? `Cross-domain reconciliation is ${String(crossDomain.state)} or one of its core safety checks is not satisfied; certification remains blocked.` : "The governed output does not contain a cross-domain reconciliation result.");
+
   const raw = rawCount ?? 0;
   const canonical = canonicalCount ?? 0;
   const reconciliationOk = raw === canonical;
@@ -88,10 +93,10 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
       complete_item_count: completeItems.length, complete_item_ids: completeItems, selected_item_id: selectedItemId, run_evidence_item_ids: evidenceItemIds,
     },
     reconciliation_snapshot: {
-      status: reconciliationOk && evidenceMatchesSelectedItem && evidenceHasRequiredDomains ? "PASS" : "FAIL",
+      status: reconciliationOk && evidenceMatchesSelectedItem && evidenceHasRequiredDomains && crossDomainReady ? "PASS" : "FAIL",
       raw_current_transactions: raw, canonical_current_transactions: canonical, roundup_event_count: roundupCount ?? 0,
       current_product_observation_count: productCount ?? 0, selected_item_id: selectedItemId, run_evidence_item_ids: evidenceItemIds,
-      run_evidence_required_domains: evidenceHasRequiredDomains, scope: "provider_item_plus_core_transaction_reconciliation",
+      run_evidence_required_domains: evidenceHasRequiredDomains, cross_domain_reconciliation: crossDomain ?? null, scope: "provider_item_plus_core_transaction_plus_cross_domain_reconciliation",
     },
   };
 }
