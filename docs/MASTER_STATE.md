@@ -6,7 +6,7 @@
 - Product: Iris
 - Repository: `d77167635/ibag`
 - Default branch: `main`
-- Latest verified continuity checkpoint: `d6803a9b13b9bbd9745c2b46e163f2d7bbb6140d`
+- Latest verified continuity checkpoint: `c5eed60f874633f3a66cabff49de6ef4738a0c08`
 - Repository status: active, public, non-archived
 
 ## Core product boundary
