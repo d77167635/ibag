@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { reconcileCanonicalTransactions } from "./canonicalReconciliation.js";
 
 export type EvidenceNodeKind = "provider" | "calculation" | "intelligence" | "inference" | "limitation";
 export type EvidenceState = "observed" | "calculated" | "inferred" | "limited" | "insufficient_evidence";
@@ -100,18 +101,49 @@ export function buildEvidenceGraph(intel: any): EvidenceGraph {
   return { architecture_version: "IRIS_EVIDENCE_GRAPH_V2", nodes, edges, roots: nodes.filter((node) => !edges.some((edge) => edge.to === node.id)).map((node) => node.id), limitations };
 }
 
-/** Verifies the provider lineage chain and counts only actual Plaid domain observations as observed evidence. */
-export async function verifyProviderLineage(supabase: SupabaseClient, userId: string): Promise<{ observedAccounts: number; observedTransactions: number; transactionsWithAccount: number; transactionsWithItem: number; observedProductDomains: number; lineageComplete: boolean }> {
-  const [{ count: observedAccounts }, { count: observedTransactions }] = await Promise.all([
-    supabase.from("plaid_accounts").select("id", { count: "exact", head: true }).eq("user_id", userId),
-    supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true),
+export interface ProviderLineageVerification {
+  observedAccounts: number;
+  observedTransactions: number;
+  transactionsWithAccount: number;
+  transactionsWithItem: number;
+  observedProductDomains: number;
+  lineageComplete: boolean;
+  transactionReconciliation: ReturnType<typeof reconcileCanonicalTransactions>;
+}
+
+/** Verifies provider lineage and requires canonical transactions to reconcile to current observed provider transactions. */
+export async function verifyProviderLineage(supabase: SupabaseClient, userId: string): Promise<ProviderLineageVerification> {
+  const [{ data: accountRows, count: observedAccounts, error: accountError }, { data: transactionRows, count: observedTransactions, error: transactionError }, { count: observedProductDomains, error: productError }, { data: rawTransactionRows, error: rawTransactionError }] = await Promise.all([
+    supabase.from("plaid_accounts").select("id,item_id,plaid_account_id", { count: "exact" }).eq("user_id", userId),
+    supabase.from("transactions").select("id,account_id,plaid_transaction_id,raw_transaction_id,is_active", { count: "exact" }).eq("user_id", userId).eq("is_active", true),
+    supabase.from("plaid_product_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("evidence_state", "observed").eq("lifecycle_state", "observed"),
+    supabase.from("plaid_raw_transactions").select("id,account_id,plaid_transaction_id,is_current,evidence_state").eq("user_id", userId),
   ]);
-  const { data: transactionRows, error: transactionError } = await supabase.from("transactions").select("id, account_id, plaid_accounts!transactions_account_user_fk(item_id, user_id)").eq("user_id", userId).eq("is_active", true);
+  if (accountError) throw accountError;
   if (transactionError) throw transactionError;
-  const { count: observedProductDomains, error: productError } = await supabase.from("plaid_product_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("evidence_state", "observed").eq("lifecycle_state", "observed");
   if (productError) throw productError;
+  if (rawTransactionError) throw rawTransactionError;
+
+  const accounts = accountRows ?? [];
   const rows = transactionRows ?? [];
-  const transactionsWithAccount = rows.filter((row: any) => Boolean(row.account_id)).length;
-  const transactionsWithItem = rows.filter((row: any) => Boolean(row.plaid_accounts?.item_id) && row.plaid_accounts?.user_id === userId).length;
-  return { observedAccounts: observedAccounts ?? 0, observedTransactions: observedTransactions ?? 0, transactionsWithAccount, transactionsWithItem, observedProductDomains: observedProductDomains ?? 0, lineageComplete: (observedTransactions ?? 0) === transactionsWithAccount && transactionsWithAccount === transactionsWithItem };
+  const rawRows = rawTransactionRows ?? [];
+  const transactionsWithAccount = rows.filter((row: any) => Boolean(row.account_id) && accounts.some((account: any) => account.id === row.account_id)).length;
+  const transactionsWithItem = rows.filter((row: any) => {
+    const account = accounts.find((candidate: any) => candidate.id === row.account_id);
+    return Boolean(account?.item_id);
+  }).length;
+  const transactionReconciliation = reconcileCanonicalTransactions(accounts, rows, rawRows);
+  const lineageComplete = (observedTransactions ?? 0) === transactionsWithAccount
+    && transactionsWithAccount === transactionsWithItem
+    && transactionReconciliation.status === "reconciled";
+
+  return {
+    observedAccounts: observedAccounts ?? 0,
+    observedTransactions: observedTransactions ?? 0,
+    transactionsWithAccount,
+    transactionsWithItem,
+    observedProductDomains: observedProductDomains ?? 0,
+    lineageComplete,
+    transactionReconciliation,
+  };
 }
