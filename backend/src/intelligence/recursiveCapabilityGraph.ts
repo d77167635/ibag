@@ -57,10 +57,29 @@ function hashGraph(nodes: CapabilityGraphNode[], edges: CapabilityGraphEdge[]): 
 }
 
 /**
+ * Classifies a persisted contract without treating catalog presence as evidence.
+ * A registered active capability is discoverable; it becomes ready only when
+ * both evidence readiness and runtime proof are explicitly present. A missing
+ * declared dependency blocks the node because the contract cannot be safely
+ * composed as declared.
+ */
+export function classifyCapabilityContract(
+  contract: CapabilityContract,
+  contracts: CapabilityContract[],
+): "discoverable" | "ready" | "blocked" {
+  const dependencies = asStrings(contractValue(contract, "dependencies"));
+  const missingDependency = dependencies.some(dep => !contracts.some(candidate => candidate.key === dep));
+  if (missingDependency) return "blocked";
+  const evidenceReady = contractValue(contract, "evidence_ready") === true;
+  const runtimeProven = contractValue(contract, "runtime_proven") === true;
+  return evidenceReady && runtimeProven ? "ready" : "discoverable";
+}
+
+/**
  * Builds a recursively traversable capability graph from persisted contracts.
  * The graph is a plan/discovery artifact: it never creates financial evidence.
- * Depth is bounded only by the caller's resource budget, not by a fixed
- * intelligence-layer ceiling.
+ * Depth and graph size are bounded only by explicit resource budgets, not by a
+ * fixed intelligence-layer ceiling.
  */
 export async function buildRecursiveCapabilityGraph(options: {
   userId: string;
@@ -76,6 +95,7 @@ export async function buildRecursiveCapabilityGraph(options: {
   graph_hash: string;
   truncated_by_budget: boolean;
 }> {
+  void options.userId;
   const maxDepth = Math.max(0, options.maxDepth ?? 32);
   const maxNodes = Math.max(1, options.maxNodes ?? 5000);
   const maxEdges = Math.max(1, options.maxEdges ?? 20000);
@@ -93,8 +113,6 @@ export async function buildRecursiveCapabilityGraph(options: {
   const frontier: string[] = [];
   let truncated = false;
 
-  const ready = (c: CapabilityContract) => contractValue(c, "evidence_ready") === true && contractValue(c, "runtime_proven") === true;
-
   const queue: Array<{ key: string; depth: number }> = contracts.map(c => ({ key: c.key, depth: 0 }));
   while (queue.length) {
     const current = queue.shift()!;
@@ -111,7 +129,8 @@ export async function buildRecursiveCapabilityGraph(options: {
     const validationRules = asStrings(contractValue(contract, "validation_rules"));
     const operatorId = typeof contractValue(contract, "operator_id") === "string" ? contractValue(contract, "operator_id") as string : null;
     const operatorVersion = typeof contractValue(contract, "operator_version") === "string" ? contractValue(contract, "operator_version") as string : null;
-    const isReady = ready(contract);
+    const state = classifyCapabilityContract(contract, contracts);
+    const isReady = state === "ready";
 
     nodes.push({
       ...contract,
@@ -125,15 +144,15 @@ export async function buildRecursiveCapabilityGraph(options: {
       dependencies: deps,
       depth: current.depth,
       evidence_ready: isReady,
-      state: isReady ? "ready" : "blocked",
+      state,
     });
     seen.add(`${current.key}:${current.depth}`);
 
     for (const dep of deps) {
       if (edges.length >= maxEdges) { truncated = true; break; }
       const target = contracts.find(c => c.key === dep);
-      const targetReady = !!target && ready(target);
-      edges.push({ from: contract.key, to: dep, relation: "depends_on", evidence_compatible: targetReady, semantic_compatible: !!target, rationale: target ? `Declared dependency of ${contract.key}.` : `Dependency ${dep} is not registered.` });
+      const targetState = target ? classifyCapabilityContract(target, contracts) : "blocked";
+      edges.push({ from: contract.key, to: dep, relation: "depends_on", evidence_compatible: targetState === "ready", semantic_compatible: !!target, rationale: target ? `Declared dependency of ${contract.key}.` : `Dependency ${dep} is not registered.` });
       if (target) queue.push({ key: target.key, depth: current.depth + 1 });
       else frontier.push(dep);
     }
@@ -146,7 +165,7 @@ export async function buildRecursiveCapabilityGraph(options: {
         from: contract.key,
         to: other.key,
         relation: contract.capability_group === other.capability_group ? "composes_with" : "feeds",
-        evidence_compatible: ready(contract) && ready(other),
+        evidence_compatible: state === "ready" && classifyCapabilityContract(other, contracts) === "ready",
         semantic_compatible: true,
         rationale: `Contract inputs/outputs or capability family permit composition; readiness remains evidence-gated.`,
       });
@@ -156,7 +175,7 @@ export async function buildRecursiveCapabilityGraph(options: {
 
   const roots = contracts.filter(c => !contracts.some(d => asStrings(contractValue(d, "dependencies")).includes(c.key))).map(c => c.key);
   return {
-    graph_version: "IRIS_RECURSIVE_CAPABILITY_GRAPH_V1",
+    graph_version: "IRIS_RECURSIVE_CAPABILITY_GRAPH_V2",
     nodes,
     edges,
     roots,
