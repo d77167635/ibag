@@ -1,4 +1,4 @@
-export const SOURCE_FIELD_INTELLIGENCE_BRIDGE_VERSION = "IRIS_SOURCE_FIELD_INTELLIGENCE_BRIDGE_V2";
+export const SOURCE_FIELD_INTELLIGENCE_BRIDGE_VERSION = "IRIS_SOURCE_FIELD_INTELLIGENCE_BRIDGE_V3";
 
 export type SourceFieldBinding = {
   sourceFieldId: string;
@@ -27,19 +27,26 @@ export type SourceFieldIntelligenceEdge = {
 /**
  * Resolves observed source-field evidence into explicitly governed intelligence bindings.
  * Binding by persisted source-field identity prevents collisions such as `name` or `amount`
- * appearing in multiple provider products.
+ * appearing in multiple provider products. A lookup index keeps resolution linear in the
+ * number of observations and bindings rather than multiplying the two collections.
  */
 export function resolveSourceFieldIntelligenceBindings(
   observations: Array<{ id: string; source_field_id: string; evidence_state: string }>,
   bindings: SourceFieldBinding[],
 ): SourceFieldIntelligenceEdge[] {
-  const activeBindings = bindings.filter((binding) => binding.active);
-  const edges: SourceFieldIntelligenceEdge[] = [];
+  const bindingsBySourceField = new Map<string, SourceFieldBinding[]>();
+  for (const binding of bindings) {
+    if (!binding.active) continue;
+    const current = bindingsBySourceField.get(binding.sourceFieldId);
+    if (current) current.push(binding);
+    else bindingsBySourceField.set(binding.sourceFieldId, [binding]);
+  }
 
+  const edges: SourceFieldIntelligenceEdge[] = [];
   for (const observation of observations) {
-    const matching = activeBindings.filter((binding) => binding.sourceFieldId === observation.source_field_id);
+    const matching = bindingsBySourceField.get(observation.source_field_id) ?? [];
+    const state = normalizeEvidenceState(observation.evidence_state);
     for (const binding of matching) {
-      const state = normalizeEvidenceState(observation.evidence_state);
       const publishable = binding.evidenceCompatible && state === "observed";
       edges.push({
         sourceFieldObservationId: observation.id,
@@ -51,7 +58,7 @@ export function resolveSourceFieldIntelligenceBindings(
         operationVersion: binding.operationVersion,
         evidenceState: state,
         publishable,
-        reason: publishable ? null : !binding.evidenceCompatible ? "binding_evidence_incompatible" : `source_evidence_${state}`,
+        reason: publishable ? null : !binding.evidenceCompatible ? "binding_evidence_incompatible" : "source_evidence_" + state,
       });
     }
   }
