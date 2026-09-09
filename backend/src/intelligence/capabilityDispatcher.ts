@@ -15,6 +15,34 @@ type DispatchRequest = {
   parameters?: Record<string, unknown>;
 };
 
+function positiveInteger(value: unknown, name: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`INVALID_CAPABILITY_PARAMETER: ${name}`);
+  }
+  return value;
+}
+
+function validAsOf(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) {
+    throw new Error("INVALID_CAPABILITY_PARAMETER: asOf");
+  }
+  return value;
+}
+
+function validWindows(value: unknown): readonly number[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("INVALID_CAPABILITY_PARAMETER: windows");
+  }
+  const windows = value.map((entry) => positiveInteger(entry, "windows"));
+  if (windows.some((entry) => entry === undefined)) {
+    throw new Error("INVALID_CAPABILITY_PARAMETER: windows");
+  }
+  return windows as number[];
+}
+
 /**
  * Single governed runtime boundary for independently executable capabilities.
  *
@@ -24,6 +52,8 @@ type DispatchRequest = {
  * rejected truthfully rather than silently falling back to the aggregate.
  */
 export async function dispatchGovernedCapability({ userId, capabilityId, parameters = {} }: DispatchRequest) {
+  if (!userId) throw new Error("INVALID_CAPABILITY_REQUEST: userId");
+
   if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
     const result = await computeFullIntelligence(userId);
     return {
@@ -42,26 +72,27 @@ export async function dispatchGovernedCapability({ userId, capabilityId, paramet
 
   switch (capabilityId) {
     case "temporal": {
-      const windows = Array.isArray(parameters.windows)
-        ? parameters.windows.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) as any
-        : undefined;
-      const asOf = typeof parameters.asOf === "string" ? parameters.asOf : undefined;
+      const windows = validWindows(parameters.windows);
+      const asOf = validAsOf(parameters.asOf);
       const result = await computeMultiWindowFlow(userId, windows, asOf);
       return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result };
     }
     case "behavioral": {
-      const recentDays = typeof parameters.recentDays === "number" ? parameters.recentDays : undefined;
-      const baselineDays = typeof parameters.baselineDays === "number" ? parameters.baselineDays : undefined;
+      const recentDays = positiveInteger(parameters.recentDays, "recentDays");
+      const baselineDays = positiveInteger(parameters.baselineDays, "baselineDays");
+      if (recentDays !== undefined && baselineDays !== undefined && recentDays > baselineDays) {
+        throw new Error("INVALID_CAPABILITY_PARAMETER: recentDays_exceeds_baselineDays");
+      }
       const result = await computeCategoryDrift(userId, recentDays, baselineDays);
       return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result };
     }
     case "anomaly": {
-      const windowDays = typeof parameters.windowDays === "number" ? parameters.windowDays : undefined;
+      const windowDays = positiveInteger(parameters.windowDays, "windowDays");
       const result = await computeCanonicalAnomalies(userId, windowDays);
       return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result };
     }
     case "relationship": {
-      const asOf = typeof parameters.asOf === "string" ? parameters.asOf : undefined;
+      const asOf = validAsOf(parameters.asOf);
       const result = await computeFinancialReasoning(userId, asOf);
       return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result };
     }
