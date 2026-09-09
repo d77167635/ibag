@@ -48,6 +48,10 @@ function commercialState(term: any): "included" | "pass_through" | "unknown" {
   return "unknown";
 }
 
+function providerPriority(state: PlaidProductState): number {
+  return { active: 4, consented: 3, available: 2, cataloged: 1, not_available: 0, unsupported: 0 }[state] ?? 0;
+}
+
 export async function selectPlaidProducts(userId: string) {
   const [{ data: subscription, error: subscriptionError }, { data: items, error: itemsError }] = await Promise.all([
     supabaseAdmin.from("ibag_user_plan_subscriptions").select("plan_key,status,starts_at,ends_at").eq("user_id", userId).maybeSingle(),
@@ -57,7 +61,7 @@ export async function selectPlaidProducts(userId: string) {
   if (itemsError) throw itemsError;
 
   const base = {
-    strategy: "iris_evidence_weighted_product_selection_v8",
+    strategy: "iris_evidence_weighted_product_selection_v9",
     catalog_size: PLAID_PRODUCT_CATALOG_V2.length,
   };
   if (!subscription || subscription.status !== "active" || (subscription.ends_at && new Date(subscription.ends_at).getTime() <= Date.now())) {
@@ -87,8 +91,9 @@ export async function selectPlaidProducts(userId: string) {
     }
   }
 
-  const aggregate = new Map<string, any>();
+  const groups = new Map<string, { first: any; candidates: any[] }>();
   const itemResults: any[] = [];
+
   for (const item of items ?? []) {
     try {
       const token = await getPlaidAccessToken(item.id, item.user_id, item.plaid_access_token);
@@ -135,16 +140,9 @@ export async function selectPlaidProducts(userId: string) {
       }).sort((a, b) => b.intelligence_score - a.intelligence_score || a.display_name.localeCompare(b.display_name));
 
       for (const candidate of candidates) {
-        const prior = aggregate.get(candidate.product);
-        aggregate.set(candidate.product, {
-          ...candidate,
-          item_count: (prior?.item_count ?? 0) + 1,
-          observed_item_count: (prior?.observed_item_count ?? 0) + (candidate.observed_by_iris ? 1 : 0),
-          active_item_count: (prior?.active_item_count ?? 0) + (candidate.provider_status === "active" ? 1 : 0),
-          consented_item_count: (prior?.consented_item_count ?? 0) + (candidate.consent_status === "consented" ? 1 : 0),
-          available_item_count: (prior?.available_item_count ?? 0) + (candidate.provider_status === "available" ? 1 : 0),
-          billed_item_count: (prior?.billed_item_count ?? 0) + (candidate.billed_status === "billed" ? 1 : 0),
-        });
+        const group = groups.get(candidate.product);
+        if (group) group.candidates.push(candidate);
+        else groups.set(candidate.product, { first: candidate, candidates: [candidate] });
       }
       itemResults.push({ institution_name: item.institution_name, status: item.status, last_synced_at: item.last_synced_at, candidates });
     } catch (error) {
@@ -153,16 +151,61 @@ export async function selectPlaidProducts(userId: string) {
     }
   }
 
-  const all = [...aggregate.values()].sort((a, b) => b.intelligence_score - a.intelligence_score || a.product.localeCompare(b.product));
+  const all = [...groups.values()].map(({ first, candidates }) => {
+    const selected = candidates.filter((candidate) => candidate.decision === "selected");
+    const awaiting = candidates.filter((candidate) => candidate.decision === "eligible_awaiting_evidence");
+    const observedCount = candidates.filter((candidate) => candidate.observed_by_iris).length;
+    const activeCount = candidates.filter((candidate) => candidate.provider_status === "active").length;
+    const consentedCount = candidates.filter((candidate) => candidate.consent_status === "consented").length;
+    const availableCount = candidates.filter((candidate) => candidate.provider_status === "available").length;
+    const billedCount = candidates.filter((candidate) => candidate.billed_status === "billed").length;
+    const providerState = candidates.reduce((best, candidate) => providerPriority(candidate.provider_status) > providerPriority(best) ? candidate.provider_status : best, "not_available" as PlaidProductState);
+    const consentStatus = consentedCount > 0 ? "consented" : "not_consented";
+    const billedStatus: PlaidBilledState = billedCount > 0 ? "billed" : candidates.every((candidate) => candidate.billed_status === "not_billed") ? "not_billed" : "unknown";
+    const evidenceStatus = observedCount > 0 ? "observed" : candidates.every((candidate) => candidate.evidence_status === "not_available") ? "not_available" : "not_observed";
+    const decision = selected.length > 0 ? "selected" : awaiting.length > 0 ? "eligible_awaiting_evidence" : "blocked";
+    const blockers = [...new Set(candidates.flatMap((candidate) => candidate.blockers))];
+    const reasons = [...new Set(candidates.flatMap((candidate) => candidate.decision_reasons))];
+    return {
+      ...first,
+      provider_status: providerState,
+      consent_status: consentStatus,
+      billed_status: billedStatus,
+      evidence_status: evidenceStatus,
+      decision,
+      available_to_iris: decision === "selected" || decision === "eligible_awaiting_evidence",
+      observed_by_iris: observedCount > 0,
+      blockers,
+      decision_reasons: reasons,
+      item_count: candidates.length,
+      observed_item_count: observedCount,
+      active_item_count: activeCount,
+      consented_item_count: consentedCount,
+      available_item_count: availableCount,
+      billed_item_count: billedCount,
+      selected_item_count: selected.length,
+      awaiting_observation_item_count: awaiting.length,
+    };
+  }).sort((a, b) => b.intelligence_score - a.intelligence_score || a.product.localeCompare(b.product));
+
   const selected = all.filter((candidate) => candidate.decision === "selected");
   const awaitingObservation = all.filter((candidate) => candidate.decision === "eligible_awaiting_evidence");
+  const observed = all.filter((candidate) => candidate.evidence_status === "observed");
+
   return {
     ...base,
-    plan: { key: subscription.plan_key, status: subscription.status, starts_at: subscription.starts_at, ends_at: subscription.ends_at, entitled_product_count: definitions.filter((definition) => entitled.has(definition.key)).length },
+    plan: {
+      key: subscription.plan_key,
+      status: subscription.status,
+      starts_at: subscription.starts_at,
+      ends_at: subscription.ends_at,
+      entitled_product_count: definitions.filter((definition) => entitled.has(definition.key)).length,
+    },
     selected,
     all_eligible_products: all.filter((candidate) => candidate.available_to_iris),
     awaiting_observation: awaitingObservation,
-    observed_product_count: selected.length,
+    observed_product_count: observed.length,
+    selected_product_count: selected.length,
     eligible_product_count: all.filter((candidate) => candidate.available_to_iris).length,
     items: itemResults,
     principles: [
@@ -174,6 +217,7 @@ export async function selectPlaidProducts(userId: string) {
       "Commercial terms are explicit; unknown pricing is never silently treated as free.",
       "Iris may identify an eligible product awaiting evidence without claiming that its data has been observed.",
       "Iris never silently requests consent, activates a product, or performs money movement in Phase 1.",
+      "When multiple Items exist, a capability is selected if at least one Item independently satisfies the selection gates; per-Item state and evidence remain visible.",
     ],
   };
 }
