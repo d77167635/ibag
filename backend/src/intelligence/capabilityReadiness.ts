@@ -13,29 +13,50 @@ function contractValue(c: CapabilityContract, key: string): unknown {
   return metadata(c)[key];
 }
 
+const dependencyKeys = (contract: CapabilityContract): string[] => {
+  const value = contractValue(contract, "dependencies");
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
+};
+
 /**
  * Classifies a persisted contract without treating catalog presence as evidence.
  * A registered active capability is discoverable; it becomes ready only when
  * its own evidence/runtime proof is present and every declared dependency is
- * also ready. A missing or non-ready dependency blocks safe composition.
+ * also ready. Cyclic, missing, inactive, or non-ready dependencies fail closed.
  */
 export function classifyCapabilityContract(
   contract: CapabilityContract,
   contracts: CapabilityContract[],
 ): "discoverable" | "ready" | "blocked" {
-  const dependencies = Array.isArray(contractValue(contract, "dependencies"))
-    ? (contractValue(contract, "dependencies") as unknown[]).filter((v): v is string => typeof v === "string")
-    : [];
+  const byKey = new Map(contracts.map(candidate => [candidate.key, candidate]));
+  const visiting = new Set<string>();
+  const memo = new Map<string, "discoverable" | "ready" | "blocked">();
 
-  for (const dependency of dependencies) {
-    const target = contracts.find(candidate => candidate.key === dependency);
-    if (!target) return "blocked";
-    const targetEvidenceReady = contractValue(target, "evidence_ready") === true;
-    const targetRuntimeProven = contractValue(target, "runtime_proven") === true;
-    if (!targetEvidenceReady || !targetRuntimeProven) return "blocked";
-  }
+  const classify = (candidate: CapabilityContract): "discoverable" | "ready" | "blocked" => {
+    const cached = memo.get(candidate.key);
+    if (cached) return cached;
+    if (!candidate.active) return "blocked";
+    if (visiting.has(candidate.key)) return "blocked";
 
-  const evidenceReady = contractValue(contract, "evidence_ready") === true;
-  const runtimeProven = contractValue(contract, "runtime_proven") === true;
-  return evidenceReady && runtimeProven ? "ready" : "discoverable";
+    visiting.add(candidate.key);
+    for (const dependency of dependencyKeys(candidate)) {
+      const target = byKey.get(dependency);
+      if (!target || classify(target) !== "ready") {
+        visiting.delete(candidate.key);
+        memo.set(candidate.key, "blocked");
+        return "blocked";
+      }
+    }
+    visiting.delete(candidate.key);
+
+    const evidenceReady = contractValue(candidate, "evidence_ready") === true;
+    const runtimeProven = contractValue(candidate, "runtime_proven") === true;
+    const state = evidenceReady && runtimeProven ? "ready" : "discoverable";
+    memo.set(candidate.key, state);
+    return state;
+  };
+
+  return classify(contract);
 }
