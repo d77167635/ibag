@@ -1,4 +1,5 @@
-import { describe, expect, it } from "node:test";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { answerProviderQuestion } from "./providerQuestion.js";
 import type { IrisProviderEvidence } from "./providerEvidence.js";
 
@@ -13,18 +14,18 @@ const evidence: IrisProviderEvidence = {
 describe("answerProviderQuestion", () => {
   it("answers provider balance questions from supplied evidence", () => {
     const answer = answerProviderQuestion("What is my checking balance?", evidence);
-    expect(answer).toContain("Checking");
-    expect(answer).toContain("$1,250.50");
-    expect(answer).toContain("provider values, not Iris calculations");
+    assert.ok(answer?.includes("Checking"));
+    assert.ok(answer?.includes("$1,250.50"));
+    assert.ok(answer?.includes("provider values, not Iris calculations"));
   });
 
   it("answers product observation questions without treating catalog metadata as observation", () => {
     const answer = answerProviderQuestion("Which Plaid products are observed?", evidence);
-    expect(answer).toContain("balance: observed");
-    expect(answer).toContain("kept separate from actual domain observation");
+    assert.ok(answer?.includes("balance: observed"));
+    assert.ok(answer?.includes("kept separate from actual domain observation"));
   });
 
   it("returns null rather than inventing an unsupported provider fact", () => {
-    expect(answerProviderQuestion("What is my credit score?", evidence)).toBeNull();
+    assert.equal(answerProviderQuestion("What is my credit score?", evidence), null);
   });
 });
