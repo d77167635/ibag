@@ -159,10 +159,6 @@ export function buildIrisIntelligenceOutputRuntime(
       }
 
       if (featureLimited || (featureReady && !atlasReady)) {
-        const missing = unique([
-          ...definition.missing_inputs,
-          ...(atlasReady ? [] : definition.missing_inputs),
-        ]);
         return {
           analysis_id: definition.id,
           analysis_name: definition.name,
@@ -176,7 +172,7 @@ export function buildIrisIntelligenceOutputRuntime(
           evidence_coverage: coverage,
           evidence_basis: "feature_runtime",
           blockers: blockers.length ? blockers : ["analytical_evidence_limited"],
-          missing_evidence: missing,
+          missing_evidence: definition.missing_inputs,
           provenance: provenance(definition.id),
           qualification: "Limited intelligence: the available evidence does not fully support this analysis. Iris should show the limitation and missing evidence rather than present a complete conclusion.",
         };
