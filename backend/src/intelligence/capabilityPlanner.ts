@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
-export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v4";
+export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v5";
 
 type CapabilityContract = {
   capability_id: string;
@@ -32,7 +32,7 @@ export type CapabilityPlan = {
 
 function asStrings(value: unknown): string[] { return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []; }
 
-/** Resolve the governed capability graph against both persisted contracts and actual executable code. */
+/** Resolve the governed capability graph against persisted contracts and executable operators. */
 export async function planCapabilities(userId: string, requested: string[]): Promise<CapabilityPlan> {
   const requestedIds = [...new Set(requested.filter(Boolean))];
   const [{ data: contracts, error: contractError }, { data: products, error: productError }, { count: fieldCount, error: fieldError }] = await Promise.all([
@@ -78,10 +78,25 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   const observedProducts = [...new Set((products ?? []).map(p => p.product).filter((p): p is string => typeof p === "string"))];
   if (!observedProducts.length) limitations.push("No observed Plaid product domain is available to the planner for this user.");
 
+  // A dependency that is present in the contract graph but absent from the executable
+  // graph cannot be silently ignored. The plan is blocked because executing the child
+  // without its declared dependency would violate the semantic contract.
+  for (const id of ordered) {
+    const contract = registry.get(id);
+    if (!contract) continue;
+    for (const dependency of asStrings(contract.dependencies)) {
+      if (!registry.has(dependency)) {
+        unsupported.push(dependency);
+        limitations.push(`Capability ${id} declares missing dependency contract ${dependency}.`);
+      }
+    }
+  }
+
+  const uniqueUnsupported = [...new Set(unsupported)];
   const contractsUsed = ordered.map(id => registry.get(id)!).filter(Boolean);
   const edges = contractsUsed.reduce((n, c) => n + asStrings(c.dependencies).filter(d => registry.has(d)).length, 0);
   const nodes = ordered.length;
   const compositions = contractsUsed.filter(c => c.recursive || c.cross_domain).length;
-  const status = cycleDetected || missing.length || unsupported.length ? "BLOCKED" : limitations.length ? "LIMITED" : "READY";
-  return { planner_version: CAPABILITY_PLANNER_VERSION, requested: requestedIds, ordered_capabilities: ordered, contracts: contractsUsed, missing_capabilities: missing, unsupported_capabilities: unsupported, cycle_detected: cycleDetected, evidence: { observed_products: observedProducts, observed_product_count: observedProducts.length, source_field_observation_count: fieldCount ?? 0 }, resource_estimate: { nodes, edges, compositions }, status, limitations };
+  const status = cycleDetected || missing.length || uniqueUnsupported.length ? "BLOCKED" : limitations.length ? "LIMITED" : "READY";
+  return { planner_version: CAPABILITY_PLANNER_VERSION, requested: requestedIds, ordered_capabilities: ordered, contracts: contractsUsed, missing_capabilities: missing, unsupported_capabilities: uniqueUnsupported, cycle_detected: cycleDetected, evidence: { observed_products: observedProducts, observed_product_count: observedProducts.length, source_field_observation_count: fieldCount ?? 0 }, resource_estimate: { nodes, edges, compositions }, status, limitations };
 }
