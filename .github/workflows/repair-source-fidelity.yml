@@ -21,19 +21,16 @@ jobs:
           from pathlib import Path
           p = Path('backend/src/intelligence/sourceFidelity.ts')
           s = p.read_text()
-          old = 'Every connected Item has a current observed Balance state.\\", itemRows.length'
+          old = 'Every connected Item has a current observed Balance state.", itemRows.length'
           new = 'Every connected Item has a current observed Balance state.`, itemRows.length'
-          if old in s:
-              p.write_text(s.replace(old, new, 1))
+          if old not in s:
+              raise SystemExit('Expected malformed source fidelity text was not found.')
+          p.write_text(s.replace(old, new, 1))
           PY
       - name: Commit repair
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add backend/src/intelligence/sourceFidelity.ts
-          if git diff --cached --quiet; then
-            echo 'No repair needed.'
-          else
-            git commit -m 'Fix source fidelity template literal [skip ci]'
-            git push
-          fi
+          git commit -m 'Fix source fidelity template literal [skip ci]'
+          git push
