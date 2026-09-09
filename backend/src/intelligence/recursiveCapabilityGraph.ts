@@ -1,14 +1,9 @@
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "../config/supabase.js";
+import { classifyCapabilityContract } from "./capabilityReadiness.js";
+import type { CapabilityContract } from "./capabilityReadiness.js";
 
-export type CapabilityContract = {
-  key: string;
-  label: string;
-  capability_group: string;
-  description: string | null;
-  metadata: Record<string, unknown>;
-  active: boolean;
-};
+export type { CapabilityContract } from "./capabilityReadiness.js";
 
 export type CapabilityGraphNode = CapabilityContract & {
   node_id: string;
@@ -54,29 +49,6 @@ function compatible(a: CapabilityContract, b: CapabilityContract): boolean {
 
 function hashGraph(nodes: CapabilityGraphNode[], edges: CapabilityGraphEdge[]): string {
   return createHash("sha256").update(JSON.stringify({ nodes, edges })).digest("hex");
-}
-
-/**
- * Classifies a persisted contract without treating catalog presence as evidence.
- * A registered active capability is discoverable; it becomes ready only when
- * its own evidence/runtime proof is present and every declared dependency is
- * also ready. A missing or non-ready dependency blocks safe composition.
- */
-export function classifyCapabilityContract(
-  contract: CapabilityContract,
-  contracts: CapabilityContract[],
-): "discoverable" | "ready" | "blocked" {
-  const dependencies = asStrings(contractValue(contract, "dependencies"));
-  for (const dependency of dependencies) {
-    const target = contracts.find(candidate => candidate.key === dependency);
-    if (!target) return "blocked";
-    const targetEvidenceReady = contractValue(target, "evidence_ready") === true;
-    const targetRuntimeProven = contractValue(target, "runtime_proven") === true;
-    if (!targetEvidenceReady || !targetRuntimeProven) return "blocked";
-  }
-  const evidenceReady = contractValue(contract, "evidence_ready") === true;
-  const runtimeProven = contractValue(contract, "runtime_proven") === true;
-  return evidenceReady && runtimeProven ? "ready" : "discoverable";
 }
 
 /**
@@ -179,7 +151,7 @@ export async function buildRecursiveCapabilityGraph(options: {
 
   const roots = contracts.filter(c => !contracts.some(d => asStrings(contractValue(d, "dependencies")).includes(c.key))).map(c => c.key);
   return {
-    graph_version: "IRIS_RECURSIVE_CAPABILITY_GRAPH_V2",
+    graph_version: "IRIS_RECURSIVE_CAPABILITY_GRAPH_V3",
     nodes,
     edges,
     roots,
