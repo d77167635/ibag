@@ -26,6 +26,6 @@ test("every standard capability is resolvable from the complete catalog surface"
 });
 
 test("standard capability selection is a preference baseline rather than an intelligence ceiling", () => {
-  assert.ok(!IRIS_STANDARD_CAPABILITY_IDS.includes("maximum-intelligence"));
+  assert.equal(IRIS_STANDARD_CAPABILITY_IDS.some((id) => id === "maximum-intelligence"), false);
   assert.ok(getIrisCatalogCapability("maximum-intelligence"));
 });
