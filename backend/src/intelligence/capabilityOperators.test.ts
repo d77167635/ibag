@@ -14,9 +14,19 @@ test("planned capabilities are never reported as implemented", () => {
   }
 });
 
-test("implemented operators carry an explicit non-observed output state", () => {
+test("implemented operators are bound to an actual executable function", () => {
   for (const operator of EXECUTABLE_CAPABILITY_OPERATORS.filter(x => x.status === "implemented")) {
+    assert.equal(typeof operator.execute, "function");
     assert.notEqual(operator.evidence_state, "OBSERVED");
     assert.ok(operator.execution_stage.length > 0);
   }
+});
+
+test("temporal is the first independently executable capability", () => {
+  const operator = getCapabilityOperator("temporal");
+  assert.ok(operator);
+  assert.equal(operator.status, "implemented");
+  assert.equal(operator.operator_id, "temporal");
+  assert.equal(operator.version, "1.0.0");
+  assert.equal(typeof operator.execute, "function");
 });
