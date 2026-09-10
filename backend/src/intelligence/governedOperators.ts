@@ -96,8 +96,10 @@ export async function executePredictiveOperator(userId: string, context?: Capabi
   requireDependencies(executionContext, "predictive", ["analysis", "temporal", "behavioral", "pattern", "relationship", "causal"]);
   const upstreamTemporal = dependencyResult<any>(executionContext, "temporal");
   const upstreamAnalysis = dependencyResult<any>(executionContext, "analysis");
-  const upstreamCausal = dependencyResult<any>(executionContext, "causal");
+  const upstreamBehavioral = dependencyResult<any>(executionContext, "behavioral");
+  const upstreamPattern = dependencyResult<any>(executionContext, "pattern");
   const upstreamRelationship = dependencyResult<any>(executionContext, "relationship");
+  const upstreamCausal = dependencyResult<any>(executionContext, "causal");
   const projection = await computeCanonicalForwardProjection(userId, 30, asOf);
   const dependencyInputs = ["analysis", "temporal", "behavioral", "pattern", "relationship", "causal"];
   return {
@@ -108,6 +110,8 @@ export async function executePredictiveOperator(userId: string, context?: Capabi
       ...projection,
       upstream_temporal: upstreamTemporal,
       upstream_analysis: upstreamAnalysis,
+      upstream_behavioral: upstreamBehavioral,
+      upstream_pattern: upstreamPattern,
       upstream_relationship: upstreamRelationship,
       upstream_causal: upstreamCausal,
       dependency_composition: dependencyInputs,
