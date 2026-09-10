@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../config/supabase.js";
-import { decryptTokenForMigration } from "../config/crypto.js";
+import { decryptTokenForMigration, isEncryptedToken } from "../config/crypto.js";
 
 /**
  * Reads one Plaid access token and migrates a legacy plaintext-at-rest value
@@ -29,8 +29,12 @@ export async function getPlaidAccessToken(
 }
 
 /**
- * Startup migration for legacy Items. Idempotent: already encrypted values
- * are not rewritten.
+ * Startup migration for legacy Items. Already encrypted values are deliberately
+ * not decrypted during startup. The transitional database can contain tokens
+ * encrypted with a previous TOKEN_ENCRYPTION_KEY; attempting to authenticate
+ * those values here would make an obsolete credential take the entire service
+ * down. Runtime access still authenticates encrypted credentials and fails
+ * closed when the current key cannot decrypt one.
  */
 export async function migrateLegacyPlaidAccessTokens(): Promise<number> {
   const { data: items, error } = await supabaseAdmin
@@ -41,6 +45,8 @@ export async function migrateLegacyPlaidAccessTokens(): Promise<number> {
 
   let migratedCount = 0;
   for (const item of items ?? []) {
+    if (isEncryptedToken(item.plaid_access_token)) continue;
+
     const migrated = decryptTokenForMigration(item.plaid_access_token);
     if (!migrated.migrated) continue;
 
