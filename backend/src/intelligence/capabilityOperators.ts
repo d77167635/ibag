@@ -9,12 +9,23 @@ import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
 
+export type GovernedCapabilityResult = {
+  layer_metrics?: {
+    provider_domains?: {
+      selected_item_id?: string | null;
+    };
+  };
+  uncertainty?: unknown;
+  evidence_boundary?: string;
+  [key: string]: unknown;
+};
+
 export type CapabilityOperatorResult = {
   capability_id: string;
   operator_id: string;
   operator_version: string;
   evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE";
-  result: Record<string, unknown>;
+  result: GovernedCapabilityResult;
 };
 
 export type CapabilityOperator = {
