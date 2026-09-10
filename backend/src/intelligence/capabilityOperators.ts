@@ -15,15 +15,16 @@ const temporalOperator: CapabilityOperator = {
     const widest = Math.max(...windowsDays);
     const anchor = context?.asOf ? new Date(context.asOf) : new Date();
     const cutoff = new Date(anchor.getTime() - widest * 86_400_000).toISOString().slice(0, 10);
-    const transactions = await getCanonicalTransactions(userId, cutoff, context?.evidenceBoundary ?? context?.asOf ?? null, context?.runId ?? null);
-    const windows = computeCanonicalWindowFlows(transactions, windowsDays, context?.asOf ?? undefined);
+    const boundary = context?.evidenceBoundary ?? context?.asOf ?? null;
+    const transactions = await getCanonicalTransactions(userId, cutoff, boundary, context?.runId ?? null);
+    const windows = computeCanonicalWindowFlows(transactions, windowsDays, context?.asOf ?? undefined, context?.runId ?? null, boundary);
     const trajectory = assessTrajectory(windows as any);
     const hasEvidence = windows.some((window) => window.economicTxCount > 0);
     const state = hasEvidence ? "CALCULATED" : "INSUFFICIENT_EVIDENCE";
     return { capability_id: "temporal", operator_id: "temporal", operator_version: "1.0.0", evidence_state: state, result: {
-      windows, trajectory, evidence_boundary: context?.evidenceBoundary ?? context?.asOf ?? null,
+      windows, trajectory, evidence_boundary: boundary,
       evidence: { state: state === "CALCULATED" ? "calculated" : "insufficient_evidence", source: "canonical_financial_transactions", transaction_count: transactions.length, provider_observations_created: false, financial_values_created: false, money_movement_executed: false },
-      provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(), evidence_boundary: context?.evidenceBoundary ?? context?.asOf ?? null },
+      provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(), evidence_boundary: boundary },
     } };
   },
 };
