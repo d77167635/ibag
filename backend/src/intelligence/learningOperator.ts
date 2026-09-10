@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "../config/supabase.js";
 import type { CapabilityExecutionContext } from "./capabilityExecutionContext.js";
 
-export const LEARNING_OPERATOR_VERSION = "1.0.0";
+export const LEARNING_OPERATOR_VERSION = "1.1.0";
 
 export type LearningOperatorResult = {
   capability_id: "learning";
@@ -12,6 +12,7 @@ export type LearningOperatorResult = {
   validated_outcome_count: number;
   experience_count: number;
   persisted_experience_count: number;
+  validated_experience_count: number;
   experiences: Array<{ outcome_id: string; outcome_type: string; observed_at: string; rule_type: "validated_outcome_presence"; rule_key: string; input_fingerprint: string; learned_value: { observed: true }; evidence_hash: string }>;
   consumed_outcome_output_hash: string | null;
   output_hash: string;
@@ -46,6 +47,7 @@ export async function executeLearningOperator(userId: string, context?: Capabili
   });
 
   let persisted_experience_count = 0;
+  const experienceIds: string[] = [];
   if (experiences.length) {
     const payload = experiences.map(experience => ({
       user_id: userId,
@@ -69,10 +71,19 @@ export async function executeLearningOperator(userId: string, context?: Capabili
       .upsert(payload, { onConflict: "user_id,rule_type,rule_key,input_fingerprint,evidence_hash", ignoreDuplicates: true })
       .select("id");
     if (persistError) throw new Error(`Learning experience persistence failed: ${persistError.message}`);
-    persisted_experience_count = persisted?.length ?? 0;
+    for (const row of persisted ?? []) experienceIds.push(row.id);
+    persisted_experience_count = experienceIds.length;
   }
 
-  const outputPayload = { userId, experiences, consumed_outcome_output_hash, persisted_experience_count };
+  let validated_experience_count = 0;
+  for (const experienceId of experienceIds) {
+    const { data: validated, error: validationError } = await supabaseAdmin
+      .rpc("validate_iris_learning_experience", { p_experience_id: experienceId });
+    if (validationError) throw new Error(`Learning experience validation failed: ${validationError.message}`);
+    if (validated === true) validated_experience_count += 1;
+  }
+
+  const outputPayload = { userId, experiences, consumed_outcome_output_hash, persisted_experience_count, validated_experience_count };
   return {
     capability_id: "learning",
     operator_id: "learning",
@@ -81,6 +92,7 @@ export async function executeLearningOperator(userId: string, context?: Capabili
     validated_outcome_count: rows.length,
     experience_count: experiences.length,
     persisted_experience_count,
+    validated_experience_count,
     experiences,
     consumed_outcome_output_hash,
     output_hash: crypto.createHash("sha256").update(JSON.stringify(outputPayload)).digest("hex"),
