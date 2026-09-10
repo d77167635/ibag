@@ -52,7 +52,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   if (contractError) throw new Error(`CAPABILITY_REGISTRY_READ_FAILED: ${contractError.message}`);
 
   const registry = new Map<string, CapabilityContract>((contracts ?? []).map((row) => [row.capability_id, row as CapabilityContract]));
-  const missing = new Set<string>();
+  const missing = new Set(requestedIds.filter((id) => id !== "iris.full_intelligence" && !registry.has(id)));
   const unsupported: string[] = [];
   const ordered: string[] = [];
   const visited = new Set<string>();
@@ -81,7 +81,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     ordered.push(id);
   };
 
-  for (const id of requestedIds) visit(id);
+  for (const id of requestedIds) if (id !== "iris.full_intelligence") visit(id);
 
   for (const id of ordered) {
     const contract = registry.get(id);
