@@ -115,7 +115,12 @@ export interface DebtCostIntelligence {
   basis: string;
 }
 
-export async function computeDebtCostIntelligence(userId: string): Promise<DebtCostIntelligence> {
+export async function computeDebtCostIntelligence(userId: string, runId?: string | null): Promise<DebtCostIntelligence> {
+  if (runId) return {
+    totalRevolvingBalance: null, weightedAvgApr: null, estimatedMonthlyInterestCost: null, minimumPaymentTotal: null,
+    accountsWithKnownApr: 0, accountsWithoutAprData: 0, evidence: "insufficient_evidence",
+    basis: "Debt-cost provider observations are withheld from run-bound intelligence until liability evidence is explicitly bound to the exact run manifest."
+  };
   const { data: rows, error } = await supabaseAdmin
     .from("liability_details")
     .select("apr_percentage, minimum_payment_amount, plaid_accounts!liability_details_account_user_fk(current_balance)")
