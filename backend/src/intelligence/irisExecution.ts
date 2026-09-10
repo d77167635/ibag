@@ -52,7 +52,7 @@ export async function executeIrisRun(request: RunRequest) {
   if (inputError) { await failExecution(run.id, execution.id, userId, "EXECUTION_INPUT_PERSIST_FAILED", inputError.message); throw new Error(`Unable to persist Iris execution input: ${inputError.message}`); }
 
   try {
-    const dispatched = await dispatchGovernedCapability({ userId, capabilityId: CAPABILITY_ID });
+    const dispatched = await dispatchGovernedCapability({ userId, capabilityId: CAPABILITY_ID, context: { runId: run.id, asOf, evidenceBoundary: run.evidence_boundary, evidenceManifestHash: run.evidence_manifest_hash, runEvidenceIds: [] } });
     const result = dispatched.result;
     const providerSelectedItemId = result?.layer_metrics?.provider_domains?.selected_item_id ?? null;
     if (selectedItemId && providerSelectedItemId !== selectedItemId) throw new Error(`EVIDENCE_SCOPE_MISMATCH: execution=${selectedItemId} provider_intelligence=${providerSelectedItemId ?? "null"}`);
