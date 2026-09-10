@@ -1,7 +1,7 @@
 import { computeBalanceMetrics, computeCashFlowSafety, computeDebtTrend } from "../services/intelligence.js";
 import { computeCanonicalAnomalies, IRIS_ANOMALY_INTELLIGENCE_V2 } from "./anomalies.js";
 import { computeCategoryDrift } from "./behavioral.js";
-import { computeFinancialReasoning } from "./relational.js";
+import { buildComposedRelationshipIntelligence } from "./advancedOperators.js";
 import { computeCanonicalForwardProjection, computeEconomicCashFlow, computeCanonicalSpendingHierarchy, getCanonicalTransactions, getEvidenceObservationBoundary } from "./transactionSemantics.js";
 import { assessTrajectory, computeMultiWindowFlow } from "./temporal.js";
 import type { CapabilityExecutionContext } from "./capabilityExecutionContext.js";
@@ -55,8 +55,13 @@ export async function executePatternOperator(userId: string, context?: Capabilit
 
 export async function executeRelationshipOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId, context); const executionContext = requireDependencyContext(context, "relationship"); requireDependencies(executionContext, "relationship", ["analysis", "behavioral", "pattern"]);
-  const reasoning = await computeFinancialReasoning(userId, asOf); const dependencyInputs = ["analysis", "behavioral", "pattern"];
-  return { capability_id: "relationship", operator_id: "relationship", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: reasoning.relationalChain.length || reasoning.risks.length || reasoning.opportunities.length ? "INFERRED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { ...reasoning, upstream_intelligence: Object.fromEntries(dependencyInputs.map(id => [id, executionContext.dependencyOutputs[id].value])) } };
+  const dependencyInputs = ["analysis", "behavioral", "pattern"];
+  const upstreamAnalysis = dependencyResult<any>(executionContext, "analysis");
+  const upstreamBehavioral = dependencyResult<any>(executionContext, "behavioral");
+  const upstreamPattern = dependencyResult<any>(executionContext, "pattern");
+  const result = buildComposedRelationshipIntelligence(upstreamAnalysis, upstreamBehavioral, upstreamPattern);
+  const evidenceState = result.risks.length || result.opportunities.length || result.relationalChain.length ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
+  return { capability_id: "relationship", operator_id: "relationship", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: evidenceState, evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { ...result, upstream_intelligence: Object.fromEntries(dependencyInputs.map(id => [id, executionContext.dependencyOutputs[id].value])), composed_from: dependencyInputs } };
 }
 
 export async function executeAnomalyOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
