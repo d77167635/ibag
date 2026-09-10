@@ -13,7 +13,7 @@ const open = (roadmap.match(/- \[ \]/g) || []).length;
 
 const state = {
   project: "Iris",
-  repository: "d77167635/ibag",
+  repository: "d77167635/iris",
   branch,
   head,
   generated_at: new Date().toISOString(),
