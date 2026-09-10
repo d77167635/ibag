@@ -3,7 +3,7 @@ import type { Evidence } from "./types.js";
 
 type Entity = {
   id: string;
-  kind: "account" | "transaction" | "merchant" | "domain" | "subdomain" | "category" | "transaction_class";
+  kind: "account" | "transaction" | "merchant" | "domain" | "subdomain" | "category" | "transaction_class" | "temporal";
   label: string;
   transaction_count: number;
   observed_amount: number;
@@ -51,11 +51,11 @@ function round(value: number) { return Number(value.toFixed(6)); }
 
 /**
  * Builds the canonical financial-life ontology from already canonicalized,
- * evidence-gated transactions. Transaction nodes and semantic edges are
- * explicit so higher-order intelligence can reason over individual observed
- * events as well as aggregates. This module creates no provider observations,
- * financial values, or actions; every numeric value is calculated from the
- * supplied canonical evidence.
+ * evidence-gated transactions. Transaction nodes, temporal nodes, semantic
+ * classifications, and edges are explicit so higher-order intelligence can
+ * reason over individual observed events as well as aggregates. This module
+ * creates no provider observations, financial values, or actions; every
+ * numeric value is calculated from the supplied canonical evidence.
  */
 export function buildCanonicalLifeState(transactions: CanonicalTransaction[], evidenceBoundary: string | null = null) {
   const entities = new Map<string, Entity>();
@@ -67,6 +67,16 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
   const accountTotals = new Map<string, { amount: number; count: number }>();
   const categoryTotals = new Map<string, { label: string; amount: number; count: number }>();
   const dates = new Set<string>();
+  const transactionSemantics: Array<{
+    transaction_id: string;
+    account_id: string;
+    posted_date: string;
+    amount: number;
+    direction: "inflow" | "outflow" | "non_economic";
+    economic_role: "economic_inflow" | "economic_outflow" | "non_economic_or_unclassified";
+    transaction_class: string;
+    classification_evidence: Evidence;
+  }> = [];
   let inflow = 0;
   let outflow = 0;
   let economicTransactionCount = 0;
@@ -76,6 +86,8 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     const amount = Math.abs(tx.amount);
     const isInflow = tx.amount < 0 && (tx.transaction_class === "income" || tx.transaction_class === "refund");
     const isOutflow = tx.amount > 0 && (tx.transaction_class === "purchase" || tx.transaction_class === "debt_payment" || tx.transaction_class === "fee");
+    const direction = isInflow ? "inflow" : isOutflow ? "outflow" : "non_economic";
+    const economicRole = isInflow ? "economic_inflow" : isOutflow ? "economic_outflow" : "non_economic_or_unclassified";
     if (isInflow) inflow += amount;
     if (isOutflow) outflow += amount;
     if (isInflow || isOutflow) economicTransactionCount++;
@@ -89,9 +101,11 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     const categoryValue = tx.plaid_category_detailed ?? tx.plaid_category_primary;
     const category = categoryValue ? `category:${categoryValue}` : null;
     const classEntity = `transaction_class:${tx.transaction_class}`;
+    const temporal = `date:${tx.posted_date}`;
 
     add(entities, { id: transaction, kind: "transaction", label: tx.id, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
     add(entities, { id: account, kind: "account", label: tx.account_id, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
+    add(entities, { id: temporal, kind: "temporal", label: tx.posted_date, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
     if (merchant) add(entities, { id: merchant, kind: "merchant", label: tx.merchant_name ?? tx.merchant_id!, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
     if (domain) add(entities, { id: domain, kind: "domain", label: tx.domain!.label, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
     if (subdomain) add(entities, { id: subdomain, kind: "subdomain", label: tx.subdomain!.label, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
@@ -99,7 +113,18 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     add(entities, { id: classEntity, kind: "transaction_class", label: tx.transaction_class, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
 
     const touch = (id: string) => totals.set(id, (totals.get(id) ?? 0) + amount);
-    touch(transaction); touch(account); touch(classEntity); if (merchant) touch(merchant); if (domain) touch(domain); if (subdomain) touch(subdomain); if (category) touch(category);
+    touch(transaction); touch(account); touch(classEntity); touch(temporal); if (merchant) touch(merchant); if (domain) touch(domain); if (subdomain) touch(subdomain); if (category) touch(category);
+
+    transactionSemantics.push({
+      transaction_id: tx.id,
+      account_id: tx.account_id,
+      posted_date: tx.posted_date,
+      amount: round(amount),
+      direction,
+      economic_role: economicRole,
+      transaction_class: tx.transaction_class,
+      classification_evidence: tx.classification_evidence,
+    });
 
     const classEntry = classTotals.get(tx.transaction_class) ?? { count: 0, inflow: 0, outflow: 0, absolute: 0 };
     classEntry.count++; classEntry.absolute += amount;
@@ -128,7 +153,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     connect(transaction, classEntity, "transaction_class", basis);
     if (merchant) connect(merchant, classEntity, "merchant_class", basis);
     connect(account, classEntity, "account_transaction_class", basis);
-    connect(transaction, `date:${tx.posted_date}`, "transaction_temporal", "Calculated from the transaction posted date; this is temporal association, not causation.");
+    connect(transaction, temporal, "transaction_temporal", "Calculated from the transaction posted date; this is temporal association, not causation.");
   }
 
   for (const relationship of relationships.values()) {
@@ -145,6 +170,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
   const categoryEntities = entityList.filter(entity => entity.kind === "category");
   const transactionEntities = entityList.filter(entity => entity.kind === "transaction");
   const classEntities = entityList.filter(entity => entity.kind === "transaction_class");
+  const temporalEntities = entityList.filter(entity => entity.kind === "temporal");
   const orderedMerchants = [...merchantTotals.entries()].sort((a, b) => b[1].amount - a[1].amount);
   const orderedDomains = [...domainTotals.entries()].sort((a, b) => b[1].amount - a[1].amount);
   const totalAbsolute = [...classTotals.values()].reduce((sum, entry) => sum + entry.absolute, 0);
@@ -156,7 +182,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
   const hasEconomicFlow = economicTransactionCount > 0;
 
   return {
-    architecture_version: "IRIS_CANONICAL_LIFE_STATE_V5",
+    architecture_version: "IRIS_CANONICAL_LIFE_STATE_V6",
     evidence_state: transactions.length ? "calculated" as const : "insufficient_evidence" as const,
     evidence_boundary: evidenceBoundary,
     transaction_count: transactions.length,
@@ -165,11 +191,12 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     relationship_count: relationshipList.length,
     observation: { start_date: observationStart, end_date: observationEnd, span_days: observationSpanDays, active_day_count: activeDayCount, activity_density: observationSpanDays ? round(activeDayCount / observationSpanDays) : null, evidence: transactions.length ? "calculated" as const : "insufficient_evidence" as const },
     flow: { inflow: hasEconomicFlow ? round(inflow) : null, outflow: hasEconomicFlow ? round(outflow) : null, net: hasEconomicFlow ? round(inflow - outflow) : null, evidence: hasEconomicFlow ? "calculated" as const : "insufficient_evidence" as const, basis: hasEconomicFlow ? "Observed canonical transactions classified as income/refund inflows and purchase/debt_payment/fee outflows." : null },
+    transaction_semantics: transactionSemantics,
     transaction_class_distribution: [...classTotals.entries()].map(([transaction_class, value]) => ({ transaction_class, transaction_count: value.count, absolute_amount: round(value.absolute), inflow: round(value.inflow), outflow: round(value.outflow), share_of_absolute_activity: totalAbsolute > 0 ? round(value.absolute / totalAbsolute) : null, evidence: "calculated" as const })).sort((a, b) => b.absolute_amount - a.absolute_amount),
     account_activity: [...accountTotals.entries()].map(([account_id, value]) => ({ account_id, transaction_count: value.count, absolute_amount: round(value.amount), share_of_activity: totalAbsolute > 0 ? round(value.amount / totalAbsolute) : null, evidence: "calculated" as const })).sort((a, b) => b.absolute_amount - a.absolute_amount),
     merchant_concentration: { total_absolute_activity: merchantTotals.size ? round([...merchantTotals.values()].reduce((sum, entry) => sum + entry.amount, 0)) : null, merchants_observed: merchantTotals.size, top: orderedMerchants.slice(0, 20).map(([id, value]) => ({ id, label: value.label, transaction_count: value.count, absolute_amount: round(value.amount), share_of_merchant_activity: totalAbsolute > 0 ? round(value.amount / totalAbsolute) : null, evidence: "calculated" as const })), evidence: merchantTotals.size ? "calculated" as const : "insufficient_evidence" as const },
     domain_concentration: { domains_observed: domainTotals.size, top: orderedDomains.slice(0, 20).map(([id, value]) => ({ id, label: value.label, transaction_count: value.count, absolute_amount: round(value.amount), share_of_activity: totalAbsolute > 0 ? round(value.amount / totalAbsolute) : null, evidence: "calculated" as const })), evidence: domainTotals.size ? "calculated" as const : "insufficient_evidence" as const },
-    topology: { accounts: accountEntities.length, transactions: transactionEntities.length, merchants: merchantEntities.length, domains: domainEntities.length, subdomains: subdomainEntities.length, categories: categoryEntities.length, transaction_classes: classEntities.length, connected_accounts: new Set(relationshipList.filter(r => r.kind === "account_merchant").map(r => r.from)).size, connected_merchants: new Set(relationshipList.filter(r => r.kind === "merchant_domain").map(r => r.from)).size },
+    topology: { accounts: accountEntities.length, transactions: transactionEntities.length, merchants: merchantEntities.length, domains: domainEntities.length, subdomains: subdomainEntities.length, categories: categoryEntities.length, transaction_classes: classEntities.length, temporal_nodes: temporalEntities.length, connected_accounts: new Set(relationshipList.filter(r => r.kind === "account_merchant").map(r => r.from)).size, connected_merchants: new Set(relationshipList.filter(r => r.kind === "merchant_domain").map(r => r.from)).size },
     entities: entityList,
     relationships: relationshipList,
     category_activity: [...categoryTotals.entries()].sort((a, b) => b[1].amount - a[1].amount).slice(0, 50).map(([id, value]) => ({ id, label: value.label, transaction_count: value.count, absolute_amount: round(value.amount), evidence: "calculated" as const })),
@@ -179,6 +206,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
       "Flow totals exclude transaction classes that are not classified as economic inflow or outflow; excluded activity is not treated as zero.",
       "Concentration metrics use absolute observed transaction amounts and describe activity concentration, not financial health by themselves.",
       "Transaction-level temporal edges represent posted-date association only; they do not establish temporal causality.",
+      "Transaction semantics describe the classification applied to supplied canonical evidence; they do not independently prove the economic intent of an unknown or disputed transaction.",
     ] : ["No canonical transaction evidence is available, so the financial-life ontology cannot be constructed."]
   };
 }
