@@ -45,51 +45,49 @@ function assessTrajectory(windows: readonly WindowFlow[]) {
 
 async function boundary(userId: string, context?: CapabilityExecutionContext) { return context?.evidenceBoundary ?? getCertifiedEvidenceBoundary(userId); }
 
+function requiredContext(context: CapabilityExecutionContext | undefined, capabilityId: string, dependencyIds: readonly string[]): CapabilityExecutionContext {
+  if (!context) throw new Error(`CAPABILITY_CONTEXT_REQUIRED:${capabilityId}`);
+  for (const dependencyId of dependencyIds) {
+    if (!context.dependencyOutputs[dependencyId]) throw new Error(`CAPABILITY_DEPENDENCY_OUTPUT_REQUIRED:${capabilityId}->${dependencyId}`);
+  }
+  return context;
+}
+
 export async function executeCausalOperator(userId: string, context?: CapabilityExecutionContext): Promise<Envelope<unknown>> {
-  const asOf = await boundary(userId, context); const base = await foundation(userId, asOf);
-  const upstreamRelationship = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "relationship");
-  const upstreamAnalysis = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "analysis");
-  const result = buildCausalAnalysis(upstreamRelationship ?? base.reasoning, base.state);
-  const dependencyInputs = ["relationship", "analysis"].filter(id => Boolean(context?.dependencyOutputs[id]));
-  return { capability_id: "causal", operator_id: "causal", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.hypotheses.length ? "INFERRED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { ...result, upstream_analysis: upstreamAnalysis ?? null, composed_from: dependencyInputs } };
+  const asOf = await boundary(userId, context); const executionContext = requiredContext(context, "causal", ["relationship", "analysis"]); const upstreamRelationship = dependencyResult<any>(executionContext, "relationship"); const upstreamAnalysis = dependencyResult<any>(executionContext, "analysis");
+  const base = await foundation(userId, asOf);
+  const result = buildCausalAnalysis(upstreamRelationship, base.state);
+  return { capability_id: "causal", operator_id: "causal", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.hypotheses.length ? "INFERRED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: ["relationship", "analysis"], result: { ...result, upstream_analysis: upstreamAnalysis, composed_from: ["relationship", "analysis"] } };
 }
 
 export async function executeDecisionOperator(userId: string, context?: CapabilityExecutionContext): Promise<Envelope<unknown>> {
-  const asOf = await boundary(userId, context); const base = await foundation(userId, asOf);
-  const upstreamCausal = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "causal");
-  const causal = upstreamCausal ?? buildCausalAnalysis(base.reasoning, base.state);
+  const asOf = await boundary(userId, context); const executionContext = requiredContext(context, "decision", ["causal", "predictive", "scenario"]); const base = await foundation(userId, asOf);
+  const causal = dependencyResult<any>(executionContext, "causal"); const upstreamPredictive = dependencyResult<any>(executionContext, "predictive"); const upstreamScenario = dependencyResult<any>(executionContext, "scenario");
   const graph = buildDecisionGraph(base.reasoning, base.state, causal, base.graph.nodes);
   const result = buildDecisionIntelligence(base.reasoning, base.state, causal, graph);
-  const dependencyInputs = ["causal", "predictive", "scenario"].filter(id => Boolean(context?.dependencyOutputs[id]));
-  const upstreamPredictive = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "predictive");
-  const upstreamScenario = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "scenario");
-  return { capability_id: "decision", operator_id: "decision", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.decision_ready ? "INFERRED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: causal, decision_graph: graph, decision_intelligence: result, upstream_predictive: upstreamPredictive ?? null, upstream_scenario: upstreamScenario ?? null, composed_from: dependencyInputs } };
+  const dependencyInputs = ["causal", "predictive", "scenario"];
+  return { capability_id: "decision", operator_id: "decision", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.decision_ready ? "INFERRED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: causal, decision_graph: graph, decision_intelligence: result, upstream_predictive: upstreamPredictive, upstream_scenario: upstreamScenario, composed_from: dependencyInputs } };
 }
 
 export async function executeRecommendationOperator(userId: string, context?: CapabilityExecutionContext): Promise<Envelope<unknown>> {
-  const asOf = await boundary(userId, context); const base = await foundation(userId, asOf);
-  const upstreamDecision = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "decision");
-  const upstreamScenario = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "scenario");
-  const causal = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "causal") ?? buildCausalAnalysis(base.reasoning, base.state);
-  const graph = buildDecisionGraph(base.reasoning, base.state, causal, base.graph.nodes);
-  const decision = upstreamDecision?.decision_intelligence ?? buildDecisionIntelligence(base.reasoning, base.state, causal, graph);
+  const asOf = await boundary(userId, context); const executionContext = requiredContext(context, "recommendation", ["decision", "scenario", "causal"]); const base = await foundation(userId, asOf);
+  const upstreamDecision = dependencyResult<any>(executionContext, "decision"); const upstreamScenario = dependencyResult<any>(executionContext, "scenario"); const causal = dependencyResult<any>(executionContext, "causal");
+  const decision = upstreamDecision?.decision_intelligence;
+  if (!decision) throw new Error("CAPABILITY_DEPENDENCY_RESULT_INVALID:recommendation->decision");
   const widest = base.windows.length ? base.windows.reduce((a: WindowFlow, b: WindowFlow) => b.windowDays > a.windowDays ? b : a) : null;
   const consequences = buildConsequenceModel(decision, base.state, base.reasoning, base.safety.safeToSpend, widest?.outflow ?? null, widest?.windowDays ?? 30);
   const goalsResult = await supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true });
+  if (goalsResult.error) throw new Error(`IRIS_GOALS_READ_FAILED:${goalsResult.error.message}`);
   const goals = (goalsResult.data ?? []) as DeclaredIrisGoal[];
   const optimization = buildOptimizationIntelligence(decision, consequences, base.state, goals);
-  const dependencyInputs = ["decision", "scenario", "causal"].filter(id => Boolean(context?.dependencyOutputs[id]));
-  return { capability_id: "recommendation", operator_id: "recommendation", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: optimization.ranking_status === "blocked" ? "INSUFFICIENT_EVIDENCE" : "INFERRED", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { decision_intelligence: decision, scenario_intelligence: upstreamScenario ?? null, consequence_model: consequences, optimization_intelligence: optimization, goal_data_available: !goalsResult.error, composed_from: dependencyInputs } };
+  const dependencyInputs = ["decision", "scenario", "causal"];
+  return { capability_id: "recommendation", operator_id: "recommendation", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: optimization.ranking_status === "blocked" ? "INSUFFICIENT_EVIDENCE" : "INFERRED", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { decision_intelligence: decision, scenario_intelligence: upstreamScenario, causal_intelligence: causal, consequence_model: consequences, optimization_intelligence: optimization, goal_data_available: true, composed_from: dependencyInputs } };
 }
 
 export async function executeScenarioOperator(userId: string, context?: CapabilityExecutionContext): Promise<Envelope<unknown>> {
-  const asOf = await boundary(userId, context); const base = await foundation(userId, asOf);
-  const upstreamCausal = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "causal");
-  const upstreamPredictive = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "predictive");
-  if (!upstreamCausal || !upstreamPredictive) {
-    return { capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: ["causal", "predictive"].filter(id => Boolean(context?.dependencyOutputs[id])), result: { blocked: true, reason: "SCENARIO_DEPENDENCY_OUTPUTS_MISSING", causal_analysis: upstreamCausal ?? null, predictive_intelligence: upstreamPredictive ?? null } };
-  }
+  const asOf = await boundary(userId, context); const executionContext = requiredContext(context, "scenario", ["causal", "predictive"]); const base = await foundation(userId, asOf);
+  const upstreamCausal = dependencyResult<any>(executionContext, "causal"); const upstreamPredictive = dependencyResult<any>(executionContext, "predictive");
   const result = buildScenarioSensitivityIntelligence({ causal: upstreamCausal, predictive: upstreamPredictive, safeToSpend: base.safety.safeToSpend, cashFlowNet: base.windows.length ? base.windows[base.windows.length - 1].net : null, revolvingDebt: base.balances.revolvingDebt });
-  const dependencyInputs = ["causal", "predictive"].filter(id => Boolean(context?.dependencyOutputs[id]));
+  const dependencyInputs = ["causal", "predictive"];
   return { capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.evidence_state as Envelope<unknown>["evidence_state"], evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: upstreamCausal, predictive_intelligence: upstreamPredictive, scenario_sensitivity: result, composed_from: dependencyInputs } };
 }
