@@ -2,88 +2,52 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { executeRecursiveCapabilityPlan } from "./recursiveCapabilityExecutor.js";
 import type { CapabilityPlan } from "./capabilityPlanner.js";
+import type { CapabilityOperatorResult } from "./capabilityOperators.js";
 
 function plan(overrides: Partial<CapabilityPlan> = {}): CapabilityPlan {
   return {
-    planner_version: "test-planner",
-    requested: ["analysis"],
-    ordered_capabilities: ["analysis"],
-    contracts: [{
-      capability_id: "analysis",
-      version: "1.0.0",
-      operator_id: "analysis",
-      operator_version: "1.0.0",
-      evidence_requirements: [],
-      dependencies: [],
-      validation_rules: [],
-      output_type: "analysis",
-      output_contract: {},
-      lineage_requirements: ["run"],
-      resource_limits: {},
-      user_control: {},
-      recursive: true,
-      cross_domain: false,
-    }],
-    missing_capabilities: [],
-    unsupported_capabilities: [],
-    cycle_detected: false,
-    evidence: { observed_products: [], observed_product_count: 0, source_field_observation_count: 0 },
-    resource_estimate: { nodes: 1, edges: 0, compositions: 1 },
-    status: "READY",
-    limitations: [],
-    ...overrides,
+    planner_version: "test-planner", requested: ["analysis"], ordered_capabilities: ["analysis"],
+    contracts: [{ capability_id: "analysis", version: "1.0.0", operator_id: "analysis", operator_version: "1.0.0", evidence_requirements: [], dependencies: [], validation_rules: [], output_type: "analysis", output_contract: {}, lineage_requirements: ["run"], resource_limits: {}, user_control: {}, recursive: true, cross_domain: false }],
+    missing_capabilities: [], unsupported_capabilities: [], cycle_detected: false,
+    evidence: { observed_products: [], observed_product_count: 0, source_field_observation_count: 0 }, resource_estimate: { nodes: 1, edges: 0, compositions: 1 }, status: "READY", limitations: [], ...overrides,
   };
 }
 
+const structuralResult = (capability_id: string): CapabilityOperatorResult => ({ capability_id, operator_id: capability_id, operator_version: "test", evidence_state: "CALCULATED", result: { structural_test: true, financial_values_created: false, provider_observations_created: false, money_movement_executed: false } });
+
 test("blocked plans do not execute any capability", async () => {
   const result = await executeRecursiveCapabilityPlan("00000000-0000-0000-0000-000000000000", plan({ status: "BLOCKED", limitations: ["missing evidence"] }));
-  assert.equal(result.status, "BLOCKED");
-  assert.deepEqual(result.executed_capabilities, []);
+  assert.equal(result.status, "BLOCKED"); assert.deepEqual(result.executed_capabilities, []);
 });
 
 test("resource limits terminate execution without semantic maximum-depth errors", async () => {
-  const result = await executeRecursiveCapabilityPlan(
-    "00000000-0000-0000-0000-000000000000",
-    plan({ resource_estimate: { nodes: 2, edges: 0, compositions: 1 } }),
-    {},
-    { maxNodes: 1, maxEdges: 10, maxCompositions: 10 },
-  );
-  assert.equal(result.status, "EXECUTION_BUDGET_EXCEEDED");
-  assert.match(result.error ?? "", /execution budget/i);
-  assert.doesNotMatch(result.error ?? "", /maximum.*level/i);
+  const result = await executeRecursiveCapabilityPlan("00000000-0000-0000-0000-000000000000", plan({ resource_estimate: { nodes: 2, edges: 0, compositions: 1 } }), {}, { maxNodes: 1, maxEdges: 10, maxCompositions: 10 });
+  assert.equal(result.status, "EXECUTION_BUDGET_EXCEEDED"); assert.match(result.error ?? "", /execution budget/i); assert.doesNotMatch(result.error ?? "", /maximum.*level/i);
 });
 
 test("dependency edges and recursive compositions are budgeted before dispatch", async () => {
-  const dependency = plan({
-    requested: ["behavioral"],
-    ordered_capabilities: ["analysis", "behavioral"],
-    contracts: [
-      plan().contracts[0],
-      {
-        capability_id: "behavioral",
-        version: "1.0.0",
-        operator_id: "behavioral",
-        operator_version: "1.0.0",
-        evidence_requirements: [],
-        dependencies: ["analysis"],
-        validation_rules: [],
-        output_type: "analysis",
-        output_contract: {},
-        lineage_requirements: ["run"],
-        resource_limits: {},
-        user_control: {},
-        recursive: true,
-        cross_domain: false,
-      },
-    ],
-    resource_estimate: { nodes: 2, edges: 1, compositions: 2 },
-  });
-  const result = await executeRecursiveCapabilityPlan(
-    "00000000-0000-0000-0000-000000000000",
-    dependency,
-    {},
-    { maxNodes: 10, maxEdges: 0, maxCompositions: 10 },
-  );
-  assert.equal(result.status, "EXECUTION_BUDGET_EXCEEDED");
-  assert.equal(result.resource_usage.edges, 1);
+  const dependency = plan({ requested: ["behavioral"], ordered_capabilities: ["analysis", "behavioral"], contracts: [plan().contracts[0], { capability_id: "behavioral", version: "1.0.0", operator_id: "behavioral", operator_version: "1.0.0", evidence_requirements: [], dependencies: ["analysis"], validation_rules: [], output_type: "analysis", output_contract: {}, lineage_requirements: ["run"], resource_limits: {}, user_control: {}, recursive: true, cross_domain: false }], resource_estimate: { nodes: 2, edges: 1, compositions: 2 } });
+  const result = await executeRecursiveCapabilityPlan("00000000-0000-0000-0000-000000000000", dependency, {}, { maxNodes: 10, maxEdges: 0, maxCompositions: 10 });
+  assert.equal(result.status, "EXECUTION_BUDGET_EXCEEDED"); assert.equal(result.resource_usage.edges, 1);
+});
+
+test("a genuinely deep 41-node chain executes end-to-end through dependency results", async () => {
+  const count = 41;
+  const ids = Array.from({ length: count }, (_, index) => `structural_${String(index + 1).padStart(2, "0")}`);
+  const contracts = ids.map((capability_id, index) => ({ capability_id, version: "1.0.0", operator_id: capability_id, operator_version: "test", evidence_requirements: [], dependencies: index === 0 ? [] : [ids[index - 1]], validation_rules: [], output_type: "structural_test", output_contract: {}, lineage_requirements: ["run"], resource_limits: {}, user_control: {}, recursive: true, cross_domain: false }));
+  const observedDependencies: string[] = [];
+  const dispatcher = async ({ capabilityId, context }: { userId: string; capabilityId: string; context?: { dependencyResults?: Record<string, CapabilityOperatorResult> } }) => {
+    const dependencies = Object.keys(context?.dependencyResults ?? {});
+    if (dependencies.length) observedDependencies.push(`${capabilityId}<-${dependencies[0]}`);
+    return structuralResult(capabilityId);
+  };
+  const deepPlan = plan({ requested: [ids[count - 1]], ordered_capabilities: ids, contracts, resource_estimate: { nodes: count, edges: count - 1, compositions: count } });
+  const result = await executeRecursiveCapabilityPlan("00000000-0000-0000-0000-000000000000", deepPlan, {}, { maxNodes: 100, maxEdges: 100, maxCompositions: 100 }, dispatcher);
+  assert.equal(result.status, "COMPLETED"); assert.equal(result.executed_capabilities.length, count); assert.equal(Object.keys(result.results).length, count); assert.equal(observedDependencies.length, count - 1); assert.equal(observedDependencies[40], "structural_41<-structural_40");
+});
+
+test("malformed duplicate paths are rejected deterministically", async () => {
+  const malformed = plan({ ordered_capabilities: ["analysis", "analysis"], resource_estimate: { nodes: 2, edges: 0, compositions: 2 } });
+  const result = await executeRecursiveCapabilityPlan("00000000-0000-0000-0000-000000000000", malformed, {}, { maxNodes: 10, maxEdges: 10, maxCompositions: 10 }, async () => structuralResult("analysis"));
+  assert.equal(result.status, "FAILED"); assert.match(result.error ?? "", /duplicate capability path/i);
 });
