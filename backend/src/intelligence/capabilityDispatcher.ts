@@ -1,23 +1,17 @@
-import { computeFullIntelligence } from "./orchestrator.js";
-import { getCapabilityOperator, type CapabilityExecutionContext, type CapabilityOperatorResult, type GovernedCapabilityResult } from "./capabilityOperators.js";
-
-export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
-export const GOVERNED_AGGREGATE_OPERATOR = "computeFullIntelligence";
-export const GOVERNED_AGGREGATE_OPERATOR_VERSION = "1";
+import { getCapabilityOperator, type CapabilityExecutionContext, type CapabilityOperatorResult } from "./capabilityOperators.js";
 
 type DispatchRequest = { userId: string; capabilityId: string; context?: CapabilityExecutionContext };
 
-/** Single runtime dispatcher. Implemented capabilities never silently fall back to the aggregate operator. */
+/**
+ * Single runtime dispatcher for executable Iris capabilities.
+ *
+ * `iris.full_intelligence` is a request alias handled by the planner. It is
+ * deliberately not executable here: dispatching it directly would bypass the
+ * governed dependency graph and reintroduce the retired aggregate orchestrator.
+ */
 export async function dispatchGovernedCapability({ userId, capabilityId, context }: DispatchRequest): Promise<CapabilityOperatorResult> {
-  if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
-    const result = await computeFullIntelligence(userId, context);
-    return {
-      capability_id: GOVERNED_AGGREGATE_CAPABILITY,
-      operator_id: GOVERNED_AGGREGATE_OPERATOR,
-      operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION,
-      evidence_state: "CALCULATED",
-      result: result as GovernedCapabilityResult,
-    };
+  if (capabilityId === "iris.full_intelligence") {
+    throw new Error("CAPABILITY_ALIAS_NOT_EXECUTABLE: iris.full_intelligence must be expanded by the governed capability planner.");
   }
 
   const operator = getCapabilityOperator(capabilityId);
