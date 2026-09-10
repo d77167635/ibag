@@ -1,14 +1,21 @@
 /**
- * Capability catalog / operator readiness registry.
+ * Governed capability/operator registry.
  *
- * A persisted capability contract is not enough to make a capability executable.
- * "planned" means the capability has a defined implementation surface in the
- * repository but is not independently dispatchable through the governed
- * execution boundary. The governed aggregate operator (iris.full_intelligence)
- * is intentionally kept outside this catalog because it is dispatched directly
- * by irisExecution.ts as computeFullIntelligence.
+ * A persisted capability contract describes the governed graph, but a capability
+ * is not executable until this registry binds it to an actual runtime operator.
+ * Planned entries remain visible and truthful without being dispatchable.
  */
+import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
+
 export type CapabilityOperatorStatus = "implemented" | "planned";
+
+export type CapabilityOperatorResult = {
+  capability_id: string;
+  operator_id: string;
+  operator_version: string;
+  evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE";
+  result: unknown;
+};
 
 export type CapabilityOperator = {
   capability_id: string;
@@ -16,17 +23,47 @@ export type CapabilityOperator = {
   version: string;
   status: CapabilityOperatorStatus;
   execution_stage: string;
-  evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE";
+  evidence_state: CapabilityOperatorResult["evidence_state"];
+  execute?: (userId: string) => Promise<CapabilityOperatorResult>;
+};
+
+const temporalOperator: CapabilityOperator = {
+  capability_id: "temporal",
+  operator_id: "temporal",
+  version: "1.0.0",
+  status: "implemented",
+  execution_stage: "multi_window_flow",
+  evidence_state: "CALCULATED",
+  execute: async (userId) => {
+    const windows = await computeMultiWindowFlow(userId);
+    const trajectory = assessTrajectory(windows);
+    const hasEvidence = windows.some((window) => window.economicTxCount > 0);
+    return {
+      capability_id: "temporal",
+      operator_id: "temporal",
+      operator_version: "1.0.0",
+      evidence_state: hasEvidence ? "CALCULATED" : "INSUFFICIENT_EVIDENCE",
+      result: {
+        windows,
+        trajectory,
+        evidence: {
+          state: hasEvidence ? "observed" : "insufficient_evidence",
+          source: "canonical_financial_transactions",
+          provider_observations_created: false,
+          financial_values_created: false,
+          money_movement_executed: false,
+        },
+      },
+    };
+  },
 };
 
 /**
- * These entries describe repository implementation surfaces, not independent
- * governed dispatchers. Until each capability is wired to a distinct operator
- * and runtime-proven, it must remain planned rather than being represented as
- * an independently executable capability.
+ * These entries describe governed implementation surfaces. They are deliberately
+ * not marked implemented until a distinct runtime operator exists and is tested.
  */
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
-  { capability_id: "temporal", operator_id: "temporal", version: "1.0.0", status: "planned", execution_stage: "multi_window_flow", evidence_state: "CALCULATED" },
+  temporalOperator,
   { capability_id: "analysis", operator_id: "analysis", version: "1.0.0", status: "planned", execution_stage: "canonical_semantic_analysis", evidence_state: "CALCULATED" },
   { capability_id: "behavioral", operator_id: "behavioral", version: "1.0.0", status: "planned", execution_stage: "category_behavior", evidence_state: "CALCULATED" },
   { capability_id: "pattern", operator_id: "pattern", version: "1.0.0", status: "planned", execution_stage: "pattern_composition", evidence_state: "CALCULATED" },
@@ -43,5 +80,5 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
 ];
 
 export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null {
-  return EXECUTABLE_CAPABILITY_OPERATORS.find(operator => operator.capability_id === capabilityId) ?? null;
+  return EXECUTABLE_CAPABILITY_OPERATORS.find((operator) => operator.capability_id === capabilityId) ?? null;
 }
