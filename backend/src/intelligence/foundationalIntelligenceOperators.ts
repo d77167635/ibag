@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getCanonicalTransactions } from "./transactionSemantics.js";
 import { buildCanonicalLifeState } from "./canonicalLifeState.js";
 import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.js";
+import { buildIncomeIntelligence, buildRecurrenceIntelligence } from "./financialLifeStateExtensions.js";
 import type { CapabilityExecutionContext, CapabilityOperatorResult, GovernedCapabilityResult } from "./capabilityOperators.js";
 
 type Tx = Awaited<ReturnType<typeof getCanonicalTransactions>>[number];
@@ -58,7 +59,25 @@ export async function executeFinancialLifeState(userId: string, context?: Capabi
   const txs = await transactions(userId, context);
   const state = txs.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE";
   const lifeState = buildCanonicalLifeState(txs, context?.evidenceBoundary ?? context?.asOf ?? null);
-  return wrap("financial_life_state", { canonical_life_state: lifeState, transaction_count: txs.length }, state, context);
+  const income = buildIncomeIntelligence(txs);
+  const recurrence = buildRecurrenceIntelligence(txs);
+  return wrap(
+    "financial_life_state",
+    {
+      canonical_life_state: {
+        ...lifeState,
+        income,
+        recurrence,
+        life_state_extensions: {
+          income_version: "IRIS_INCOME_INTELLIGENCE_V1",
+          recurrence_version: "IRIS_RECURRENCE_INTELLIGENCE_V1",
+        },
+      },
+      transaction_count: txs.length,
+    },
+    state,
+    context,
+  );
 }
 
 export async function executeRelationalOntology(userId: string, context?: CapabilityExecutionContext): Promise<CapabilityOperatorResult> {
