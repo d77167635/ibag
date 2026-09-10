@@ -25,6 +25,15 @@ export interface MaximumIntelligence {
     change_ratio: number | null;
     interpretation: string;
   };
+  statistics: {
+    observed_daily_outflow_rates: number[];
+    median_daily_outflow: number | null;
+    mad_daily_outflow: number | null;
+    lower_reference: number | null;
+    upper_reference: number | null;
+    reference_method: "median_mad" | "insufficient_evidence";
+    interpretation: string;
+  };
   pressure_points: Array<{ key: string; severity: string; statement: string; evidence: Evidence }>;
   opportunities: Array<{ key: string; statement: string; evidence: Evidence }>;
   counterfactuals: Array<{
@@ -58,6 +67,22 @@ function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const ordered = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(ordered.length / 2);
+  return ordered.length % 2 ? ordered[mid] : (ordered[mid - 1] + ordered[mid]) / 2;
+}
+
+function robustBaseline(rates: number[]) {
+  const med = median(rates);
+  if (med === null) return { median: null, mad: null, lower: null, upper: null, method: "insufficient_evidence" as const, interpretation: "There is not enough observed-window evidence to establish a robust daily outflow reference." };
+  const mad = median(rates.map(rate => Math.abs(rate - med)));
+  if (mad === null) return { median: round(med), mad: null, lower: null, upper: null, method: "insufficient_evidence" as const, interpretation: "A central outflow reference exists, but dispersion cannot be established from the available windows." };
+  const scale = mad === 0 ? Math.max(Math.abs(med) * 0.1, 0.01) : mad;
+  return { median: round(med), mad: round(mad), lower: round(Math.max(0, med - 3 * scale)), upper: round(med + 3 * scale), method: "median_mad" as const, interpretation: "Reference band uses the median and median absolute deviation of observed daily outflow rates; it is a descriptive baseline, not a forecast or probability interval." };
+}
+
 /** Deterministic, evidence-gated synthesis of already observed/calculated outputs. */
 export function buildMaximumIntelligence(input: {
   flows: WindowedFlow[];
@@ -71,6 +96,8 @@ export function buildMaximumIntelligence(input: {
   const populated = input.flows.filter((f) => f.txCount > 0).sort((a, b) => a.windowDays - b.windowDays);
   const observedWindows = input.flows.map((f) => f.windowDays);
   const strongest = populated.length ? populated[populated.length - 1] : null;
+  const rates = populated.map(flow => flow.outflow / flow.windowDays).filter(Number.isFinite);
+  const baseline = robustBaseline(rates);
 
   const dimensions = [
     input.currentLiquidAssets !== null,
@@ -154,6 +181,15 @@ export function buildMaximumIntelligence(input: {
       change_ratio: changeRatio,
       interpretation,
     },
+    statistics: {
+      observed_daily_outflow_rates: rates.map(round),
+      median_daily_outflow: baseline.median,
+      mad_daily_outflow: baseline.mad,
+      lower_reference: baseline.lower,
+      upper_reference: baseline.upper,
+      reference_method: baseline.method,
+      interpretation: baseline.interpretation,
+    },
     pressure_points: pressurePoints,
     opportunities,
     counterfactuals,
@@ -163,6 +199,7 @@ export function buildMaximumIntelligence(input: {
       { output: "liquidity", basis: "Connected account balance observations", evidence: input.currentLiquidAssets === null ? "insufficient_evidence" : "observed" },
       { output: "cash_flow", basis: `${input.cashFlowWindowDays}-day classified transaction window`, evidence: input.cashFlowNet === null ? "insufficient_evidence" : "calculated" },
       { output: "trajectory", basis: "Cross-window daily outflow comparison", evidence: populated.length >= 2 ? "calculated" : "insufficient_evidence" },
+      { output: "statistics", basis: "Robust median/MAD reference over observed daily outflow rates", evidence: rates.length >= 2 ? "calculated" : "insufficient_evidence" },
       { output: "reasoning", basis: "Relational synthesis of calculated and observed findings", evidence: input.reasoning.risks.length || input.reasoning.opportunities.length ? "inferred" : "insufficient_evidence" },
     ],
   };
