@@ -80,7 +80,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 
 ### Analytical and relational intelligence
 - [ ] Classification intelligence
-- [ ] Temporal/change intelligence
+- [x] Temporal window aggregation is explicitly clipped to its evidence boundary
 - [ ] Statistical intelligence
 - [ ] Adaptive baselines
 - [ ] Pattern intelligence
@@ -119,6 +119,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [x] Independent execution persistence/certification foundation
 - [ ] Real temporal end-to-end execution against observed provider evidence
 - [x] Run-evidence records now expand provider observations to exact current raw transaction/balance observation identities
+- [x] Canonical temporal calculations clip supplied transaction sets to the explicit evidence boundary
 - [ ] Bind every operator's actual read set to the exact run-evidence manifest
 - [ ] Persist explicit input/output field lineage for each capability execution
 - [x] Persist certified dependency outputs as downstream execution inputs
@@ -145,8 +146,8 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 
 ## 8. Verification and clean release
 - [x] CI foundation
-- [ ] Clean dependency-installed backend tests/build after latest evidence changes
-- [ ] Clean frontend tests/build
+- [x] Clean dependency-installed backend tests/build for the current evidence-bound temporal block
+- [x] Clean frontend build for the current evidence-bound temporal block
 - [ ] Backend/frontend contract synchronization
 - [ ] Provider → database reconciliation
 - [ ] Evidence lineage verification
@@ -155,7 +156,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [ ] Durable webhook verification/retry verification
 - [ ] Round-Up feature certification
 - [ ] Intelligence sufficiency/accuracy regression suite
-- [ ] Current Render deployment verification
+- [x] Current Render deployment verification for commit `232ec0210bf654299c9af128140d7e2d052328ba`
 - [x] Supabase runtime migration 075 applied for raw financial run-evidence expansion
 - [ ] Plaid Sandbox end-to-end verification
 - [ ] Full observable user-journey certification
