@@ -2,6 +2,7 @@ import { assessTrajectory } from "./temporal.js";
 import { getCanonicalTransactions, computeCanonicalWindowFlows } from "./transactionSemantics.js";
 import { executeAnalysis, executeBehavioral, executePattern, executeRelationship, executeAnomaly, executeCausal, executePredictive, executeScenario, executeDecision, executeRecommendation, executeOutcome, executeLearning } from "./recursiveOperators.js";
 import { buildRecursiveIntelligenceSynthesis } from "./recursiveIntelligenceSynthesis.js";
+import { buildCanonicalLifeState } from "./canonicalLifeState.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
 export type GovernedCapabilityResult = { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } }; uncertainty?: unknown; evidence_boundary?: string | null; [key: string]: unknown };
@@ -31,19 +32,36 @@ const temporalOperator: CapabilityOperator = {
 };
 
 const emergentOperator: CapabilityOperator = {
-  capability_id: "emergent", operator_id: "emergent", version: "1.1.0", status: "implemented", execution_stage: "recursive_higher_order_synthesis", evidence_state: "INFERRED",
-  execute: async (_userId, context) => {
+  capability_id: "emergent", operator_id: "emergent", version: "1.2.0", status: "implemented", execution_stage: "recursive_higher_order_synthesis", evidence_state: "INFERRED",
+  execute: async (userId, context) => {
     const dependencyResults = context?.dependencyResults ?? {};
     const synthesis = buildRecursiveIntelligenceSynthesis(dependencyResults, context);
-    const state = synthesis.dependency_count > 0 ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
+    const anchor = context?.asOf ? new Date(context.asOf) : new Date();
+    const boundary = context?.evidenceBoundary ?? context?.asOf ?? null;
+    const cutoff = new Date(anchor.getTime() - 365 * 86_400_000).toISOString().slice(0, 10);
+    const transactions = await getCanonicalTransactions(userId, cutoff, boundary, context?.runId ?? null);
+    const lifeState = buildCanonicalLifeState(transactions, boundary);
+    const state = synthesis.dependency_count > 0 || lifeState.transaction_count > 0 ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
     return {
       capability_id: "emergent",
       operator_id: "emergent",
-      operator_version: "1.1.0",
+      operator_version: "1.2.0",
       evidence_state: state,
       result: {
         ...synthesis,
-        evidence: { state: state === "INFERRED" ? "inferred" : "insufficient_evidence", source: "certified_capability_outputs", dependency_count: synthesis.dependency_count },
+        canonical_life_state: lifeState,
+        evidence: { state: state === "INFERRED" ? "inferred" : "insufficient_evidence", source: "certified_capability_outputs_and_canonical_financial_transactions", dependency_count: synthesis.dependency_count, transaction_count: transactions.length },
+        provenance: {
+          source: "certified_capability_outputs_and_canonical_financial_transactions",
+          provider_observations_created: false,
+          financial_values_created: false,
+          money_movement_executed: false,
+          run_id: context?.runId ?? null,
+          evidence_manifest_hash: context?.evidenceManifestHash ?? null,
+          run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(),
+          evidence_boundary: boundary,
+          canonical_transaction_count: transactions.length,
+        },
       },
     };
   },
