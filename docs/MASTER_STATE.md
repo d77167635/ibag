@@ -6,7 +6,7 @@
 - Product: Iris
 - Repository: `d77167635/ibag` (repository identifier only; not the product identity)
 - Default branch: `main`
-- Latest verified implementation checkpoint at this reconciliation: `84808cc0c634a0f11e7e483a4d7d530e874e61be`
+- Latest implementation checkpoint: `4674ff1444eba4b1807c2d9ebd7be7bb9389400c`
 - Repository status: active, public, non-archived
 
 ## Connected infrastructure boundary
@@ -101,9 +101,10 @@ Feature activation must never manufacture missing evidence.
 
 ## Verification status
 - Current GitHub main was verified at the time of this reconciliation.
-- Render currently has an automatic deployment for the temporal implementation in progress; deployment must be rechecked to completion before being marked verified.
-- GitHub combined commit status currently returned no status records; this is not equivalent to a passing CI certification.
-- Previous Render deployment attempts for the older continuity checkpoint failed; those failures must not be confused with the current deployment.
+- The temporal operator change initially exposed TypeScript compatibility errors at the aggregate execution boundary; the result type was corrected in commit `4674ff1444eba4b1807c2d9ebd7be7bb9389400c`.
+- Render automatic deployment for `4674ff1444eba4b1807c2d9ebd7be7bb9389400c` was still `build_in_progress` at the last check and must be rechecked before being marked verified.
+- Earlier Render deployment failures were traced to the dispatcher result type and are not treated as a passing build.
+- GitHub combined commit status returned no status records; this is not equivalent to a passing CI certification.
 - Clean dependency-installed backend/frontend build certification remains outstanding.
 - Remote Supabase schema/runtime reconciliation remains a required certification gate.
 
