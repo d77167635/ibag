@@ -9,6 +9,10 @@
 - Updated the capability planner to load and require the complete persisted contract rather than relying only on executable-code assumptions.
 - Updated independent capability certification to validate persisted output type/evidence-state policy, lineage requirements, resource limits, and user-control semantics in addition to existing evidence and integrity checks.
 - Preserved the rule that independent execution remains uncertified until a real end-to-end run against existing observed evidence verifies the complete persistence, validation, lineage, and certification boundary.
+- Wired all currently registered recursive capability surfaces to executable operators and preserved explicit evidence-state/provenance semantics without fabricating financial values.
+- Added runtime dependency-result propagation to independent capability execution: declared upstream outputs are passed into downstream operators, persisted as execution inputs with upstream execution references and hashes, and included in downstream execution manifests.
+- Extended recursive operators so scenario, decision, recommendation, outcome, learning, and emergent reasoning can consume available upstream capability results while retaining explicit insufficient-evidence states where validated outcomes are absent.
+- Verified the backend deployment for commit `97db35d5188ffa5fa671148f7ef3d9dfce888c2e` reached `live` after the full 113-test prebuild suite and TypeScript build completed successfully.
 
 ## 2026-09-09
 
