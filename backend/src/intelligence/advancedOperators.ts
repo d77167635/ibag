@@ -130,14 +130,25 @@ export async function executeScenarioOperator(userId: string, context?: Capabili
   const base = await foundation(userId, asOf);
   const upstreamCausal = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "causal");
   const upstreamPredictive = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "predictive");
-  const upstreamDecision = dependencyResult<any>(context ?? ({ dependencyOutputs: {} } as CapabilityExecutionContext), "decision");
-  const causal = upstreamCausal ?? buildCausalAnalysis(base.reasoning, base.state);
-  const graph = buildDecisionGraph(base.reasoning, base.state, causal, base.graph.nodes);
-  const decision = upstreamDecision?.decision_intelligence ?? buildDecisionIntelligence(base.reasoning, base.state, causal, graph);
-  const widest = base.windows.length ? base.windows.reduce((a: WindowFlow, b: WindowFlow) => b.windowDays > a.windowDays ? b : a) : null;
-  const consequences = buildConsequenceModel(decision, base.state, base.reasoning, base.safety.safeToSpend, widest?.outflow ?? null, widest?.windowDays ?? 30);
-  const optimization = buildOptimizationIntelligence(decision, consequences, base.state, []);
-  const result = buildCounterfactualIntelligence({ decision, optimization, safeToSpend: base.safety.safeToSpend, cashFlowNet: widest?.net ?? null, revolvingDebt: base.balances.revolvingDebt });
-  const dependencyInputs = ["causal", "predictive", "decision"].filter(id => Boolean(context?.dependencyOutputs[id]));
-  return { capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.scenarios.length ? "SCENARIO" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: causal, predictive_intelligence: upstreamPredictive ?? null, decision_intelligence: decision, optimization_intelligence: optimization, counterfactual_intelligence: result, composed_from: dependencyInputs } };
+  if (!upstreamCausal || !upstreamPredictive) {
+    return {
+      capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION,
+      evidence_state: "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf,
+      dependency_inputs: ["causal", "predictive"].filter(id => Boolean(context?.dependencyOutputs[id])),
+      result: { blocked: true, reason: "SCENARIO_DEPENDENCY_OUTPUTS_MISSING", causal_analysis: upstreamCausal ?? null, predictive_intelligence: upstreamPredictive ?? null },
+    };
+  }
+  const causal = upstreamCausal;
+  const predictive = upstreamPredictive;
+  const decision = null;
+  const optimization = null;
+  const result = buildCounterfactualIntelligence({
+    decision: { decision_ready: false, source: "scenario_without_downstream_decision" },
+    optimization: { ranking_status: "blocked", options: [] },
+    safeToSpend: base.safety.safeToSpend,
+    cashFlowNet: base.windows.length ? base.windows[base.windows.length - 1].net : null,
+    revolvingDebt: base.balances.revolvingDebt,
+  });
+  const dependencyInputs = ["causal", "predictive"].filter(id => Boolean(context?.dependencyOutputs[id]));
+  return { capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.scenarios.length ? "SCENARIO" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: causal, predictive_intelligence: predictive, counterfactual_intelligence: result, composed_from: dependencyInputs } };
 }
