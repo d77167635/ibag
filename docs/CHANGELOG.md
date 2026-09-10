@@ -16,18 +16,22 @@
 - Routed the governed emergent capability through the recursive higher-order synthesis layer instead of treating the earlier isolated emergent calculation as the endpoint of recursion.
 - Expanded emergent intelligence to include a canonical financial-life state derived from the exact evidence-gated transaction set, preserving run IDs, evidence manifests, evidence boundaries, and explicit limitations.
 - Expanded the canonical financial-life state from basic entity/relationship topology into production analytical state: observation span/activity density, economic inflow/outflow/net flow, transaction-class distribution, account activity, merchant concentration, domain concentration, and explicit evidence/limitation semantics.
+- Strengthened the canonical ontology so transaction classifications are first-class entities and account-to-class relationships, rather than incorrectly representing classifications as generic categories.
 - Hardened relational composition so absent/non-numeric amounts are not silently converted into observed zero values before higher-order findings are calculated.
 - Bound canonical temporal window calculations to the explicit evidence boundary so supplied transaction sets cannot leak later observations into a historical run.
+- Bound orchestrated cash-flow safety to the exact run state when a governed execution run is present, preventing the prior unscoped `computeCashFlowSafety(userId)` path from leaking current provider state into historical/run-bound intelligence.
 - Added exact-run financial-state derivation for balance, liquidity-history, debt-history, and run-bound forward projection paths while withholding safe-to-spend when recurrence evidence is not sufficient to establish contractual/essential obligations.
 - Added user-specific observed activity-day outflow baselines to maximum intelligence, with median/MAD dispersion, adaptive references, explicit limited/insufficient states, and no conversion of missing days into zero observations.
 - Added reusable robust statistical/adaptive-baseline primitives and regression tests.
-- Added regression coverage for the canonical financial-life ontology, including calculated flow state, activity density, concentration, relationships, and empty-evidence behavior.
+- Added regression coverage for the canonical financial-life ontology, including calculated flow state, activity density, concentration, relationships, transaction-class entities, and empty-evidence behavior.
 - Added regression coverage proving evidence-bound temporal aggregation excludes transactions outside the explicit boundary.
 - Hardened backend test imports so production-required secrets are not required merely to load pure intelligence tests in the CI test environment; production configuration remains fail-fast when required variables are absent.
+- Reconciled the connected Supabase schema: `iris_run_evidence`, `iris_capability_contracts`, `iris_execution_lineage`, `iris_field_lineage_edges`, and `iris_source_field_observations` exist; the previously discussed `iris_intelligence_state_nodes`, `iris_intelligence_state_edges`, and `iris_execution_lineage_links` are not present in the connected project and are not treated as authoritative until introduced through governed migration history.
+- Reconciled the connected capability registry against executable code: the stale active `iris.full_intelligence` contract referenced `computeFullIntelligence` operator version `1`, while the governed executable registry does not expose that capability; migration `076_deactivate_stale_full_intelligence_contract.sql` now preserves the historical row but deactivates that stale contract.
+- Verified the stale `iris.full_intelligence` contract is inactive in the connected Supabase project after migration `076`.
 - Verified the canonical financial-life state deployment reached `live` on Render before the subsequent documentation continuity deployment.
 - Verified the recursive synthesis deployment reached `live` on Render after the current test/build pipeline completed; the exact deployed commit remains tracked by Render rather than inferred from documentation commits.
 - Verified Render commit `5e55cca208cbe231edcc2d6117353f693ebcf189` reached `live` after a successful backend test/build deployment.
-- Reconciled the connected Supabase schema: `iris_run_evidence`, `iris_capability_contracts`, `iris_execution_lineage`, `iris_field_lineage_edges`, and `iris_source_field_observations` exist; the previously discussed `iris_intelligence_state_nodes`, `iris_intelligence_state_edges`, and `iris_execution_lineage_links` are not present in the connected project and are not treated as authoritative until introduced through governed migration history.
 
 ## 2026-09-09
 
@@ -38,13 +42,3 @@
 - Added backend CI for intelligence tests and TypeScript builds on `main` pushes and pull requests.
 - Centralized the Iris Standard ten-capability preference baseline so catalog and intelligence routes cannot drift apart.
 - Added a regression test for the standard baseline and its preference-not-ceiling semantics.
-- Added `irisPublicationContext.ts` as the shared publication-context builder for intelligence surfaces.
-- Integrated the governed feature/output publication runtime into both `/iris/intelligence` and `/dashboard/intelligence`, preventing surface-specific publication semantics from drifting.
-- Updated `/iris/catalog` to consume the same canonical standard baseline directly from the catalog module.
-- Preserved the boundary that analytical atlas readiness is not raw Plaid observation and that limited intelligence must remain explicitly qualified.
-- Updated the master continuity record with the new publication and verification boundary.
-- Refactored the Plaid Item-state relationship from a lossy one-to-one map to an explicit one-to-many `PLAID_PRODUCT_STATE_TO_CATALOG_KEYS` relation, preserving all catalog capabilities that share a runtime state.
-- Added `plaidCapabilityRegistry.test.ts` to certify that every documented Item product state is mapped, every catalog state reference is valid, and one-to-many state/capability relationships remain supported.
-- Added the Plaid capability certification test to the backend CI test command.
-- Removed stale product-identity wording from the canonical Plaid Item-state contract; the product identity is Iris and the repository name is implementation metadata only.
-- Next: complete authoritative runtime product coverage, strengthen selection/entitlement/cost semantics, complete Plaid Dashboard observability, integrate governed intelligence output into the shared dashboard contract, and continue recursive financial-life intelligence.
