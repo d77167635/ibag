@@ -1,9 +1,12 @@
+import { createHash } from "node:crypto";
 import { supabaseAdmin } from "../config/supabase.js";
 import { reconcileCanonicalTransactions } from "./canonicalReconciliation.js";
 
 const REQUIRED_PROVIDER_DOMAINS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
 type GateCheck = { status: "PASS" | "FAIL"; details: string };
 export type CertificationGateResult = { eligible: boolean; status: "PASS" | "FAIL"; critical_failures: string[]; checks: Record<string, GateCheck>; evidence_snapshot: Record<string, unknown>; reconciliation_snapshot: Record<string, unknown> };
+
+function hash(value: unknown): string { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 
 export async function evaluateCertificationGate({ runId, executionId, userId, inputHash, outputHash }: { runId: string; executionId: string; userId: string; inputHash: string; outputHash: string }): Promise<CertificationGateResult> {
   const checks: Record<string, GateCheck> = {};
@@ -38,6 +41,11 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   });
   check("iris.execution.graph_integrity", graphIntegrity, `All ${(graphExecutions ?? []).length} planned capability executions are executed, validation-ready, hash-linked, and have derived outputs.`, "At least one planned capability execution is incomplete, missing an output, or has an output-hash mismatch.");
 
+  const inputHashRecomputed = !!execution?.input_manifest && hash(execution.input_manifest) === inputHash;
+  const outputCandidate = outputs?.find(o => o.hash === outputHash);
+  const outputHashRecomputed = !!outputCandidate && hash(outputCandidate.value) === outputHash;
+  check("iris.execution.input_hash_integrity", inputHashRecomputed, "Persisted execution input manifest independently recomputes to the supplied input hash.", "Persisted execution input manifest does not recompute to the supplied input hash.");
+  check("iris.execution.output_hash_integrity", outputHashRecomputed, "Persisted execution output value independently recomputes to the supplied output hash.", "Persisted execution output value does not recompute to the supplied output hash.");
   check("iris.execution.integrity", !!execution && execution.execution_state === "EXECUTED" && execution.input_hash === inputHash && execution.output_hash === outputHash && inputHash.length === 64 && outputHash.length === 64, "Execution identity, state, and hashes match.", "Execution identity, state, or hashes are invalid.");
   check("iris.evidence.ownership", !evidenceError && (evidence?.length ?? 0) > 0 && evidence!.every(e => e.user_id === userId && !!e.evidence_hash && e.effective_at != null && e.acquired_at != null), "Run evidence is present, hashed, dated, and user-owned.", "Run evidence is missing, incomplete, unhashed, or ownership-invalid.");
   check("iris.evidence.boundary", !!run?.as_of && !!run?.evidence_boundary && !!run?.evidence_manifest_hash, "Explicit evidence boundary and manifest hash are persisted.", "Evidence boundary or manifest hash is missing.");
@@ -56,11 +64,16 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   const evidenceItemIds = [...new Set(runEvidenceRaw.map(row => row.item_id).filter((id): id is string => typeof id === "string"))];
   const evidenceMatchesSelectedItem = !selectedItemId || (evidenceItemIds.length > 0 && evidenceItemIds.every(id => id === selectedItemId));
   const evidenceHasRequiredDomains = selectedItemId ? REQUIRED_PROVIDER_DOMAINS.every(domain => runEvidenceRaw.some(row => row.item_id === selectedItemId && row.product === domain && row.is_current === true && row.evidence_state === "observed")) : completeItems.length > 0;
+  const evidenceHashesMatchSource = runEvidenceRaw.length === rawIds.length && runEvidenceRaw.every(row => {
+    const matching = (evidence ?? []).find(item => item.raw_observation_id === row.id);
+    return !!matching && matching.evidence_hash === hash(row.raw_response) && matching.product === row.product && matching.acquired_at === row.acquired_at;
+  });
+  check("iris.evidence.source_hash_integrity", evidenceHashesMatchSource, "Every persisted run-evidence hash independently matches its provider raw observation and acquisition metadata.", "At least one persisted run-evidence hash or source metadata does not match the provider raw observation.");
 
   check("iris.evidence.eight_domains", completeItems.length > 0, `All eight canonical Plaid evidence domains are currently observed together on ${completeItems.length} Item(s).`, missingDomains.length ? `Full-intelligence certification requires one Item with all eight canonical domains. Missing observed domains: ${missingDomains.join(", ")}.` : "Eight domains exist, but no single Item has all eight current observed domains.");
   check("iris.evidence.same_item", evidenceMatchesSelectedItem && evidenceHasRequiredDomains, selectedItemId ? `Run evidence is bounded to selected Item ${selectedItemId} and contains all eight required current observed domains.` : "Run evidence is compatible with a complete canonical provider Item.", selectedItemId ? `Run evidence does not prove the selected Item ${selectedItemId} supplied all eight required current observed domains without cross-Item mixing.` : "Run evidence does not establish a single canonical provider Item boundary.");
 
-  const output = outputs?.find(o => o.hash === outputHash);
+  const output = outputCandidate;
   check("iris.output.semantic_state", !!output && output.value != null && output.evidence_state !== "OBSERVED", "Output is persisted as derived intelligence and is not misclassified as observed evidence.", "Output is missing, hash-mismatched, or incorrectly classified as observed evidence.");
 
   const providerDomains = (output?.value as any)?.layer_metrics?.provider_domains as any;
