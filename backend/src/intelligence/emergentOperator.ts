@@ -73,11 +73,12 @@ export async function executeEmergentOperator(userId: string, context?: Capabili
         operator_version: EMERGENT_OPERATOR_VERSION,
       },
     }));
-    const { error: persistError } = await supabaseAdmin
+    const { data: persistedRows, error: persistError } = await supabaseAdmin
       .from("iris_emergent_discoveries")
-      .upsert(payload, { onConflict: "user_id,discovery_type,discovery_key,evidence_hash", ignoreDuplicates: true });
+      .upsert(payload, { onConflict: "user_id,discovery_type,discovery_key,evidence_hash", ignoreDuplicates: true })
+      .select("id");
     if (persistError) throw new Error(`Emergent discovery persistence failed: ${persistError.message}`);
-    persisted_discovery_count = payload.length;
+    persisted_discovery_count = persistedRows?.length ?? 0;
   }
 
   let validated_discovery_count = 0;
