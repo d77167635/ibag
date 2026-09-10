@@ -2,8 +2,8 @@
   "project": "Iris",
   "repository": "d77167635/ibag",
   "branch": "main",
-  "head": "baffaf362ef9f8f2d0883d1d0f258f2bcd66d39c",
-  "generated_at": "2026-09-10T13:11:09.874Z",
+  "head": "2cab501169d7958cc2424fec793edf3efb09362f",
+  "generated_at": "2026-09-10T13:11:37.795Z",
   "continuity": {
     "master_state": "docs/MASTER_STATE.md",
     "architecture": "docs/ARCHITECTURE.md",
@@ -13,8 +13,8 @@
     "source_of_truth": "current GitHub main commit; continuity documents describe verified state and must not override live repository state"
   },
   "roadmap": {
-    "completed_items": 40,
-    "open_items": 86
+    "completed_items": 68,
+    "open_items": 70
   },
   "environment_transition": {
     "status": "in_transition",
