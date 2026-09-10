@@ -77,7 +77,7 @@ export function Auth({ recovery = false, onRecoveryComplete }: { recovery?: bool
           <p className="auth-visual-copy">Iris connects authorized financial evidence into a living intelligence environment — revealing relationships across cash flow, spending, behavior, debt, time, forecasts, decisions, and consequences.</p>
           <div className="iris-presentation-stream" aria-hidden="true"><span>OBSERVE</span><i /><span>RELATE</span><i /><span>REASON</span><i /><span>SIMULATE</span><i /><span>EMPOWER</span></div>
         </div>
-        <div className="auth-visual-bottom"><div><strong>IRIS</strong><span>Intelligence environment</span></div><div><strong>PLAID</strong><span>Read-only source observations</span></div><div><strong>iBAG</strong><span>Savings &amp; round-up destination</span></div></div>
+        <div className="auth-visual-bottom"><div><strong>IRIS</strong><span>Intelligence environment</span></div><div><strong>PLAID</strong><span>Read-only source observations</span></div><div><strong>IRIS</strong><span>Financial intelligence control plane</span></div></div>
       </section>
       <section className="auth-panel auth-panel-v2">
         <div className="auth-card auth-card-v2">
