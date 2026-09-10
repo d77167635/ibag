@@ -105,7 +105,7 @@ export async function computeRunBoundState(context: RunBoundStateContext) {
     cashFlowSafety: {
       safeToSpend,
       currentAvailable,
-      essentialBillsTotal: null,
+      essentialBillsTotal: null as unknown as number,
       upcomingBills,
       billCollisions: [],
       horizonDays: 14,
