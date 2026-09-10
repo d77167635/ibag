@@ -1,4 +1,4 @@
-import { computeCanonicalAnomalies } from "./anomalies.js";
+import { computeCanonicalAnomalies, IRIS_ANOMALY_INTELLIGENCE_V2 } from "./anomalies.js";
 import { computeCategoryDrift } from "./behavioral.js";
 import { computeFinancialReasoning } from "./relational.js";
 import { computeCanonicalForwardProjection, computeEconomicCashFlow, computeCanonicalSpendingHierarchy, getCanonicalTransactions, getEvidenceObservationBoundary } from "./transactionSemantics.js";
@@ -15,9 +15,7 @@ type OperatorEnvelope<T> = {
   result: T;
 };
 
-async function boundary(userId: string): Promise<string | null> {
-  return getEvidenceObservationBoundary(userId);
-}
+async function boundary(userId: string): Promise<string | null> { return getEvidenceObservationBoundary(userId); }
 
 export async function executeTemporalOperator(userId: string): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId);
@@ -61,7 +59,7 @@ export async function executeRelationshipOperator(userId: string): Promise<Opera
 export async function executeAnomalyOperator(userId: string): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId);
   const anomalies = await computeCanonicalAnomalies(userId, 30, asOf);
-  return { capability_id: "anomaly", operator_id: "anomaly", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: anomalies.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, result: { anomalies, algorithm_version: "IRIS_ANOMALY_INTELLIGENCE_V1" } };
+  return { capability_id: "anomaly", operator_id: "anomaly", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: anomalies.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, result: { anomalies, algorithm_version: IRIS_ANOMALY_INTELLIGENCE_V2 } };
 }
 
 export async function executePredictiveOperator(userId: string): Promise<OperatorEnvelope<unknown>> {
