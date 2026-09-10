@@ -32,7 +32,12 @@ function composeOperatorResult(result: unknown, context: Awaited<ReturnType<type
 async function finish<T>(context: CapabilityExecutionContext, result: T): Promise<T> {
   const budget = context.resourceBudget?.max_execution_time_ms;
   if (budget) {
-    const { data, error } = await supabaseAdmin.from("iris_execution_records").select("started_at").eq("id", context.executionId).eq("user_id", context.userId).maybeSingle();
+    const { data, error } = await supabaseAdmin
+      .from("iris_execution_records")
+      .select("started_at")
+      .eq("id", context.executionId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
     if (error) throw new Error(`CAPABILITY_RESOURCE_USAGE_READ_FAILED:${error.message}`);
     const startedAt = data?.started_at;
     if (startedAt) {
@@ -51,14 +56,18 @@ export async function dispatchGovernedCapability({ userId, capabilityId, executi
   const context = await loadCapabilityExecutionContext(userId, capabilityId, executionId);
 
   if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
-    const result = await computeFullIntelligence(userId);
     const graphSynthesis = synthesizeCapabilityGraph(context.dependencyIds, context.dependencyOutputs);
+    if (!graphSynthesis.graph_complete) {
+      throw new Error(`CAPABILITY_SUPERVISORY_GRAPH_INCOMPLETE:${graphSynthesis.missing_capabilities.join(",")}`);
+    }
+
+    const result = await computeFullIntelligence(userId);
     const composedResult = {
       ...result,
       supervisory_composition: {
         dependency_capabilities: context.dependencyIds,
         dependency_output_hashes: graphSynthesis.output_hashes,
-        dependency_outputs_consumed: graphSynthesis.graph_complete,
+        dependency_outputs_consumed: true,
         dependency_evidence_state: graphSynthesis.evidence_state,
         dependency_evidence_distribution: graphSynthesis.evidence_state_distribution,
         dependency_uncertainty_present: graphSynthesis.uncertainty_present,
@@ -69,7 +78,12 @@ export async function dispatchGovernedCapability({ userId, capabilityId, executi
         run_id: context.runId,
       },
     } as Awaited<ReturnType<typeof computeFullIntelligence>>;
-    return { capability_id: GOVERNED_AGGREGATE_CAPABILITY, operator_id: GOVERNED_AGGREGATE_OPERATOR, operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION, result: await finish(context, composedResult) };
+    return {
+      capability_id: GOVERNED_AGGREGATE_CAPABILITY,
+      operator_id: GOVERNED_AGGREGATE_OPERATOR,
+      operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION,
+      result: await finish(context, composedResult),
+    };
   }
 
   const operator = getCapabilityOperator(capabilityId);
