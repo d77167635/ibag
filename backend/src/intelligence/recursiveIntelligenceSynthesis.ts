@@ -58,21 +58,37 @@ function resultDependencies(result: GovernedCapabilityResult): string[] {
 }
 
 function walk(results: Record<string, CapabilityOperatorResult>): RecursiveNode[] {
-  const nodes: RecursiveNode[] = [];
-  const seen = new Set<string>();
-  const visit = (capabilityId: string, result: CapabilityOperatorResult, depth: number) => {
-    const key = `${capabilityId}:${hash(result.result)}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    const dependencies = resultDependencies(result.result);
-    nodes.push({ capability_id: capabilityId, evidence_state: result.evidence_state, output_hash: hash(result.result), dependencies: [...new Set(dependencies)].sort(), depth });
+  const nodesByKey = new Map<string, RecursiveNode>();
+  const visit = (capabilityId: string, result: CapabilityOperatorResult, depth: number, path: Set<string>) => {
+    const nodeKey = `${capabilityId}:${hash(result.result)}`;
+    if (path.has(nodeKey)) return;
+
+    const nextPath = new Set(path);
+    nextPath.add(nodeKey);
+    const dependencies = [...new Set(resultDependencies(result.result))].sort();
+    const existing = nodesByKey.get(nodeKey);
+    if (!existing || depth > existing.depth) {
+      nodesByKey.set(nodeKey, {
+        capability_id: capabilityId,
+        evidence_state: result.evidence_state,
+        output_hash: hash(result.result),
+        dependencies,
+        depth,
+      });
+    }
+
     for (const dependency of dependencies) {
       const child = results[dependency];
-      if (child) visit(dependency, child, depth + 1);
+      if (child) visit(dependency, child, depth + 1, nextPath);
     }
   };
-  for (const [capabilityId, result] of Object.entries(results).sort(([a], [b]) => a.localeCompare(b))) visit(capabilityId, result, 1);
-  return nodes.sort((a, b) => a.depth - b.depth || a.capability_id.localeCompare(b.capability_id));
+
+  // Every node is a possible root. Using a path-local cycle guard rather than
+  // a global visited set makes computed depth independent of object ordering.
+  for (const [capabilityId, result] of Object.entries(results).sort(([a], [b]) => a.localeCompare(b))) {
+    visit(capabilityId, result, 1, new Set());
+  }
+  return [...nodesByKey.values()].sort((a, b) => a.depth - b.depth || a.capability_id.localeCompare(b.capability_id));
 }
 
 function has(results: Record<string, CapabilityOperatorResult>, capabilityId: string, states?: CapabilityOperatorResult["evidence_state"][]) {
@@ -194,10 +210,6 @@ export function buildRecursiveIntelligenceSynthesis(
     add("multi-capability-synthesis", "interaction", nodes.slice(0, Math.min(nodes.length, 8)).map(node => node.capability_id), "Multiple governed capability outputs are available as a recursively composable evidence graph rather than isolated analytical cards.", "Only capability outputs present in the current run can be composed; missing evidence remains explicit.");
   }
 
-  // Generic graph expansion is the scalability layer: it discovers dependency
-  // chains from the actual execution graph instead of assuming a fixed catalog
-  // of named relationships. The cap is a materialization budget, never a
-  // semantic ceiling on Iris intelligence depth.
   const genericFindings = buildGenericRecursiveFindings(nodes, 256);
   const existingKeys = new Set(findings.map(f => `${f.kind}:${f.capabilities.join("->")}`));
   for (const finding of genericFindings) {
