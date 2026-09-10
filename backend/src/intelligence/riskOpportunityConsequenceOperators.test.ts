@@ -24,6 +24,10 @@ function context(dependencyResults: Record<string, CapabilityOperatorResult>): C
   };
 }
 
+function provenance(result: CapabilityOperatorResult): Record<string, unknown> {
+  return (result.result.provenance ?? {}) as Record<string, unknown>;
+}
+
 test("risk remains evidence-bound and infers only from available certified dependencies", async () => {
   const result = await executeRisk("user-test", context({
     analysis: dependency("analysis", { transaction_count: 3, flow: { outflow: 120 } }),
@@ -32,8 +36,8 @@ test("risk remains evidence-bound and infers only from available certified depen
 
   assert.equal(result.evidence_state, "INFERRED");
   assert.equal(result.result.risk_state, "signals_present");
-  assert.equal(result.result.provenance?.financial_values_created, false);
-  assert.equal(result.result.provenance?.provider_observations_created, false);
+  assert.equal(provenance(result).financial_values_created, false);
+  assert.equal(provenance(result).provider_observations_created, false);
 });
 
 test("risk fails closed when no analytical evidence exists", async () => {
@@ -50,7 +54,7 @@ test("opportunity propagates only observed or modeled dependency outputs", async
 
   assert.equal(result.evidence_state, "INFERRED");
   assert.equal(result.result.opportunity_state, "investigation_candidates");
-  assert.equal(result.result.provenance?.financial_values_created, false);
+  assert.equal(provenance(result).financial_values_created, false);
 });
 
 test("consequence preserves conditional semantics across recursive dependencies", async () => {
@@ -64,5 +68,5 @@ test("consequence preserves conditional semantics across recursive dependencies"
   assert.equal(result.evidence_state, "INFERRED");
   assert.equal(result.result.consequence_state, "conditional_implications");
   assert.ok(Array.isArray(result.result.consequences));
-  assert.equal(result.result.provenance?.money_movement_executed, false);
+  assert.equal(provenance(result).money_movement_executed, false);
 });
