@@ -9,7 +9,7 @@ export type IrisCrossDomainFinding = { id: string; kind: "concentration" | "rela
 
 const CATALOG = [...IRIS_CATALOG, ...IRIS_CATALOG_EXPANSION];
 function unique(values: Array<string | null | undefined>) { return [...new Set(values.filter((v): v is string => Boolean(v && v.trim())))]; }
-function amountOf(tx: CanonicalLike) { const n = typeof tx.amount === "string" ? Number(tx.amount) : tx.amount ?? 0; return Number.isFinite(n) ? n : 0; }
+function amountOf(tx: CanonicalLike): number | null { const n = typeof tx.amount === "string" ? Number(tx.amount) : tx.amount ?? null; return n !== null && Number.isFinite(n) ? n : null; }
 function dimensionsFrom(canonical: CanonicalLike[]) {
   const accounts = unique(canonical.map(tx => tx.account_id)), merchants = unique(canonical.map(tx => tx.merchant_name)), domains = unique(canonical.map(tx => tx.domain?.key ?? tx.domain?.label)), categories = unique(canonical.map(tx => tx.plaid_category_detailed ?? tx.plaid_category_primary)), classes = unique(canonical.map(tx => tx.transaction_class));
   const dates = canonical.map(tx => tx.posted_date).filter((d): d is string => Boolean(d)).sort();
@@ -27,12 +27,12 @@ function keysFor(definition: IrisAnalysisDefinition) {
 function valueFor(tx: CanonicalLike, key: string) { if (key === "account") return tx.account_id ?? null; if (key === "merchant") return tx.merchant_name ?? null; if (key === "domain") return tx.domain?.key ?? tx.domain?.label ?? null; if (key === "category") return tx.plaid_category_detailed ?? tx.plaid_category_primary ?? null; if (key === "transaction_class") return tx.transaction_class ?? null; return null; }
 function contextKey(context: Record<string, string>) { return Object.entries(context).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&"); }
 function calculateCrossDomainFindings(canonical: CanonicalLike[]): IrisCrossDomainFinding[] {
-  const purchases = canonical.filter(tx => tx.transaction_class === "purchase" && amountOf(tx) > 0 && tx.merchant_name && tx.posted_date);
-  const total = purchases.reduce((s, tx) => s + amountOf(tx), 0);
+  const purchases = canonical.filter(tx => tx.transaction_class === "purchase" && (amountOf(tx) ?? -1) > 0 && Boolean(tx.merchant_name) && Boolean(tx.posted_date));
+  const total = purchases.reduce((s, tx) => s + (amountOf(tx) ?? 0), 0);
   const findings: IrisCrossDomainFinding[] = [];
   const byMerchant = new Map<string, number>();
   const byDomain = new Map<string, number>();
-  for (const tx of purchases) { byMerchant.set(tx.merchant_name!, (byMerchant.get(tx.merchant_name!) ?? 0) + amountOf(tx)); const d = tx.domain?.key ?? tx.domain?.label; if (d) byDomain.set(d, (byDomain.get(d) ?? 0) + amountOf(tx)); }
+  for (const tx of purchases) { const amount = amountOf(tx); if (amount === null) continue; byMerchant.set(tx.merchant_name!, (byMerchant.get(tx.merchant_name!) ?? 0) + amount); const d = tx.domain?.key ?? tx.domain?.label; if (d) byDomain.set(d, (byDomain.get(d) ?? 0) + amount); }
   const merchantLeader = [...byMerchant.entries()].sort((a, b) => b[1] - a[1])[0];
   if (merchantLeader && total > 0) { const share = merchantLeader[1] / total; if (share >= 0.20) findings.push({ id: "merchant-concentration", kind: "concentration", title: "Material merchant concentration", conclusion: `${merchantLeader[0]} represents ${(share * 100).toFixed(1)}% of observed purchase dollars in the canonical window.`, evidence: { merchant: merchantLeader[0], merchant_amount: Number(merchantLeader[1].toFixed(2)), purchase_total: Number(total.toFixed(2)), share_pct: Number((share * 100).toFixed(1)) }, confidence: "calculated", limitation: "This is concentration, not evidence of causation or avoidability." }); }
   const domainLeader = [...byDomain.entries()].sort((a, b) => b[1] - a[1])[0];
