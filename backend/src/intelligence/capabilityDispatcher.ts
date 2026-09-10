@@ -6,6 +6,7 @@ import { executeEmergentOperator } from "./emergentOperator.js";
 import { executeTemporalOperator, executeAnalysisOperator, executeBehavioralOperator, executePatternOperator, executeRelationshipOperator, executeAnomalyOperator, executePredictiveOperator } from "./governedOperators.js";
 import { executeCausalOperator, executeScenarioOperator, executeDecisionOperator, executeRecommendationOperator } from "./advancedOperators.js";
 import { loadCapabilityExecutionContext } from "./capabilityExecutionContext.js";
+import { synthesizeCapabilityGraph } from "./supervisorySynthesis.js";
 
 export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
 export const GOVERNED_AGGREGATE_OPERATOR = "computeFullIntelligence";
@@ -29,12 +30,18 @@ export async function dispatchGovernedCapability({ userId, capabilityId, executi
 
   if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
     const result = await computeFullIntelligence(userId);
+    const graphSynthesis = synthesizeCapabilityGraph(context.dependencyIds, context.dependencyOutputs);
     const composedResult = {
       ...result,
       supervisory_composition: {
         dependency_capabilities: context.dependencyIds,
-        dependency_output_hashes: Object.fromEntries(Object.entries(context.dependencyOutputs).map(([id, output]) => [id, output.output_hash])),
-        dependency_outputs_consumed: context.dependencyIds.every(id => context.dependencyOutputs[id] != null),
+        dependency_output_hashes: graphSynthesis.output_hashes,
+        dependency_outputs_consumed: graphSynthesis.graph_complete,
+        dependency_evidence_state: graphSynthesis.evidence_state,
+        dependency_evidence_distribution: graphSynthesis.evidence_state_distribution,
+        dependency_uncertainty_present: graphSynthesis.uncertainty_present,
+        dependency_lineage: graphSynthesis.dependency_lineage,
+        graph_synthesis: graphSynthesis,
         recursion_depth: context.recursionDepth,
         execution_id: context.executionId,
         run_id: context.runId,
