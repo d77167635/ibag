@@ -12,6 +12,14 @@ export type IncomeIntelligence = {
     total_observed_income: number;
     share_of_observed_income: number | null;
   }>;
+  cadence: {
+    observation_count: number;
+    median_gap_days: number | null;
+    gap_mad_days: number | null;
+    regularity: "high" | "moderate" | "limited" | "insufficient_evidence";
+    modeled_next_date: string | null;
+    limitation: string | null;
+  };
   limitation: string | null;
 };
 
@@ -82,6 +90,40 @@ function modeledNextDate(lastObservedDate: string, medianGapDays: number | null)
   return next.toISOString().slice(0, 10);
 }
 
+function cadenceFromDates(dates: string[]): IncomeIntelligence["cadence"] {
+  const ordered = [...new Set(dates)].sort();
+  if (ordered.length < 2) {
+    return {
+      observation_count: ordered.length,
+      median_gap_days: null,
+      gap_mad_days: null,
+      regularity: ordered.length === 1 ? "limited" : "insufficient_evidence",
+      modeled_next_date: null,
+      limitation: "At least two distinct observed income dates are required to establish an income cadence; missing dates are not treated as zero activity.",
+    };
+  }
+
+  const gaps = ordered.slice(1).map((date, index) => dateDistanceDays(ordered[index], date));
+  const medianGap = median(gaps);
+  const gapMad = mad(gaps, medianGap);
+  const regularity = medianGap === null
+    ? "insufficient_evidence"
+    : gapMad !== null && gapMad <= 3
+      ? "high"
+      : gapMad !== null && gapMad <= 7
+        ? "moderate"
+        : "limited";
+
+  return {
+    observation_count: ordered.length,
+    median_gap_days: medianGap === null ? null : round(medianGap),
+    gap_mad_days: gapMad === null ? null : round(gapMad),
+    regularity,
+    modeled_next_date: modeledNextDate(ordered.at(-1)!, medianGap),
+    limitation: "Income cadence is calculated from observed income-classified dates only; it does not establish employment, payroll status, permanence, sufficiency, or future income.",
+  };
+}
+
 export function buildIncomeIntelligence(transactions: CanonicalTransaction[]): IncomeIntelligence {
   const income = transactions.filter(tx => tx.transaction_class === "income" && tx.amount < 0 && Number.isFinite(tx.amount) && Boolean(tx.posted_date));
   if (!income.length) {
@@ -91,17 +133,18 @@ export function buildIncomeIntelligence(transactions: CanonicalTransaction[]): I
       total_observed_income: null,
       active_income_days: 0,
       income_sources: [],
+      cadence: cadenceFromDates([]),
       limitation: "No canonical income-classified inflow observations are available in the supplied evidence set.",
     };
   }
 
   const sourceMap = new Map<string, { label: string; count: number; total: number }>();
-  const dates = new Set<string>();
+  const dates: string[] = [];
   let total = 0;
   for (const tx of income) {
     const amount = Math.abs(tx.amount);
     total += amount;
-    dates.add(tx.posted_date);
+    dates.push(tx.posted_date);
     const identifiableSource = tx.merchant_id ?? tx.merchant_name;
     const key = identifiableSource ?? `unresolved_income_source:${tx.id}`;
     const current = sourceMap.get(key) ?? { label: tx.merchant_name ?? "Unresolved income source", count: 0, total: 0 };
@@ -124,8 +167,9 @@ export function buildIncomeIntelligence(transactions: CanonicalTransaction[]): I
     evidence_state: "calculated",
     transaction_count: income.length,
     total_observed_income: round(total),
-    active_income_days: dates.size,
+    active_income_days: new Set(dates).size,
     income_sources: incomeSources.slice(0, 50),
+    cadence: cadenceFromDates(dates),
     limitation: "Income totals describe observed income-classified transactions; they do not establish salary, permanence, sufficiency, or future income.",
   };
 }
