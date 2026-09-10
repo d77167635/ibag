@@ -1,114 +1,163 @@
 # Iris Architecture
 
-## Authoritative system boundary
+## Authoritative product and system boundary
 
 ```text
-                    IRIS
-                     │
-             determines information needs
-                     ↓
-             PLAID PRODUCT SELECTION
-                     │
-              provider observations
-                     ↓
-                  PLAID DATA
-                     │
-              canonicalization
-                     ↓
-          FINANCIAL LIFE STATE
-                     │
-            relational ontology
-                     ↓
-            IRIS INTELLIGENCE
-                     │
-              IRIS FEATURES
-                     │
-          ┌──────────┴──────────┐
-          ↓                     ↓
-   IRIS DASHBOARD        IRIS WORKSPACES
+                           IRIS
+                            │
+                  determines information needs
+                            ↓
+                 PLAID PRODUCT UNIVERSE
+                            │
+          availability / consent / authorization
+          entitlement / billing / commercial policy
+                            ↓
+                 PROVIDER OBSERVATIONS
+                            │
+                   canonical financial state
+                            ↓
+                  RELATIONAL ONTOLOGY
+                            ↓
+                IRIS INTELLIGENCE HIERARCHY
+                            │
+          recursive composition / higher-order reasoning
+                            ↓
+              IRIS REPORT PRODUCT CATALOG
+                            │
+             user activates / deactivates
+                            ↓
+              EVIDENCE-QUALIFIED REPORTS
+                            │
+             reports / analytics / education
+             explanations / scenarios / decisions
 ```
 
-## Surface separation
+### Critical distinction
+
+The **intelligence hierarchy is not the user product catalog**.
+
+The hierarchy is Iris's internal reasoning system. Capability families, operators, dependencies, nodes, edges, and recursive compositions are implementation/semantic machinery.
+
+The **user products are the reports and analytics returned by that intelligence**. Their number is not artificially bounded. As the hierarchy derives additional valid intelligence from real evidence, governed new report products may be defined and surfaced.
+
+A report product must have a stable identity/version, name, purpose, analytical basis, evidence requirements, provenance/lineage requirements, publication state, and user activation state.
+
+## Source separation
 
 ### Plaid Dashboard
-Provider observability only. It maps the complete supported Plaid product catalog and displays what is available, connected, observed, unavailable, limited, or otherwise evidenced for the user's connections. Product-specific data stays in its source/product context. No Iris interpretation is presented as provider data.
+Provider observability only. It maps the supported Plaid product universe and shows what is available, consented, authorized, billed, entitled, observed, unavailable, limited, or otherwise evidenced for the user's connections. It must not present Iris interpretation as provider data.
 
-### Iris Dashboard
-Synthesized financial-life intelligence. It presents calculations, relationships, patterns, changes, forecasts, risks, opportunities, decisions, and education only when their evidence requirements are satisfied.
+### Iris Report Catalog
+The user-facing product catalog. It contains reports and analytics that Iris can produce from governed intelligence. Users can activate or deactivate individual report products. Catalog metadata itself is not financial evidence.
 
-### Iris Features
-First-class capabilities independent of Plaid products. A feature can consume multiple provider domains and can span multiple pages/workspaces. Features are independently activatable/deactivatable by the user.
+### Iris Dashboard / Workspaces
+Surfaces active, evidence-qualified reports and their supporting explanations, evidence, lineage, relationships, scenarios, decisions, education, and other interaction paths.
 
-## Product-selection pipeline
-
-```text
-Plaid Product Universe
-        ↓
-Product Catalog / Capability Matrix
-        ↓
-Availability + Institution Support
-        ×
-User Consent
-        ×
-Plan Entitlement
-        ×
-Product Cost
-        ×
-Incremental Intelligence Value
-        ↓
-Iris Eligible Product Set
-        ↓
-Provider Observations
-        ↓
-Financial Life State
-        ↓
-Feature Evidence Coverage
-        ↓
-Iris Intelligence
-```
-
-Selection is adaptive. Iris may determine that additional provider evidence would materially improve a capability. If the required product is supported, consented, entitled, and economically allowed, it may be selected. If not, Iris must explain the evidence limitation rather than simulate the missing information.
-
-## Feature architecture
+## Evidence pipeline
 
 ```text
-Feature
-├── Identity
-├── Availability
-├── User control
-├── Evidence prerequisites
-├── Observations
-├── Calculations
-├── Relationships
-├── Patterns
-├── Forecasts
-├── Risks
-├── Opportunities
-├── Decisions
-├── Education
-├── Provenance
-├── Freshness
-├── Lineage
-└── UI/workspaces
+Plaid product universe
+        ↓
+provider capability selection
+        ↓
+real authorized provider observations
+        ↓
+raw/source evidence
+        ↓
+canonical financial-life state
+        ↓
+relational ontology
+        ↓
+recursive Iris intelligence
+        ↓
+analytical outputs
+        ↓
+report product definitions
+        ↓
+user report activation
+        ↓
+evidence-qualified report publication
 ```
+
+Availability, consent, authorization, entitlement, billing, and report activation are control-plane state. None is itself a financial observation.
 
 ## Recursive intelligence
 
-The workspace model is not a fixed list of pages. The preferred traversal is:
+Level 1 is Iris. Level 2 contains the eight authoritative financial-life domains. From Level 3 onward, intelligence branches according to what can be technically and evidentially derived. There is no semantic depth ceiling.
 
-`Domain → Subdomain → Entity → Detail → Evidence → Relationships → Intelligence`
+Capability families such as observation, classification, temporal analysis, statistics, baselines, anomaly detection, behavioral analysis, relationship analysis, causal analysis, prediction, scenarios, risk, opportunity, decisions, recommendations, consequences, outcomes, learning, synthesis, and emergence are operators. They may recur at different depths and in different combinations.
 
-The intelligence model is likewise recursive rather than a finite numbered stack. Iris begins with its defined top-level financial-life domains, then may branch through observations, canonical facts, classifications, temporal change, relationships, patterns, statistics, baselines, adaptive thresholds, anomalies, causal reasoning where evidence supports it, forecasts, scenarios/counterfactuals, risks, opportunities, decisions, recommendations, outcomes, learning, cross-domain synthesis, and higher-order intelligence. Further recursion is permitted whenever governed evidence can produce additional meaningful intelligence; there is no artificial maximum depth.
+The graph supports:
 
-Examples:
-- Account → observations → transactions → relationships → changes → evidence → Iris interpretation
-- Merchant → transactions → spending pattern → baseline → anomaly → explanation → evidence
-- Cash flow → inflows/outflows → obligations → liquidity → forecast → supporting observations
+- parent/child dependencies;
+- multiple parents producing synthesized intelligence;
+- cross-domain relationships;
+- temporal relationships;
+- evidence and derivation relationships;
+- recursive ancestry;
+- uncertainty and limitations;
+- further derived intelligence from prior intelligence.
 
-## Economic boundary
+A materialization/resource budget is an execution constraint, not a semantic maximum.
 
-Plaid product cost and Iris/user charges are configuration, not intelligence logic. The initial commercial rule is that a product is included unless Plaid charges Iris for it; where Plaid charges Iris, the corresponding user-plan/cost policy determines whether and how it is made available.
+## Report-product generation
 
-## Verification principle
+The current report catalog is derived from the authoritative analytical atlas. This is a foundation, not the final catalog size.
 
-A feature is not complete because a UI surface exists. It requires its evidence contract, backend/read model, frontend contract, lineage, user control, explainability, and deployment verification to agree.
+Future governed report discovery may derive products from:
+
+- actual user entities;
+- domains and subdomains;
+- temporal windows;
+- observed relationships;
+- supported patterns;
+- statistical comparisons;
+- risk/opportunity relationships;
+- scenarios and counterfactuals;
+- decisions and consequences;
+- observed outcomes;
+- verified learning;
+- valid higher-order compositions.
+
+Contextual report names may incorporate only information present in the actual execution context. No entity, amount, period, confidence, probability, or outcome may be invented merely to make a report look complete.
+
+Equivalent compositions should be deduplicated. Report materiality and usefulness must be evidence-based.
+
+## User control
+
+Report activation/deactivation is a publication preference. It must:
+
+- persist per authenticated user;
+- apply to report products, not intelligence operators;
+- never activate or deactivate Plaid products;
+- never create evidence;
+- never alter provider observations;
+- never change the semantic depth of Iris;
+- prevent deactivated reports from normal publication;
+- preserve explicit empty selections as all reports disabled;
+- allow the user to restore the currently defined default active set.
+
+## Anti-fabrication boundary
+
+No production financial state, report result, or analytical claim may be fabricated.
+
+Prohibited:
+
+- fake AI-generated financial values;
+- mock/seeded/synthetic financial observations presented as user truth;
+- hardcoded financial balances, transactions, income, debt, spending, or provider records;
+- invented report results;
+- invented confidence/probability values;
+- provider observations inferred from catalog metadata;
+- missing evidence converted to zero;
+- suppressed or insufficient-evidence outputs presented as complete conclusions.
+
+Technical unit-test mocks may isolate infrastructure behavior, but cannot become production financial evidence.
+
+## Certification
+
+A report product is not certified because a definition, schema, operator, endpoint, or UI exists.
+
+Certification requires evidence, exact run boundaries, independent execution, complete lineage, artifact validation, atomic certification, active publication, user-control enforcement, frontend/backend contract agreement, deployment verification, and end-to-end user-journey verification against real provider evidence.
+
+The connected Supabase project currently has zero `iris_run_evidence` rows, so real provider-evidence certification remains pending.
