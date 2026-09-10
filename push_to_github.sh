@@ -12,7 +12,7 @@ set -euo pipefail
 #   chmod +x push_to_github.sh
 #   ./push_to_github.sh
 
-REPO_URL="https://github.com/d77167635/ibag.git"
+REPO_URL="https://github.com/d77167635/iris.git"
 BRANCH="main"
 
 if [ ! -f "README.md" ] || [ ! -d "backend" ] || [ ! -d "frontend" ] || [ ! -d "supabase" ]; then
@@ -28,19 +28,15 @@ git remote add origin "$REPO_URL" 2>/dev/null || git remote set-url origin "$REP
 
 echo ""
 echo "About to push to: $REPO_URL ($BRANCH)"
-echo "If the repo already has files on GitHub (from the flattened upload),"
-echo "this push will likely be rejected as non-fast-forward. In that case,"
-echo "either:"
-echo "  a) delete the existing files on GitHub first (recommended — they're"
-echo "     flattened/broken anyway), then re-run this script, or"
-echo "  b) run: git push --force origin $BRANCH"
-echo "     (force-push only if you're OK overwriting what's currently there)"
+echo "If the repo already has files on GitHub, this push may be rejected"
+echo "as non-fast-forward. Do not force-push unless you have explicitly"
+echo "confirmed that overwriting the remote branch is intended."
 echo ""
 read -p "Push now with --force? [y/N] " confirm
 
 if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
   git push --force origin "$BRANCH"
-  echo "Pushed. Check https://github.com/d77167635/ibag to confirm the folder structure looks right."
+  echo "Pushed. Check https://github.com/d77167635/iris to confirm the repository structure."
 else
   echo "Skipped push. Run manually when ready:"
   echo "  git push --force origin $BRANCH"
