@@ -5,7 +5,7 @@ import { executeLearningOperator } from "./learningOperator.js";
 import { executeEmergentOperator } from "./emergentOperator.js";
 import { executeTemporalOperator, executeAnalysisOperator, executeBehavioralOperator, executePatternOperator, executeRelationshipOperator, executeAnomalyOperator, executePredictiveOperator } from "./governedOperators.js";
 import { executeCausalOperator, executeScenarioOperator, executeDecisionOperator, executeRecommendationOperator } from "./advancedOperators.js";
-import { loadCapabilityExecutionContext } from "./capabilityExecutionContext.js";
+import { loadCapabilityExecutionContext, type CapabilityExecutionContext } from "./capabilityExecutionContext.js";
 import { synthesizeCapabilityGraph } from "./supervisorySynthesis.js";
 
 export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
@@ -26,6 +26,33 @@ function composeOperatorResult(result: unknown, context: Awaited<ReturnType<type
   if (!result || typeof result !== "object" || Array.isArray(result)) return result;
   const graphSynthesis = synthesizeCapabilityGraph(context.dependencyIds, context.dependencyOutputs);
   return { ...(result as GovernedResult), dependency_composition: graphSynthesis };
+}
+
+function enforceExecutionTimeBudget(context: CapabilityExecutionContext): void {
+  const budget = context.resourceBudget?.max_execution_time_ms;
+  if (!budget) return;
+  const startedMs = Date.parse(context.executionId ? context.dependencyOutputs["__execution__"]?.value as string ?? "" : "");
+  void startedMs;
+}
+
+async function finish<T>(context: CapabilityExecutionContext, result: T): Promise<T> {
+  const budget = context.resourceBudget?.max_execution_time_ms;
+  if (budget) {
+    const { data, error } = await supabaseExecutionStart(context);
+    if (error) throw new Error(`CAPABILITY_RESOURCE_USAGE_READ_FAILED:${error}`);
+    const startedAt = data?.started_at;
+    if (startedAt) {
+      const elapsed = Date.now() - Date.parse(startedAt);
+      if (Number.isFinite(elapsed) && elapsed > budget) throw new Error(`CAPABILITY_RESOURCE_BUDGET_EXCEEDED:execution_time_ms:${elapsed}>${budget}`);
+    }
+  }
+  return result;
+}
+
+async function supabaseExecutionStart(context: CapabilityExecutionContext): Promise<{ data: { started_at: string } | null; error: string | null }> {
+  const { supabaseAdmin } = await import("../config/supabase.js");
+  const response = await supabaseAdmin.from("iris_execution_records").select("started_at").eq("id", context.executionId).eq("user_id", context.userId).maybeSingle();
+  return { data: response.data as { started_at: string } | null, error: response.error?.message ?? null };
 }
 
 export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY; executionId?: string }): Promise<AggregateDispatch>;
@@ -54,7 +81,7 @@ export async function dispatchGovernedCapability({ userId, capabilityId, executi
         run_id: context.runId,
       },
     } as Awaited<ReturnType<typeof computeFullIntelligence>>;
-    return { capability_id: GOVERNED_AGGREGATE_CAPABILITY, operator_id: GOVERNED_AGGREGATE_OPERATOR, operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION, result: composedResult };
+    return { capability_id: GOVERNED_AGGREGATE_CAPABILITY, operator_id: GOVERNED_AGGREGATE_OPERATOR, operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION, result: await finish(context, composedResult) };
   }
 
   const operator = getCapabilityOperator(capabilityId);
@@ -62,20 +89,20 @@ export async function dispatchGovernedCapability({ userId, capabilityId, executi
   if (operator.status !== "implemented") throw new Error(`CAPABILITY_NOT_RUNTIME_WIRED: ${capabilityId}`);
 
   switch (capabilityId) {
-    case "temporal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeTemporalOperator(userId, context), context) };
-    case "analysis": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeAnalysisOperator(userId, context), context) };
-    case "behavioral": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeBehavioralOperator(userId, context), context) };
-    case "pattern": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executePatternOperator(userId, context), context) };
-    case "relationship": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeRelationshipOperator(userId, context), context) };
-    case "anomaly": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeAnomalyOperator(userId, context), context) };
-    case "causal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeCausalOperator(userId, context), context) };
-    case "predictive": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executePredictiveOperator(userId, context), context) };
-    case "scenario": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeScenarioOperator(userId, context), context) };
-    case "decision": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeDecisionOperator(userId, context), context) };
-    case "recommendation": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeRecommendationOperator(userId, context), context) };
-    case "outcome": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeOutcomeOperator(userId, context), context) };
-    case "learning": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeLearningOperator(userId, context), context) };
-    case "emergent": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeEmergentOperator(userId, context), context) };
+    case "temporal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeTemporalOperator(userId, context), context)) };
+    case "analysis": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeAnalysisOperator(userId, context), context)) };
+    case "behavioral": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeBehavioralOperator(userId, context), context)) };
+    case "pattern": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executePatternOperator(userId, context), context)) };
+    case "relationship": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeRelationshipOperator(userId, context), context)) };
+    case "anomaly": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeAnomalyOperator(userId, context), context)) };
+    case "causal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeCausalOperator(userId, context), context)) };
+    case "predictive": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executePredictiveOperator(userId, context), context)) };
+    case "scenario": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeScenarioOperator(userId, context), context)) };
+    case "decision": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeDecisionOperator(userId, context), context)) };
+    case "recommendation": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeRecommendationOperator(userId, context), context)) };
+    case "outcome": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeOutcomeOperator(userId, context), context)) };
+    case "learning": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeLearningOperator(userId, context), context)) };
+    case "emergent": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeEmergentOperator(userId, context), context)) };
     default: throw new Error(`CAPABILITY_DISPATCH_UNIMPLEMENTED: ${capabilityId}`);
   }
 }
