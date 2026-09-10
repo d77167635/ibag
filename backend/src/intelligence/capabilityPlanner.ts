@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
-export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v7";
+export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v8";
 
 type CapabilityContract = {
   capability_id: string;
@@ -39,7 +39,6 @@ export type CapabilityPlan = {
 const AGGREGATE_CAPABILITY = "iris.full_intelligence";
 const AGGREGATE_OPERATOR = "computeFullIntelligence";
 const AGGREGATE_OPERATOR_VERSION = "1";
-
 const RESOURCE_LIMITS = { nodes: 10_000, edges: 30_000, compositions: 5_000 };
 
 function asStrings(value: unknown): string[] {
@@ -68,6 +67,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   const registry = new Map<string, CapabilityContract>((contracts ?? []).map(row => [row.capability_id, row as CapabilityContract]));
   const missing = requestedIds.filter(id => !registry.has(id));
   const unsupported: string[] = [];
+  const contractMismatches: string[] = [];
   const ordered: string[] = [];
   const activePath = new Set<string>();
   const visited = new Set<string>();
@@ -104,15 +104,17 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
       continue;
     }
     if (contract && contract.operator_id !== operator.operator_id) {
+      contractMismatches.push(id);
       limitations.push(`Capability ${id} contract operator ${contract.operator_id} does not match executable operator ${operator.operator_id}.`);
     } else if (contract && contract.operator_version !== operator.version) {
+      contractMismatches.push(id);
       limitations.push(`Capability ${id} contract version ${contract.operator_version} does not match executable version ${operator.version}.`);
     }
 
     const requirements = requirementNames(contract?.evidence_requirements);
-    if (requirements.includes("authorized_plaid_evidence") && !(products?.length ?? 0)) {
+    if ((requirements.includes("authorized_plaid_evidence") || requirements.includes("provider_observations")) && !(products?.length ?? 0)) {
       requiredEvidenceMissing = true;
-      limitations.push(`Capability ${id} requires authorized Plaid evidence, but no observed Plaid product evidence is available.`);
+      limitations.push(`Capability ${id} requires observed provider evidence, but no observed Plaid product evidence is available.`);
     }
     if ((requirements.includes("canonical_financial_model") || requirements.includes("canonical_accounts")) && !(accountCount ?? 0)) {
       requiredEvidenceMissing = true;
@@ -130,6 +132,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
 
   if (missing.length) limitations.push(`Missing governed capability contracts: ${missing.join(", ")}.`);
   if (unsupported.length) limitations.push(`No implemented executable operator exists for: ${unsupported.join(", ")}.`);
+  if (contractMismatches.length) limitations.push(`Persisted capability contracts do not match executable operators: ${contractMismatches.join(", ")}.`);
   if (productError) limitations.push(`Provider product observation could not be read: ${productError.message}.`);
   if (fieldError) limitations.push(`Provider source-field observations could not be counted: ${fieldError.message}.`);
   if (accountError) limitations.push(`Canonical account state could not be counted: ${accountError.message}.`);
@@ -146,7 +149,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   if (resourceExceeded) limitations.push(`Capability plan exceeds resource limits: nodes=${nodes}/${RESOURCE_LIMITS.nodes}, edges=${edges}/${RESOURCE_LIMITS.edges}, compositions=${compositions}/${RESOURCE_LIMITS.compositions}.`);
 
   const infrastructureReadFailed = Boolean(productError || fieldError || accountError || transactionError);
-  const status = cycleDetected || missing.length || unsupported.length || requiredEvidenceMissing || resourceExceeded || infrastructureReadFailed
+  const status = cycleDetected || missing.length || unsupported.length || contractMismatches.length || requiredEvidenceMissing || resourceExceeded || infrastructureReadFailed
     ? "BLOCKED"
     : limitations.length
       ? "LIMITED"
