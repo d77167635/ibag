@@ -12,7 +12,7 @@ export async function computeFinancialReasoning(userId: string, asOf?: string | 
   const widest = 90;
   const anchor = asOf ? new Date(asOf) : new Date();
   const cutoff = new Date(anchor.getTime() - widest * 86_400_000).toISOString().slice(0, 10);
-  const canonical = await getCanonicalTransactions(userId, cutoff);
+  const canonical = await getCanonicalTransactions(userId, cutoff, asOf);
   const currentCutoff = new Date(anchor.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
   const currentCanonical = canonical.filter(tx => tx.posted_date >= currentCutoff);
   const canonicalCashFlow = computeEconomicCashFlow(currentCanonical);
