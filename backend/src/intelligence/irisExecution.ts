@@ -241,7 +241,8 @@ export async function executeIrisRun(request: RunRequest) {
 
     if (!gate.eligible) {
       const message = `Certification blocked: ${gate.critical_failures.join(", ")}`;
-      await supabaseAdmin.from("iris_execution_records").update({ validation_status: "FAIL", certification_status: "NOT_CERTIFIED" }).eq("id", aggregateExecution.id).eq("user_id", userId);
+      const { error: validationExecutionUpdateError } = await supabaseAdmin.from("iris_execution_records").update({ validation_status: "FAIL", certification_status: "NOT_CERTIFIED" }).eq("id", aggregateExecution.id).eq("user_id", userId);
+      if (validationExecutionUpdateError) throw new Error(`CERTIFICATION_STATE_UPDATE_FAILED: ${validationExecutionUpdateError.message}`);
       await updateRunOrThrow(run.id, userId, { status: "VALIDATION_FAILED", failure_code: "CERTIFICATION_GATE_FAILED", failure_message: message, updated_at: new Date().toISOString() }, "RUN_STATE_UPDATE_FAILED:VALIDATION_FAILED");
       return { ...run, id: run.id, status: "VALIDATION_FAILED", execution_id: aggregateExecution.id, result: aggregateResult, certified: false, certification_gate: gate, capability_executions: [...completedCapabilities.entries()].map(([capability_id, value]) => ({ capability_id, execution_id: value.executionId, output_hash: value.outputHash })) };
     }
@@ -269,7 +270,11 @@ export async function executeIrisRun(request: RunRequest) {
       capability_executions: [...completedCapabilities.entries()].map(([capability_id, value]) => ({ capability_id, execution_id: value.executionId, output_hash: value.outputHash })),
     };
   } catch (error) {
-    await failRunGraph(run.id, userId, completedCapabilities, errorText(error));
+    try {
+      await failRunGraph(run.id, userId, completedCapabilities, errorText(error));
+    } catch (failurePersistenceError) {
+      throw new Error(`${errorText(error)}; FAILURE_STATE_PERSISTENCE_FAILED: ${errorText(failurePersistenceError)}`);
+    }
     throw error;
   }
 }
@@ -281,11 +286,13 @@ function asDependencyIds(value: unknown): string[] {
 async function failRunGraph(runId: string, userId: string, completedCapabilities: Map<string, { executionId: string }>, message: string) {
   const now = new Date().toISOString();
   const completedIds = new Set([...completedCapabilities.values()].map(value => value.executionId));
-  const { data: executions } = await supabaseAdmin.from("iris_execution_records").select("id").eq("run_id", runId).eq("user_id", userId);
+  const { data: executions, error: executionReadError } = await supabaseAdmin.from("iris_execution_records").select("id").eq("run_id", runId).eq("user_id", userId);
+  if (executionReadError) throw new Error(`FAILURE_STATE_EXECUTION_READ_FAILED: ${executionReadError.message}`);
   for (const execution of executions ?? []) {
     if (!completedIds.has(execution.id)) {
-      await supabaseAdmin.from("iris_execution_records").update({ execution_state: "FAILED", completed_at: now, validation_status: "FAIL", certification_status: "NOT_CERTIFIED", error_code: "INTELLIGENCE_EXECUTION_FAILED", error_message: message }).eq("id", execution.id).eq("user_id", userId);
+      const { error: executionUpdateError } = await supabaseAdmin.from("iris_execution_records").update({ execution_state: "FAILED", completed_at: now, validation_status: "FAIL", certification_status: "NOT_CERTIFIED", error_code: "INTELLIGENCE_EXECUTION_FAILED", error_message: message }).eq("id", execution.id).eq("user_id", userId);
+      if (executionUpdateError) throw new Error(`FAILURE_STATE_EXECUTION_UPDATE_FAILED:${execution.id}: ${executionUpdateError.message}`);
     }
   }
-  await supabaseAdmin.from("iris_runs").update({ status: "FAILED", failure_code: "INTELLIGENCE_EXECUTION_FAILED", failure_message: message, completed_at: now, updated_at: now }).eq("id", runId).eq("user_id", userId);
+  await updateRunOrThrow(runId, userId, { status: "FAILED", failure_code: "INTELLIGENCE_EXECUTION_FAILED", failure_message: message, completed_at: now, updated_at: now }, "FAILURE_STATE_RUN_UPDATE_FAILED");
 }
