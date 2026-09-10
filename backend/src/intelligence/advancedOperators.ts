@@ -33,7 +33,7 @@ function analysisState(analysis: any) {
   return { graph, state: buildFinancialStateModel(graph, uncertainty) };
 }
 
-function buildComposedRelationshipIntelligence(analysis: any, behavioral: any, pattern: any) {
+export function buildComposedRelationshipIntelligence(analysis: any, behavioral: any, pattern: any) {
   const risks: any[] = [], opportunities: any[] = [], relationalChain: string[] = [], unresolvedQuestions: string[] = [];
   const cashFlow = analysis?.economic_cash_flow, safety = analysis?.cash_flow_safety, debt = analysis?.debt_health;
   const drift = behavioral?.category_drift ?? [], patterns = pattern?.patterns ?? [];
