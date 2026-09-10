@@ -2,10 +2,12 @@ import type { IrisAnalysisDefinition } from "./analysisAtlas.js";
 
 export type IntelligenceGraphNodeKind =
   | "account"
+  | "transaction"
   | "merchant"
   | "domain"
   | "category"
   | "transaction_class"
+  | "temporal"
   | "analysis"
   | "state"
   | "goal";
@@ -38,7 +40,7 @@ export type IntelligenceGraphEdge = {
 };
 
 export type IntelligenceGraph = {
-  architecture_version: "IRIS_INTELLIGENCE_GRAPH_V2";
+  architecture_version: "IRIS_INTELLIGENCE_GRAPH_V3";
   node_count: number;
   edge_count: number;
   nodes: IntelligenceGraphNode[];
@@ -47,6 +49,8 @@ export type IntelligenceGraph = {
     relational_contexts: number;
     analysis_dependencies: number;
     investigation_paths: number;
+    transaction_contexts: number;
+    temporal_contexts: number;
     evidence_bounded: true;
   };
 };
@@ -56,14 +60,14 @@ type CanonicalLike = {
   account_id?: string | null;
   merchant_name?: string | null;
   domain?: { key?: string | null; label?: string | null } | null;
+  subdomain?: { key?: string | null; label?: string | null } | null;
   plaid_category_primary?: string | null;
   plaid_category_detailed?: string | null;
   transaction_class?: string | null;
+  posted_date?: string | null;
 };
 
-type AtlasDefinition = IrisAnalysisDefinition & {
-  evidence_ready?: boolean;
-};
+type AtlasDefinition = IrisAnalysisDefinition & { evidence_ready?: boolean };
 type AtlasLike = { definitions: AtlasDefinition[] };
 type Keyed = { kind: IntelligenceGraphNodeKind; value: string };
 
@@ -92,12 +96,9 @@ function addEdge(map: Map<string, IntelligenceGraphEdge>, from: string, to: stri
 
 /**
  * Builds Iris's relational intelligence substrate from canonical provider-backed
- * observations and the analytical dependency registry.
- *
- * V2 makes semantic relationships explicit. Synthetic analytical state nodes are
- * marked observed only when the corresponding atlas definition is evidence-ready;
- * this prevents investigations from being permanently reported as ready merely
- * because a capability exists in the catalog.
+ * observations and the analytical dependency registry. Individual transactions
+ * and temporal nodes are explicit so deeper intelligence can reason over events,
+ * aggregates, semantic classifications, and time without inventing facts.
  */
 export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasLike): IntelligenceGraph {
   const nodes = new Map<string, IntelligenceGraphNode>();
@@ -106,36 +107,49 @@ export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasL
   const outputNodes = new Map<string, string[]>();
 
   for (const tx of canonical) {
-    if (!tx.account_id) continue;
+    if (!tx.account_id || !tx.id) continue;
     const account = addNode(nodes, { kind: "account", value: tx.account_id });
+    const transaction = addNode(nodes, { kind: "transaction", value: tx.id });
+    addEdge(edges, account, transaction, "contains");
+
+    if (tx.posted_date) {
+      const temporal = addNode(nodes, { kind: "temporal", value: tx.posted_date });
+      addEdge(edges, transaction, temporal, "occurs_at");
+    }
 
     if (tx.merchant_name) {
       const merchant = addNode(nodes, { kind: "merchant", value: tx.merchant_name });
+      addEdge(edges, transaction, merchant, "belongs_to");
       addEdge(edges, account, merchant, "contains");
     }
 
     const domainValue = tx.domain?.key ?? tx.domain?.label;
     if (domainValue) {
       const domain = addNode(nodes, { kind: "domain", value: domainValue });
+      addEdge(edges, transaction, domain, "belongs_to");
       addEdge(edges, account, domain, "contains");
+      if (tx.merchant_name) addEdge(edges, nodeId("merchant", tx.merchant_name), domain, "belongs_to");
+    }
+
+    const subdomainValue = tx.subdomain?.key ?? tx.subdomain?.label;
+    if (subdomainValue) {
+      const subdomain = addNode(nodes, { kind: "domain", value: subdomainValue });
+      addEdge(edges, transaction, subdomain, "belongs_to");
+      if (domainValue) addEdge(edges, nodeId("domain", domainValue), subdomain, "belongs_to");
     }
 
     const categoryValue = tx.plaid_category_detailed ?? tx.plaid_category_primary;
     if (categoryValue) {
       const category = addNode(nodes, { kind: "category", value: categoryValue });
-      addEdge(edges, account, category, "contains");
+      addEdge(edges, transaction, category, "belongs_to");
+      if (tx.merchant_name) addEdge(edges, nodeId("merchant", tx.merchant_name), category, "belongs_to");
     }
 
     if (tx.transaction_class) {
       const classification = addNode(nodes, { kind: "transaction_class", value: tx.transaction_class });
+      addEdge(edges, transaction, classification, "classified_as");
       addEdge(edges, account, classification, "classified_as");
-    }
-
-    if (tx.merchant_name && domainValue) {
-      addEdge(edges, nodeId("merchant", tx.merchant_name), nodeId("domain", domainValue), "belongs_to");
-    }
-    if (tx.merchant_name && categoryValue) {
-      addEdge(edges, nodeId("merchant", tx.merchant_name), nodeId("category", categoryValue), "belongs_to");
+      if (tx.merchant_name) addEdge(edges, nodeId("merchant", tx.merchant_name), classification, "classified_as");
     }
   }
 
@@ -176,12 +190,14 @@ export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasL
     }
   }
 
-  const relationalContexts = [...edges.values()].filter(edge => ["contains", "belongs_to", "classified_as"].includes(edge.relation)).length;
+  const relationalContexts = [...edges.values()].filter(edge => ["contains", "belongs_to", "classified_as", "occurs_at"].includes(edge.relation)).length;
   const analysisDependencies = [...edges.values()].filter(edge => ["depends_on", "supports", "compares_with"].includes(edge.relation)).length;
   const investigationPaths = [...edges.values()].filter(edge => edge.relation === "investigates").length;
+  const transactionContexts = [...nodes.values()].filter(node => node.kind === "transaction").length;
+  const temporalContexts = [...nodes.values()].filter(node => node.kind === "temporal").length;
 
   return {
-    architecture_version: "IRIS_INTELLIGENCE_GRAPH_V2",
+    architecture_version: "IRIS_INTELLIGENCE_GRAPH_V3",
     node_count: nodes.size,
     edge_count: edges.size,
     nodes: [...nodes.values()],
@@ -190,6 +206,8 @@ export function buildIntelligenceGraph(canonical: CanonicalLike[], atlas: AtlasL
       relational_contexts: relationalContexts,
       analysis_dependencies: analysisDependencies,
       investigation_paths: investigationPaths,
+      transaction_contexts: transactionContexts,
+      temporal_contexts: temporalContexts,
       evidence_bounded: true,
     },
   };
