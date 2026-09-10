@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
-export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v4";
+export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v5";
 
 type CapabilityContract = {
   capability_id: string;
@@ -30,7 +30,13 @@ export type CapabilityPlan = {
   limitations: string[];
 };
 
-function asStrings(value: unknown): string[] { return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []; }
+const AGGREGATE_CAPABILITY = "iris.full_intelligence";
+const AGGREGATE_OPERATOR = "computeFullIntelligence";
+const AGGREGATE_OPERATOR_VERSION = "1";
+
+function asStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
 
 /** Resolve the governed capability graph against both persisted contracts and actual executable code. */
 export async function planCapabilities(userId: string, requested: string[]): Promise<CapabilityPlan> {
@@ -43,7 +49,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   if (contractError) throw new Error(`CAPABILITY_REGISTRY_READ_FAILED: ${contractError.message}`);
 
   const registry = new Map<string, CapabilityContract>((contracts ?? []).map(row => [row.capability_id, row as CapabilityContract]));
-  const missing = requestedIds.filter(id => id !== "iris.full_intelligence" && !registry.has(id));
+  const missing = requestedIds.filter(id => !registry.has(id));
   const unsupported: string[] = [];
   const ordered: string[] = [];
   const visited = new Set<string>();
@@ -52,7 +58,11 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   const limitations: string[] = [];
 
   const visit = (id: string) => {
-    if (activePath.has(id)) { cycleDetected = true; limitations.push(`Capability dependency cycle detected at ${id}.`); return; }
+    if (activePath.has(id)) {
+      cycleDetected = true;
+      limitations.push(`Capability dependency cycle detected at ${id}.`);
+      return;
+    }
     if (visited.has(id)) return;
     const contract = registry.get(id);
     if (!contract) return;
@@ -62,19 +72,31 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     visited.add(id);
     ordered.push(id);
   };
-  for (const id of requestedIds) if (id !== "iris.full_intelligence") visit(id);
+
+  for (const id of requestedIds) visit(id);
 
   for (const id of ordered) {
     const contract = registry.get(id);
-    const operator = getCapabilityOperator(id);
-    if (!operator || operator.status !== "implemented") unsupported.push(id);
-    else if (contract && contract.operator_id !== operator.operator_id) limitations.push(`Capability ${id} contract operator ${contract.operator_id} does not match executable operator ${operator.operator_id}.`);
-    else if (contract && contract.operator_version !== operator.version) limitations.push(`Capability ${id} contract version ${contract.operator_version} does not match executable version ${operator.version}.`);
+    const operator = id === AGGREGATE_CAPABILITY
+      ? { status: "implemented", operator_id: AGGREGATE_OPERATOR, version: AGGREGATE_OPERATOR_VERSION }
+      : getCapabilityOperator(id);
+
+    if (!operator || operator.status !== "implemented") {
+      unsupported.push(id);
+      continue;
+    }
+    if (contract && contract.operator_id !== operator.operator_id) {
+      limitations.push(`Capability ${id} contract operator ${contract.operator_id} does not match executable operator ${operator.operator_id}.`);
+    } else if (contract && contract.operator_version !== operator.version) {
+      limitations.push(`Capability ${id} contract version ${contract.operator_version} does not match executable version ${operator.version}.`);
+    }
   }
+
   if (missing.length) limitations.push(`Missing governed capability contracts: ${missing.join(", ")}.`);
   if (unsupported.length) limitations.push(`No implemented executable operator exists for: ${unsupported.join(", ")}.`);
   if (productError) limitations.push(`Provider product observation could not be read: ${productError.message}.`);
   if (fieldError) limitations.push(`Provider source-field observations could not be counted: ${fieldError.message}.`);
+
   const observedProducts = [...new Set((products ?? []).map(p => p.product).filter((p): p is string => typeof p === "string"))];
   if (!observedProducts.length) limitations.push("No observed Plaid product domain is available to the planner for this user.");
 
@@ -83,5 +105,22 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   const nodes = ordered.length;
   const compositions = contractsUsed.filter(c => c.recursive || c.cross_domain).length;
   const status = cycleDetected || missing.length || unsupported.length ? "BLOCKED" : limitations.length ? "LIMITED" : "READY";
-  return { planner_version: CAPABILITY_PLANNER_VERSION, requested: requestedIds, ordered_capabilities: ordered, contracts: contractsUsed, missing_capabilities: missing, unsupported_capabilities: unsupported, cycle_detected: cycleDetected, evidence: { observed_products: observedProducts, observed_product_count: observedProducts.length, source_field_observation_count: fieldCount ?? 0 }, resource_estimate: { nodes, edges, compositions }, status, limitations };
+
+  return {
+    planner_version: CAPABILITY_PLANNER_VERSION,
+    requested: requestedIds,
+    ordered_capabilities: ordered,
+    contracts: contractsUsed,
+    missing_capabilities: missing,
+    unsupported_capabilities: unsupported,
+    cycle_detected: cycleDetected,
+    evidence: {
+      observed_products: observedProducts,
+      observed_product_count: observedProducts.length,
+      source_field_observation_count: fieldCount ?? 0,
+    },
+    resource_estimate: { nodes, edges, compositions },
+    status,
+    limitations,
+  };
 }
