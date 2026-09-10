@@ -1,24 +1,34 @@
-import { computeBalanceMetrics, computeCashFlowSafety, computeDebtTrend, detectAnomalies } from "../services/intelligence.js";
+import { computeBalanceMetrics, computeCashFlowSafety, computeDebtTrend } from "../services/intelligence.js";
 import { computeEconomicCashFlow, computeRoundupProjectionFromTransactions, getCanonicalTransactions } from "./transactionSemantics.js";
 import { computeDebtCostIntelligence } from "./liabilities.js";
 import { computeCategoryDrift } from "./behavioral.js";
 import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
-import type { Evidence, RiskItem, OpportunityItem } from "./types.js";
+import { computeCanonicalAnomalies } from "./anomalies.js";
+import { computeRunBoundState } from "./runBoundState.js";
+import type { RiskItem, OpportunityItem } from "./types.js";
 
 export interface FinancialReasoning { risks: RiskItem[]; opportunities: OpportunityItem[]; relationalChain: string[]; unresolvedQuestions: string[]; priorityFocus: { key: string; reason: string } | null; generatedAt: string; }
 const severityRank = { high: 3, medium: 2, low: 1 } as const;
 
-export async function computeFinancialReasoning(userId: string, asOf?: string | null): Promise<FinancialReasoning> {
+export async function computeFinancialReasoning(userId: string, asOf?: string | null, runId?: string | null): Promise<FinancialReasoning> {
   const widest = 90;
   const anchor = asOf ? new Date(asOf) : new Date();
+  if (!Number.isFinite(anchor.getTime())) throw new Error("INVALID_FINANCIAL_REASONING_ANCHOR");
   const cutoff = new Date(anchor.getTime() - widest * 86_400_000).toISOString().slice(0, 10);
-  const canonical = await getCanonicalTransactions(userId, cutoff, asOf);
+  const canonical = await getCanonicalTransactions(userId, cutoff, asOf, runId ?? null);
   const currentCutoff = new Date(anchor.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
-  const currentCanonical = canonical.filter(tx => tx.posted_date >= currentCutoff);
+  const currentCanonical = canonical.filter(tx => tx.posted_date >= currentCutoff && tx.posted_date <= anchor.toISOString().slice(0, 10));
   const canonicalCashFlow = computeEconomicCashFlow(currentCanonical);
   const canonicalRoundup = computeRoundupProjectionFromTransactions(canonical);
+  const runState = runId && asOf ? await computeRunBoundState({ userId, runId, evidenceBoundary: asOf, asOf }) : null;
   const [balances, cashSafety, debtTrend, anomalies, debtCost, drift, multiWindow] = await Promise.all([
-    computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeDebtTrend(userId), detectAnomalies(userId), computeDebtCostIntelligence(userId), computeCategoryDrift(userId), computeMultiWindowFlow(userId, undefined, asOf),
+    runState?.balances ?? computeBalanceMetrics(userId),
+    runState?.cashFlowSafety ?? computeCashFlowSafety(userId),
+    runState?.debtTrend ?? computeDebtTrend(userId),
+    runId ? computeCanonicalAnomalies(userId, 30, asOf, runId, asOf) : computeCanonicalAnomalies(userId, 30, asOf, null, asOf),
+    runId ? Promise.resolve({ totalRevolvingBalance: null, weightedAvgApr: null, estimatedMonthlyInterestCost: null, minimumPaymentTotal: null, accountsWithKnownApr: 0, accountsWithoutAprData: 0, evidence: "insufficient_evidence" as const, basis: "Debt-cost observations are withheld from run-bound reasoning until liability evidence is bound to the exact run manifest." }) : computeDebtCostIntelligence(userId),
+    computeCategoryDrift(userId, 30, 90, asOf, runId ?? null),
+    computeMultiWindowFlow(userId, undefined, asOf, runId ?? null),
   ]);
   const trajectory = assessTrajectory(multiWindow);
   const cashFlow = { ...canonicalCashFlow, windowDays: 30, netChangePct: null as number | null };
@@ -33,7 +43,6 @@ export async function computeFinancialReasoning(userId: string, asOf?: string | 
   if (cashSafety.safeToSpend !== null && cashSafety.safeToSpend < 0) risks.push({ key:"negative_safe_to_spend", severity:"high", evidence:"calculated", statement:`Safe-to-spend is negative (${cashSafety.safeToSpend.toFixed(2)}) — known essential bills due within ${cashSafety.horizonDays} days exceed current available balance.`, supportingMetrics:{safeToSpend:cashSafety.safeToSpend, essentialBillsTotal:cashSafety.essentialBillsTotal} });
   if (cashSafety.billCollisions.length > 0) risks.push({ key:"bill_collision", severity:"medium", evidence:"observed", statement:`${cashSafety.billCollisions.length} window(s) where 2+ essential bills are due within a few days of each other.`, supportingMetrics:{collisionCount:cashSafety.billCollisions.length} });
   if (debtTrend.changePct !== null && debtTrend.changePct > 20) { const severity = debtTrend.changePct > 100 ? "high" : debtTrend.changePct > 50 ? "medium" : "low"; risks.push({ key:"debt_acceleration", severity, evidence:"calculated", statement:`Revolving debt increased ${debtTrend.changePct.toFixed(0)}% over the trend window${balances.creditUtilization !== null ? `, with average utilization at ${(balances.creditUtilization * 100).toFixed(0)}%` : ""}.`, supportingMetrics:{debtChangePct:debtTrend.changePct,creditUtilization:balances.creditUtilization} }); }
-  if (debtCost.evidence === "calculated" && debtCost.minimumPaymentTotal !== null && cashSafety.safeToSpend !== null && debtCost.minimumPaymentTotal > cashSafety.safeToSpend && cashSafety.safeToSpend >= 0) risks.push({ key:"minimum_payment_exceeds_safe_to_spend", severity:"high", evidence:"calculated", statement:`Total minimum payments due (${debtCost.minimumPaymentTotal.toFixed(2)}) exceed safe-to-spend (${cashSafety.safeToSpend.toFixed(2)}).`, supportingMetrics:{minimumPaymentTotal:debtCost.minimumPaymentTotal,safeToSpend:cashSafety.safeToSpend} });
   const significantDrift = drift.filter(d => d.significant && d.deviationPct > 0); if (significantDrift.length) { const top=significantDrift[0]; risks.push({key:"category_spending_drift",severity:significantDrift.length>2?"medium":"low",evidence:"calculated",statement:`${top.subdomainLabel} spending is running ${top.deviationPct.toFixed(0)}% above its established baseline.`,supportingMetrics:{categoriesAffected:significantDrift.length,topCategory:top.subdomainLabel,topDeviationPct:top.deviationPct}}); }
   if (cashFlow.net < 0 && cashFlow.netChangePct !== null && cashFlow.netChangePct < -20) risks.push({key:"cash_flow_deterioration",severity:"medium",evidence:"calculated",statement:`Economic cash flow is negative and worsened ${Math.abs(cashFlow.netChangePct).toFixed(0)}% versus the prior period.`,supportingMetrics:{net:cashFlow.net,netChangePct:cashFlow.netChangePct}});
   if (canonicalRoundup.projected !== null && canonicalRoundup.projected > 0) opportunities.push({key:"roundup_accrual",evidence:"calculated",statement:`At the current eligible purchase pace, Round-Ups are projected to accrue ${canonicalRoundup.projected.toFixed(2)} over the next ${canonicalRoundup.projectDays} days (basis: ${canonicalRoundup.basisDays} days).`,supportingMetrics:{dailyRate:canonicalRoundup.dailyRate,basisDays:canonicalRoundup.basisDays}});
