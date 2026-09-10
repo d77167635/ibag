@@ -33,6 +33,8 @@ const temporalOperator: CapabilityOperator = {
   },
 };
 
+function op(capability_id: string, execute: CapabilityOperator["execute"], evidence_state: CapabilityOperatorResult["evidence_state"], execution_stage: string, version = "1.0.0"): CapabilityOperator { return { capability_id, operator_id: capability_id, version, status: "implemented", execution_stage, evidence_state, execute }; }
+
 const financialLifeStateOperator: CapabilityOperator = op("financial_life_state", executeFinancialLifeState, "CALCULATED", "canonical_financial_life_state");
 const relationalOntologyOperator: CapabilityOperator = op("relational_ontology", executeRelationalOntology, "CALCULATED", "relational_ontology_expansion");
 
@@ -45,10 +47,10 @@ const emergentOperator: CapabilityOperator = {
     const boundary = context?.evidenceBoundary ?? context?.asOf ?? null;
     const cutoff = new Date(anchor.getTime() - 365 * 86_400_000).toISOString().slice(0, 10);
     const transactions = await getCanonicalTransactions(userId, cutoff, boundary, context?.runId ?? null);
-    const lifeStateDependency = dependencyResults.financial_life_state?.result?.canonical_life_state;
-    const ontologyDependency = dependencyResults.relational_ontology?.result;
+    const lifeStateDependency = dependencyResults.financial_life_state?.result?.canonical_life_state as Record<string, any> | undefined;
+    const ontologyDependency = dependencyResults.relational_ontology?.result as Record<string, any> | undefined;
     const lifeState = lifeStateDependency ?? buildCanonicalLifeState(transactions, boundary);
-    const relationalOntology = ontologyDependency?.relationships ?? buildRelationalOntologyExpansion(transactions);
+    const relationalOntology = Array.isArray(ontologyDependency?.relationships) ? ontologyDependency.relationships : buildRelationalOntologyExpansion(transactions);
     const state = synthesis.dependency_count > 0 || lifeState.transaction_count > 0 ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
     return {
       capability_id: "emergent",
@@ -82,8 +84,6 @@ const emergentOperator: CapabilityOperator = {
     };
   },
 };
-
-function op(capability_id: string, execute: CapabilityOperator["execute"], evidence_state: CapabilityOperatorResult["evidence_state"], execution_stage: string, version = "1.0.0"): CapabilityOperator { return { capability_id, operator_id: capability_id, version, status: "implemented", execution_stage, evidence_state, execute }; }
 
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   temporalOperator,
