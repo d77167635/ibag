@@ -10,7 +10,7 @@ type DispatchRequest = { userId: string; capabilityId: string; context?: Capabil
 /** Single runtime dispatcher. Implemented capabilities never silently fall back to the aggregate operator. */
 export async function dispatchGovernedCapability({ userId, capabilityId, context }: DispatchRequest): Promise<CapabilityOperatorResult> {
   if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
-    const result = await computeFullIntelligence(userId);
+    const result = await computeFullIntelligence(userId, context);
     return {
       capability_id: GOVERNED_AGGREGATE_CAPABILITY,
       operator_id: GOVERNED_AGGREGATE_OPERATOR,
