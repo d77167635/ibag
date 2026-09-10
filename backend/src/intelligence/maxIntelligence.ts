@@ -26,11 +26,18 @@ export interface MaximumIntelligence {
     interpretation: string;
   };
   statistics: {
+    sample_size: number;
     observed_daily_outflow_rates: number[];
+    mean_daily_outflow: number | null;
     median_daily_outflow: number | null;
     mad_daily_outflow: number | null;
+    standard_deviation_daily_outflow: number | null;
+    coefficient_of_variation: number | null;
+    lower_quartile_daily_outflow: number | null;
+    upper_quartile_daily_outflow: number | null;
     lower_reference: number | null;
     upper_reference: number | null;
+    adaptive_outlier_threshold: number | null;
     reference_method: "median_mad" | "insufficient_evidence";
     interpretation: string;
   };
@@ -55,35 +62,66 @@ function labelForScore(score: number): MaximumIntelligence["confidence"]["label"
   if (score >= 0.35) return "limited";
   return "insufficient";
 }
-
 function coverageLabel(score: number): MaximumIntelligence["evidence"]["coverage_label"] {
   if (score >= 0.8) return "strong";
   if (score >= 0.6) return "moderate";
   if (score >= 0.35) return "limited";
   return "insufficient";
 }
-
-function round(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
+function round(value: number): number { return Math.round(value * 100) / 100; }
 function median(values: number[]): number | null {
   if (!values.length) return null;
   const ordered = [...values].sort((a, b) => a - b);
   const mid = Math.floor(ordered.length / 2);
   return ordered.length % 2 ? ordered[mid] : (ordered[mid - 1] + ordered[mid]) / 2;
 }
-
-function robustBaseline(rates: number[]) {
+function quantile(values: number[], probability: number): number | null {
+  if (!values.length) return null;
+  const ordered = [...values].sort((a, b) => a - b);
+  if (ordered.length === 1) return ordered[0];
+  const position = (ordered.length - 1) * probability;
+  const lower = Math.floor(position), upper = Math.ceil(position);
+  if (lower === upper) return ordered[lower];
+  return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower);
+}
+function robustStatistics(rates: number[]) {
   const med = median(rates);
-  if (med === null) return { median: null, mad: null, lower: null, upper: null, method: "insufficient_evidence" as const, interpretation: "There is not enough observed-window evidence to establish a robust daily outflow reference." };
+  if (med === null) return {
+    sampleSize: 0, mean: null, median: null, mad: null, standardDeviation: null, coefficientOfVariation: null,
+    q1: null, q3: null, lower: null, upper: null, adaptiveThreshold: null,
+    method: "insufficient_evidence" as const,
+    interpretation: "There is not enough observed-window evidence to establish a robust daily outflow reference."
+  };
+  const mean = rates.reduce((sum, value) => sum + value, 0) / rates.length;
+  const variance = rates.length > 1 ? rates.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (rates.length - 1) : null;
+  const standardDeviation = variance === null ? null : Math.sqrt(variance);
   const mad = median(rates.map(rate => Math.abs(rate - med)));
-  if (mad === null) return { median: round(med), mad: null, lower: null, upper: null, method: "insufficient_evidence" as const, interpretation: "A central outflow reference exists, but dispersion cannot be established from the available windows." };
+  const q1 = quantile(rates, 0.25);
+  const q3 = quantile(rates, 0.75);
+  if (mad === null || q1 === null || q3 === null) return {
+    sampleSize: rates.length, mean: round(mean), median: round(med), mad: null,
+    standardDeviation: standardDeviation === null ? null : round(standardDeviation),
+    coefficientOfVariation: mean !== 0 && standardDeviation !== null ? round(standardDeviation / Math.abs(mean)) : null,
+    q1: q1 === null ? null : round(q1), q3: q3 === null ? null : round(q3), lower: null, upper: null, adaptiveThreshold: null,
+    method: "insufficient_evidence" as const,
+    interpretation: "A central reference exists, but dispersion cannot be established robustly from the available windows."
+  };
   const scale = mad === 0 ? Math.max(Math.abs(med) * 0.1, 0.01) : mad;
-  return { median: round(med), mad: round(mad), lower: round(Math.max(0, med - 3 * scale)), upper: round(med + 3 * scale), method: "median_mad" as const, interpretation: "Reference band uses the median and median absolute deviation of observed daily outflow rates; it is a descriptive baseline, not a forecast or probability interval." };
+  // The threshold is adaptive to observed dispersion. It is a descriptive
+  // screening rule, not a probability cutoff or a claim about future behavior.
+  const adaptiveThreshold = 3 * scale;
+  return {
+    sampleSize: rates.length,
+    mean: round(mean), median: round(med), mad: round(mad),
+    standardDeviation: standardDeviation === null ? null : round(standardDeviation),
+    coefficientOfVariation: mean !== 0 && standardDeviation !== null ? round(standardDeviation / Math.abs(mean)) : null,
+    q1: round(q1), q3: round(q3), lower: round(Math.max(0, med - adaptiveThreshold)), upper: round(med + adaptiveThreshold),
+    adaptiveThreshold: round(adaptiveThreshold), method: "median_mad" as const,
+    interpretation: "Reference and screening thresholds adapt to the observed median absolute deviation; they describe the user's observed history and are not forecasts or probability intervals."
+  };
 }
 
-/** Deterministic, evidence-gated synthesis of already observed/calculated outputs. */
+/** Deterministic, evidence-gated synthesis of observed/calculated outputs. */
 export function buildMaximumIntelligence(input: {
   flows: WindowedFlow[];
   reasoning: FinancialReasoning;
@@ -97,7 +135,7 @@ export function buildMaximumIntelligence(input: {
   const observedWindows = input.flows.map((f) => f.windowDays);
   const strongest = populated.length ? populated[populated.length - 1] : null;
   const rates = populated.map(flow => flow.outflow / flow.windowDays).filter(Number.isFinite);
-  const baseline = robustBaseline(rates);
+  const statistics = robustStatistics(rates);
 
   const dimensions = [
     input.currentLiquidAssets !== null,
@@ -182,13 +220,20 @@ export function buildMaximumIntelligence(input: {
       interpretation,
     },
     statistics: {
+      sample_size: statistics.sampleSize,
       observed_daily_outflow_rates: rates.map(round),
-      median_daily_outflow: baseline.median,
-      mad_daily_outflow: baseline.mad,
-      lower_reference: baseline.lower,
-      upper_reference: baseline.upper,
-      reference_method: baseline.method,
-      interpretation: baseline.interpretation,
+      mean_daily_outflow: statistics.mean,
+      median_daily_outflow: statistics.median,
+      mad_daily_outflow: statistics.mad,
+      standard_deviation_daily_outflow: statistics.standardDeviation,
+      coefficient_of_variation: statistics.coefficientOfVariation,
+      lower_quartile_daily_outflow: statistics.q1,
+      upper_quartile_daily_outflow: statistics.q3,
+      lower_reference: statistics.lower,
+      upper_reference: statistics.upper,
+      adaptive_outlier_threshold: statistics.adaptiveThreshold,
+      reference_method: statistics.method,
+      interpretation: statistics.interpretation,
     },
     pressure_points: pressurePoints,
     opportunities,
@@ -199,7 +244,7 @@ export function buildMaximumIntelligence(input: {
       { output: "liquidity", basis: "Connected account balance observations", evidence: input.currentLiquidAssets === null ? "insufficient_evidence" : "observed" },
       { output: "cash_flow", basis: `${input.cashFlowWindowDays}-day classified transaction window`, evidence: input.cashFlowNet === null ? "insufficient_evidence" : "calculated" },
       { output: "trajectory", basis: "Cross-window daily outflow comparison", evidence: populated.length >= 2 ? "calculated" : "insufficient_evidence" },
-      { output: "statistics", basis: "Robust median/MAD reference over observed daily outflow rates", evidence: rates.length >= 2 ? "calculated" : "insufficient_evidence" },
+      { output: "statistics", basis: "Adaptive median/MAD reference with quartiles and dispersion over observed daily outflow rates", evidence: rates.length >= 2 ? "calculated" : "insufficient_evidence" },
       { output: "reasoning", basis: "Relational synthesis of calculated and observed findings", evidence: input.reasoning.risks.length || input.reasoning.opportunities.length ? "inferred" : "insufficient_evidence" },
     ],
   };
