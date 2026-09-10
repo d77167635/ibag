@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { IRIS_STANDARD_CAPABILITY_IDS, getIrisCatalogCapability } from "./irisCatalog.js";
 import { IRIS_CATALOG_EXPANSION } from "./irisCatalogExpansion.js";
 
-test("Iris Standard has exactly the canonical ten capability preferences", () => {
+test("Iris Standard has exactly the canonical ten internal capability preferences", () => {
   assert.equal(IRIS_STANDARD_CAPABILITY_IDS.length, 10);
   assert.deepEqual([...IRIS_STANDARD_CAPABILITY_IDS], [
     "roundups",
@@ -15,7 +15,7 @@ test("Iris Standard has exactly the canonical ten capability preferences", () =>
     "forecast",
     "recurrence",
     "causality",
-    "decision-lab",
+    "decisions",
   ]);
 });
 
