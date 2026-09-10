@@ -16,7 +16,7 @@ export type GovernedCapabilityResult = {
     };
   };
   uncertainty?: unknown;
-  evidence_boundary?: string;
+  evidence_boundary?: string | null;
   [key: string]: unknown;
 };
 
