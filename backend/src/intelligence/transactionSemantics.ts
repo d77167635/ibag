@@ -29,7 +29,7 @@ export async function getCanonicalTransactions(userId: string, since?: string, e
       .eq("run_id", runId)
       .eq("user_id", userId)
       .eq("provider", "plaid")
-      .eq("evidence_type", "provider_raw_observation")
+      .in("evidence_type", ["provider_raw_observation", "provider_raw_transaction"])
       .not("raw_observation_id", "is", null);
     if (runEvidenceError) throw new Error(`RUN_EVIDENCE_RESOLUTION_FAILED: ${runEvidenceError.message}`);
     runRawObservationIds = [...new Set((runEvidence ?? []).map((row: any) => row.raw_observation_id).filter((id: unknown): id is string => typeof id === "string"))];
@@ -62,7 +62,7 @@ export async function getEvidenceObservationBoundary(userId: string): Promise<st
   const [tx, balances, products] = await Promise.all([
     supabaseAdmin.from("plaid_raw_transactions").select("acquired_at").eq("user_id", userId).not("acquired_at", "is", null).order("acquired_at", { ascending: false }).limit(1),
     supabaseAdmin.from("plaid_raw_balances").select("acquired_at").eq("user_id", userId).not("acquired_at", "is", null).order("acquired_at", { ascending: false }).limit(1),
-    supabaseAdmin.from("plaid_product_observations").select("acquired_at").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).not("acquired_at", "is", null).order("acquired_at", { ascending: false }).limit(1),
+    supabaseAdmin.from("plaid_product_observations").select("acquired_at").eq("user_id", userId).eq("provider","plaid").eq("is_current",true).not("acquired_at","is",null).order("acquired_at",{ascending:false}).limit(1),
   ]);
   const errors = [tx, balances, products].filter(q => q.error).map(q => q.error!.message);
   if (errors.length) throw new Error(`Evidence boundary query failed: ${errors.join("; ")}`);
