@@ -38,8 +38,11 @@ import type { CapabilityExecutionContext } from "./capabilityOperators.js";
 
 /** Canonical intelligence orchestrator for Dashboard and Iris. */
 export async function computeFullIntelligence(userId: string, context?: CapabilityExecutionContext) {
-  const [evidenceBoundary, sourceFidelity, providerDomainIntelligence] = await Promise.all([getCertifiedEvidenceBoundary(userId), assessSourceFidelity(userId), buildProviderDomainIntelligence(userId)]);
+  const [evidenceBoundary, sourceFidelity] = await Promise.all([getCertifiedEvidenceBoundary(userId), assessSourceFidelity(userId)]);
   const effectiveBoundary = context?.evidenceBoundary ?? evidenceBoundary;
+  const providerDomainIntelligencePromise = context?.runId
+    ? Promise.resolve({ architecture_version: "IRIS_PROVIDER_DOMAIN_INTELLIGENCE_RUN_BOUND_PENDING", evidence_boundary: effectiveBoundary, selected_item_id: null, evidence_ready: false, domains: {}, utilization: { products: [], analyses: [], source_observations: {}, same_item: false }, derived: {}, limitations: ["Provider-domain synthesis is withheld for run-bound execution until its source observations are constrained to the exact run evidence manifest."] })
+    : buildProviderDomainIntelligence(userId);
   const canonical90Start = effectiveBoundary ? new Date(new Date(effectiveBoundary).getTime() - 90 * 86_400_000).toISOString().slice(0, 10) : new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
   const canonical = await getCanonicalTransactions(userId, canonical90Start, effectiveBoundary, context?.runId);
   const integrity = validateCanonicalIntelligenceInput(canonical);
@@ -66,7 +69,7 @@ export async function computeFullIntelligence(userId: string, context?: Capabili
   const runBoundStatePromise = context?.runId && effectiveBoundary
     ? computeRunBoundState({ userId, runId: context.runId, evidenceBoundary: effectiveBoundary, asOf: context.asOf ?? effectiveBoundary })
     : Promise.resolve(null);
-  const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
+  const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage, providerDomainIntelligence] = await Promise.all([
     runBoundStatePromise.then(state => state?.balances ?? computeBalanceMetrics(userId)),
     runBoundStatePromise.then(state => state?.cashFlowSafety ?? computeCashFlowSafety(userId)),
     runBoundStatePromise.then(state => state?.balanceHistory ?? computeBalanceHistory(userId)),
@@ -80,6 +83,7 @@ export async function computeFullIntelligence(userId: string, context?: Capabili
     getFeatureFlags(userId),
     supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }),
     verifyProviderLineage(supabaseAdmin, userId),
+    providerDomainIntelligencePromise,
   ]);
   const declaredGoals = (declaredGoalsResult.data ?? []) as DeclaredIrisGoal[];
   const goalDataLimitations = declaredGoalsResult.error ? ["Persistent user goals could not be loaded; Iris is falling back to evidence-derived objectives."] : [];
