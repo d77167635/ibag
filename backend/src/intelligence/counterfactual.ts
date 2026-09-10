@@ -41,3 +41,49 @@ export function buildCounterfactualIntelligence(input: { decision?: DecisionLike
   }
   return { engine_version: "IRIS_COUNTERFACTUAL_ENGINE_V2", scenarios, baseline_preserved: true, execution_capability: false, principles: ["Counterfactuals are modeled alternatives, never observations.", "Changed variables and held-constant variables are explicit.", "Sensitivity is not probability.", "No causal claim is emitted without causal evidence.", "No provider state is mutated."], generation: { financial_values_created: false, fake_mock_or_seeded_data: false, provider_observations_created: false, execution_capability: false } };
 }
+
+/** Scenario-layer sensitivity analysis consumes only declared upstream causal and predictive intelligence. */
+export function buildScenarioSensitivityIntelligence(input: { predictive?: any; causal?: any; safeToSpend?: number | null; cashFlowNet?: number | null; revolvingDebt?: number | null }) {
+  const predictive = input.predictive ?? {};
+  const causal = input.causal ?? {};
+  const projected = Number(predictive.projectedLiquidPosition);
+  const net = Number(input.cashFlowNet);
+  const safe = Number(input.safeToSpend);
+  const debt = Number(input.revolvingDebt);
+  const hypotheses = Array.isArray(causal.hypotheses) ? causal.hypotheses : [];
+  const scenarios: Array<Record<string, unknown>> = [];
+  if (Number.isFinite(projected)) {
+    const candidates = [
+      Number.isFinite(net) ? { key: "cash_flow_net", value: net, delta: Math.max(0.01, Math.abs(net) * 0.10) } : null,
+      Number.isFinite(safe) ? { key: "safe_to_spend", value: safe, delta: Math.max(0.01, Math.abs(safe) * 0.10) } : null,
+      Number.isFinite(debt) ? { key: "revolving_debt", value: debt, delta: Math.max(0.01, Math.abs(debt) * 0.10) } : null,
+    ].filter(Boolean) as Array<{ key: string; value: number; delta: number }>;
+    for (const candidate of candidates) {
+      const stressedProjected = Number((projected - candidate.delta).toFixed(2));
+      scenarios.push({
+        id: `scenario:sensitivity:${candidate.key}`,
+        type: "bounded_sensitivity",
+        changed_variable: candidate.key,
+        baseline_value: candidate.value,
+        projected_value: projected,
+        stressed_projected_value: stressedProjected,
+        delta: Number((stressedProjected - projected).toFixed(2)),
+        causal_claim_allowed: false,
+        probability_claim_allowed: false,
+        evidence_basis: "upstream_predictive_projection",
+        causal_basis_count: hypotheses.length,
+        held_constant: ["Provider observations", "Canonical evidence", "Unstressed variables"],
+        limitations: ["Deterministic sensitivity only; not a probability.", "No real-world intervention effect is inferred.", "Scenario does not execute or mutate financial state."],
+      });
+    }
+  }
+  return {
+    engine_version: "IRIS_SCENARIO_ENGINE_V1",
+    scenarios,
+    baseline_preserved: true,
+    evidence_state: scenarios.length ? "SCENARIO" : "INSUFFICIENT_EVIDENCE",
+    causal_hypothesis_count: hypotheses.length,
+    projection_available: Number.isFinite(projected),
+    generation: { financial_values_created: false, fake_mock_or_seeded_data: false, provider_observations_created: false, execution_capability: false },
+  };
+}
