@@ -46,7 +46,7 @@ export async function executeIrisRun(request: RunRequest) {
 
   const { data: existing } = await supabaseAdmin.from("iris_runs").select("*").eq("user_id", userId).eq("request_id", requestId).maybeSingle();
   if (existing?.id) {
-    const { data: executions } = await supabaseAdmin.from("iris_execution_records").select("id,capability_id,execution_state,output_hash").eq("run_id", existing.id).eq("user_id", userId).order("started_at", { ascending: true });
+    const { data: executions } = await supabaseAdmin.from("iris_execution_records").select("id,capability_id,execution_state,output_hash,evidence_state").eq("run_id", existing.id).eq("user_id", userId).order("started_at", { ascending: true });
     const aggregateExecution = (executions ?? []).find(row => row.capability_id === GOVERNED_AGGREGATE_CAPABILITY);
     const { data: output } = aggregateExecution ? await supabaseAdmin.from("iris_execution_outputs").select("value,hash,evidence_state").eq("execution_id", aggregateExecution.id).maybeSingle() : { data: null };
     return { ...existing, execution_id: aggregateExecution?.id ?? null, result: output?.value ?? null, output_hash: output?.hash ?? null, certified: existing.status === "CERTIFIED", capability_executions: executions ?? [] };
@@ -138,7 +138,7 @@ export async function executeIrisRun(request: RunRequest) {
         operator_version: operator.version,
         execution_state: "EXECUTING",
         started_at: new Date().toISOString(),
-        evidence_state: capabilityId === GOVERNED_AGGREGATE_CAPABILITY ? "CALCULATED" : "CALCULATED",
+        evidence_state: "INSUFFICIENT_EVIDENCE",
         validation_status: "UNKNOWN",
         certification_status: capabilityId === GOVERNED_AGGREGATE_CAPABILITY ? "PENDING" : "NOT_CERTIFIED",
         input_manifest: capabilityManifest,
@@ -165,25 +165,28 @@ export async function executeIrisRun(request: RunRequest) {
       }
 
       const outputHash = hash(result);
+      const evidenceState = result?.evidence_state ?? "INSUFFICIENT_EVIDENCE";
       const outputInsert = await supabaseAdmin.from("iris_execution_outputs").insert({
         execution_id: execution.id,
         output_key: capabilityId,
         output_type: contract?.output_type ?? "intelligence",
         value: result,
         hash: outputHash,
-        evidence_state: result?.evidence_state ?? (capabilityId === GOVERNED_AGGREGATE_CAPABILITY ? "CALCULATED" : "CALCULATED"),
+        evidence_state: evidenceState,
         uncertainty: result?.uncertainty ?? null,
       });
       if (outputInsert.error) throw new Error(`EXECUTION_OUTPUT_PERSIST_FAILED:${capabilityId}: ${outputInsert.error.message}`);
 
       const finishedAt = new Date().toISOString();
-      await supabaseAdmin.from("iris_execution_records").update({
+      const { error: executionUpdateError } = await supabaseAdmin.from("iris_execution_records").update({
         execution_state: "EXECUTED",
         completed_at: finishedAt,
         output_hash: outputHash,
+        evidence_state: evidenceState,
         output_snapshot: {
           output_key: capabilityId,
           output_hash: outputHash,
+          evidence_state: evidenceState,
           evidence_scope: evidenceScope,
           dispatched_capability: dispatched.capability_id,
           dispatched_operator: dispatched.operator_id,
@@ -198,6 +201,7 @@ export async function executeIrisRun(request: RunRequest) {
         },
         validation_status: capabilityId === GOVERNED_AGGREGATE_CAPABILITY ? "UNKNOWN" : "PASS",
       }).eq("id", execution.id).eq("user_id", userId);
+      if (executionUpdateError) throw new Error(`EXECUTION_RECORD_UPDATE_FAILED:${capabilityId}: ${executionUpdateError.message}`);
 
       completedCapabilities.set(capabilityId, { executionId: execution.id, outputHash, result });
       if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
