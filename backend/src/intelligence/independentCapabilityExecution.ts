@@ -199,7 +199,9 @@ export async function executeIndependentCapabilities(request: {
   try {
     await persistRunEvidence(run.id, userId, selectedItemId);
 
-    const executionOrder = plan.ordered_capabilities.filter((id) => requestedCapabilities.includes(id));
+    // The planner's order includes every transitive dependency. Dependencies are
+    // executable prerequisites even when the caller did not request them directly.
+    const executionOrder = plan.ordered_capabilities;
     if (!executionOrder.length) {
       throw new Error("CAPABILITY_PLAN_EMPTY: no requested capability was executable in the planned order");
     }
@@ -220,6 +222,10 @@ export async function executeIndependentCapabilities(request: {
         contract,
         operator_id: operator.operator_id,
         operator_version: operator.version,
+        execution_context: {
+          as_of: asOf,
+          evidence_boundary: asOf,
+        },
       };
       const executionInputHash = hash(executionManifest);
 
@@ -259,7 +265,14 @@ export async function executeIndependentCapabilities(request: {
 
         if (inputError) throw new Error(`EXECUTION_INPUT_PERSIST_FAILED: ${inputError.message}`);
 
-        const dispatched = await dispatchGovernedCapability({ userId, capabilityId });
+        const dispatched = await dispatchGovernedCapability({
+          userId,
+          capabilityId,
+          context: {
+            asOf,
+            evidenceBoundary: asOf,
+          },
+        });
         const result = dispatched.result;
         const outputHash = hash(result);
         const finishedAt = new Date().toISOString();
