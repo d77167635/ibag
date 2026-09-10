@@ -95,40 +95,38 @@ function buildGenericRecursiveFindings(nodes: RecursiveNode[], maxFindings: numb
   const findings: RecursiveSynthesis["higher_order_findings"] = [];
   const seenPaths = new Set<string>();
   const maxPathDepth = Math.min(32, Math.max(2, nodes.length));
-  const visit = (start: string, path: string[]) => {
+  const visit = (path: string[]) => {
     if (findings.length >= maxFindings) return;
     const next = children.get(path[path.length - 1]) ?? [];
-    for (const child of next.sort()) {
+    for (const child of [...next].sort()) {
       if (path.includes(child)) continue;
       const nextPath = [...path, child];
-      if (nextPath.length >= 2) {
-        const key = nextPath.join("->");
-        if (!seenPaths.has(key)) {
-          seenPaths.add(key);
-          const states = nextPath.map(id => byId.get(id)?.evidence_state ?? "INSUFFICIENT_EVIDENCE");
-          const complete = !states.includes("INSUFFICIENT_EVIDENCE");
-          findings.push({
-            id: `recursive-chain-${hash(nextPath).slice(0, 16)}`,
-            kind: nextPath.length === 2 ? "interaction" : "chain",
-            capabilities: nextPath,
-            statement: complete
-              ? `A recursively composable evidence pathway connects ${nextPath.join(" → ")}; each upstream output is available in the current execution graph.`
-              : `A recursively composable pathway connects ${nextPath.join(" → ")}, but at least one capability in the pathway remains evidence-limited.`,
-            evidence_states: states,
-            limitation: complete
-              ? "Composition describes the governed analytical dependency graph; it does not convert inferred, predicted, or scenario outputs into observed facts."
-              : "Missing evidence prevents a fully evidenced higher-order conclusion; Iris preserves the limitation rather than substituting a value.",
-          });
-        }
+      const key = nextPath.join("->");
+      if (!seenPaths.has(key)) {
+        seenPaths.add(key);
+        const states = nextPath.map(id => byId.get(id)?.evidence_state ?? "INSUFFICIENT_EVIDENCE");
+        const complete = !states.includes("INSUFFICIENT_EVIDENCE");
+        findings.push({
+          id: `recursive-chain-${hash(nextPath).slice(0, 16)}`,
+          kind: nextPath.length === 2 ? "interaction" : "chain",
+          capabilities: nextPath,
+          statement: complete
+            ? `A recursively composable evidence pathway connects ${nextPath.join(" → ")}; each upstream output is available in the current execution graph.`
+            : `A recursively composable pathway connects ${nextPath.join(" → ")}, but at least one capability in the pathway remains evidence-limited.`,
+          evidence_states: states,
+          limitation: complete
+            ? "Composition describes the governed analytical dependency graph; it does not convert inferred, predicted, or scenario outputs into observed facts."
+            : "Missing evidence prevents a fully evidenced higher-order conclusion; Iris preserves the limitation rather than substituting a value.",
+        });
       }
-      if (nextPath.length < maxPathDepth) visit(start, nextPath);
+      if (nextPath.length < maxPathDepth) visit(nextPath);
       if (findings.length >= maxFindings) return;
     }
   };
 
   for (const node of nodes.sort((a, b) => a.capability_id.localeCompare(b.capability_id))) {
     if (findings.length >= maxFindings) break;
-    visit(node.capability_id, [node.capability_id]);
+    visit([node.capability_id]);
   }
   return findings;
 }
@@ -158,6 +156,9 @@ export function buildRecursiveIntelligenceSynthesis(
     findings.push({ id, kind, capabilities, statement, evidence_states: capabilities.map(capability => results[capability]?.evidence_state ?? "INSUFFICIENT_EVIDENCE"), limitation });
   };
 
+  if (has(results, "financial_life_state") && has(results, "relational_ontology")) {
+    add("life-state-ontology-foundation", "chain", ["financial_life_state", "relational_ontology"], "Canonical financial-life state can feed relational ontology expansion so individual facts and their observed relationships remain part of the same governed intelligence graph.", "Relationships are calculated from available evidence and do not establish causation, intent, necessity, or future behavior.");
+  }
   if (has(results, "causal") && has(results, "relationship") && has(results, "causal", ["INFERRED"])) {
     add("causal-relationship-chain", "chain", ["relationship", "causal"], "Observed relationships can be passed into observational causal-candidate analysis without converting association into causation.", "The causal capability remains observational and does not establish a causal effect.");
   }
@@ -173,6 +174,12 @@ export function buildRecursiveIntelligenceSynthesis(
   if (has(results, "decision") && has(results, "recommendation")) {
     add("decision-recommendation-chain", "chain", ["decision", "recommendation"], "Decision alternatives can be transformed into user-reviewable recommendations while preserving the upstream analytical context.", "A recommendation is advisory and does not imply authorization or execution.");
   }
+  if (has(results, "risk") && has(results, "opportunity")) {
+    add("risk-opportunity-interaction", "interaction", ["risk", "opportunity"], "Risk signals and opportunity candidates can be jointly inspected so Iris can evaluate improvement possibilities in the context of observed pressure signals.", "Risk and opportunity signals are analytical and do not establish that a proposed change will produce a particular outcome.");
+  }
+  if (has(results, "risk") && has(results, "opportunity") && has(results, "consequence")) {
+    add("risk-opportunity-consequence-chain", "chain", ["risk", "opportunity", "consequence"], "Risk signals and opportunity candidates can feed conditional consequence analysis, preserving the distinction between observed evidence, analytical options, and modeled implications.", "Consequences are conditional analytical implications, not guaranteed future outcomes.");
+  }
   if (has(results, "outcome") && has(results, "learning")) {
     add("outcome-learning-chain", "chain", ["outcome", "learning"], "Validated outcomes are the required evidence bridge for future learning rather than inferred learning from activity alone.", "Current learning remains evidence-limited until durable observed outcomes exist.");
   }
@@ -183,9 +190,10 @@ export function buildRecursiveIntelligenceSynthesis(
     add("multi-capability-synthesis", "interaction", nodes.slice(0, Math.min(nodes.length, 8)).map(node => node.capability_id), "Multiple governed capability outputs are available as a recursively composable evidence graph rather than isolated analytical cards.", "Only capability outputs present in the current run can be composed; missing evidence remains explicit.");
   }
 
-  // Generic graph expansion is the important scalability layer: it discovers
-  // dependency chains from the actual execution graph instead of assuming a
-  // fixed catalog of named relationships. The cap is a materialization budget.
+  // Generic graph expansion is the scalability layer: it discovers dependency
+  // chains from the actual execution graph instead of assuming a fixed catalog
+  // of named relationships. The cap is a materialization budget, never a
+  // semantic ceiling on Iris intelligence depth.
   const genericFindings = buildGenericRecursiveFindings(nodes, 256);
   const existingKeys = new Set(findings.map(f => `${f.kind}:${f.capabilities.join("->")}`));
   for (const finding of genericFindings) {
@@ -194,7 +202,11 @@ export function buildRecursiveIntelligenceSynthesis(
     if (findings.length >= 320) break;
   }
 
-  const expected = ["temporal", "analysis", "behavioral", "pattern", "relationship", "anomaly", "causal", "predictive", "scenario", "decision", "recommendation", "outcome", "learning"];
+  const expected = [
+    "financial_life_state", "relational_ontology", "temporal", "analysis", "behavioral", "pattern",
+    "relationship", "anomaly", "causal", "predictive", "scenario", "decision", "recommendation",
+    "risk", "opportunity", "consequence", "outcome", "learning",
+  ];
   for (const capability of expected) {
     if (!results[capability] || results[capability].evidence_state === "INSUFFICIENT_EVIDENCE") {
       findings.push({ id: `evidence-gap-${capability}`, kind: "evidence_gap", capabilities: [capability], statement: `${capability} cannot contribute a fully evidenced higher-order conclusion in this run until its required evidence is available.`, evidence_states: [results[capability]?.evidence_state ?? "INSUFFICIENT_EVIDENCE"], limitation: "Iris does not convert missing evidence into a zero, observed fact, or inferred conclusion." });
