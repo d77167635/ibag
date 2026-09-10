@@ -22,7 +22,6 @@ const temporalOperator: CapabilityOperator = {
   },
 };
 function op(capability_id: string, execute: CapabilityOperator["execute"], evidence_state: CapabilityOperatorResult["evidence_state"], execution_stage: string, version = "1.0.0"): CapabilityOperator { return { capability_id, operator_id: capability_id, version, status: "implemented", execution_stage, evidence_state, execute }; }
-const aggregateOperator: CapabilityOperator = { capability_id: "iris.full_intelligence", operator_id: "computeFullIntelligence", version: "1.0.0", status: "implemented", execution_stage: "aggregate_intelligence_synthesis", evidence_state: "CALCULATED" };
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   temporalOperator,
   op("analysis", executeAnalysis, "CALCULATED", "canonical_semantic_analysis"),
@@ -38,6 +37,5 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   op("outcome", executeOutcome, "CALCULATED", "durable_outcome_loop"),
   op("learning", executeLearning, "INFERRED", "validated_outcome_learning", "1.1.0"),
   op("emergent", executeEmergent, "INFERRED", "higher_order_discovery", "1.1.0"),
-  aggregateOperator,
 ];
 export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null { return EXECUTABLE_CAPABILITY_OPERATORS.find((operator) => operator.capability_id === capabilityId) ?? null; }
