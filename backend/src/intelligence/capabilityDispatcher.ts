@@ -4,6 +4,7 @@ import { executeOutcomeOperator } from "./outcomeOperator.js";
 import { executeLearningOperator } from "./learningOperator.js";
 import { executeEmergentOperator } from "./emergentOperator.js";
 import { executeTemporalOperator, executeAnalysisOperator, executeBehavioralOperator, executePatternOperator, executeRelationshipOperator, executeAnomalyOperator, executePredictiveOperator } from "./governedOperators.js";
+import { executeCausalOperator, executeScenarioOperator, executeDecisionOperator, executeRecommendationOperator } from "./advancedOperators.js";
 
 export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
 export const GOVERNED_AGGREGATE_OPERATOR = "computeFullIntelligence";
@@ -18,17 +19,10 @@ type AggregateDispatch = {
 
 type DispatchRequest = { userId: string; capabilityId: string };
 
-/** Aggregate overload keeps the authoritative execution contract strongly typed. */
 export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY }): Promise<AggregateDispatch>;
 export function dispatchGovernedCapability(request: DispatchRequest): Promise<{ capability_id: string; operator_id: string; operator_version: string; result: unknown }>;
 
-/**
- * Single runtime dispatcher for governed capabilities.
- *
- * Implemented capabilities are backed by distinct operators. Planned
- * capabilities are rejected rather than silently falling back to the aggregate
- * operator, preserving truthful catalog/runtime state.
- */
+/** Single runtime dispatcher. Implemented capabilities always resolve to their own governed operator. */
 export async function dispatchGovernedCapability({ userId, capabilityId }: DispatchRequest) {
   if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
     const result = await computeFullIntelligence(userId);
@@ -46,7 +40,11 @@ export async function dispatchGovernedCapability({ userId, capabilityId }: Dispa
     case "pattern": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executePatternOperator(userId) };
     case "relationship": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeRelationshipOperator(userId) };
     case "anomaly": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeAnomalyOperator(userId) };
+    case "causal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeCausalOperator(userId) };
     case "predictive": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executePredictiveOperator(userId) };
+    case "scenario": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeScenarioOperator(userId) };
+    case "decision": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeDecisionOperator(userId) };
+    case "recommendation": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeRecommendationOperator(userId) };
     case "outcome": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeOutcomeOperator(userId) };
     case "learning": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeLearningOperator(userId) };
     case "emergent": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeEmergentOperator(userId) };
