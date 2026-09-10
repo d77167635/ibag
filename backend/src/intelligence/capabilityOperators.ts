@@ -1,4 +1,6 @@
-import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
+import { assessTrajectory } from "./temporal.js";
+import { getCanonicalTransactions, computeCanonicalWindowFlows } from "./transactionSemantics.js";
+import type { CapabilityExecutionContext, CapabilityOperatorResult, GovernedCapabilityResult } from "./capabilityOperators.js";
 import { executeAnalysis, executeBehavioral, executePattern, executeRelationship, executeAnomaly, executeCausal, executePredictive, executeScenario, executeDecision, executeRecommendation, executeOutcome, executeLearning, executeEmergent } from "./recursiveOperators.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
@@ -10,14 +12,19 @@ export type CapabilityOperator = { capability_id: string; operator_id: string; v
 const temporalOperator: CapabilityOperator = {
   capability_id: "temporal", operator_id: "temporal", version: "1.0.0", status: "implemented", execution_stage: "multi_window_flow", evidence_state: "CALCULATED",
   execute: async (userId, context) => {
-    const windows = await computeMultiWindowFlow(userId, undefined, context?.asOf ?? null);
-    const trajectory = assessTrajectory(windows);
+    const windowsDays = [7, 30, 90, 180, 365] as const;
+    const widest = Math.max(...windowsDays);
+    const anchor = context?.asOf ? new Date(context.asOf) : new Date();
+    const cutoff = new Date(anchor.getTime() - widest * 86_400_000).toISOString().slice(0, 10);
+    const transactions = await getCanonicalTransactions(userId, cutoff, context?.evidenceBoundary ?? context?.asOf ?? null, context?.runId ?? null);
+    const windows = computeCanonicalWindowFlows(transactions, windowsDays, context?.asOf ?? undefined);
+    const trajectory = assessTrajectory(windows as any);
     const hasEvidence = windows.some((window) => window.economicTxCount > 0);
     const state = hasEvidence ? "CALCULATED" : "INSUFFICIENT_EVIDENCE";
     return { capability_id: "temporal", operator_id: "temporal", operator_version: "1.0.0", evidence_state: state, result: {
       windows, trajectory, evidence_boundary: context?.evidenceBoundary ?? context?.asOf ?? null,
-      evidence: { state: state === "CALCULATED" ? "calculated" : "insufficient_evidence", source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false },
-      provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort() },
+      evidence: { state: state === "CALCULATED" ? "calculated" : "insufficient_evidence", source: "canonical_financial_transactions", transaction_count: transactions.length, provider_observations_created: false, financial_values_created: false, money_movement_executed: false },
+      provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(), evidence_boundary: context?.evidenceBoundary ?? context?.asOf ?? null },
     } };
   },
 };
