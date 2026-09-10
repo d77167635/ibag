@@ -9,10 +9,18 @@ export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
 export const GOVERNED_AGGREGATE_OPERATOR = "computeFullIntelligence";
 export const GOVERNED_AGGREGATE_OPERATOR_VERSION = "1";
 
-type DispatchRequest = {
-  userId: string;
-  capabilityId: string;
+type AggregateDispatch = {
+  capability_id: typeof GOVERNED_AGGREGATE_CAPABILITY;
+  operator_id: typeof GOVERNED_AGGREGATE_OPERATOR;
+  operator_version: typeof GOVERNED_AGGREGATE_OPERATOR_VERSION;
+  result: Awaited<ReturnType<typeof computeFullIntelligence>>;
 };
+
+type DispatchRequest = { userId: string; capabilityId: string };
+
+/** Aggregate overload keeps the authoritative execution contract strongly typed. */
+export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY }): Promise<AggregateDispatch>;
+export function dispatchGovernedCapability(request: DispatchRequest): Promise<{ capability_id: string; operator_id: string; operator_version: string; result: unknown }>;
 
 /**
  * Single runtime dispatcher for governed capabilities.
