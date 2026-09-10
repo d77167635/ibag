@@ -64,10 +64,10 @@ export async function loadCapabilityExecutionContext(userId: string, capabilityI
     for (const dependencyId of dependencyIds) {
       const ref = dependencyRefs[dependencyId];
       const dependencyExecution = ref?.execution_id ? dependencyExecutionById.get(ref.execution_id) : undefined;
-      if (!ref?.execution_id || !dependencyExecution) throw new Error(`CAPABILITY_DEPENDENCY_EXECUTION_MISSING_OR_FOREIGN: ${capabilityId}->${dependencyId}`);
+      if (!ref?.execution_id || !ref.output_hash || !dependencyExecution) throw new Error(`CAPABILITY_DEPENDENCY_EXECUTION_MISSING_OR_UNBOUND: ${capabilityId}->${dependencyId}`);
       if (dependencyExecution.capability_id !== dependencyId) throw new Error(`CAPABILITY_DEPENDENCY_EXECUTION_CAPABILITY_MISMATCH: ${capabilityId}->${dependencyId}`);
       if (dependencyExecution.execution_state !== "EXECUTED") throw new Error(`CAPABILITY_DEPENDENCY_EXECUTION_NOT_COMPLETE: ${capabilityId}->${dependencyId}`);
-      if (ref.output_hash && dependencyExecution.output_hash !== ref.output_hash) throw new Error(`CAPABILITY_DEPENDENCY_EXECUTION_HASH_MISMATCH: ${capabilityId}->${dependencyId}`);
+      if (dependencyExecution.output_hash !== ref.output_hash) throw new Error(`CAPABILITY_DEPENDENCY_EXECUTION_HASH_MISMATCH: ${capabilityId}->${dependencyId}`);
     }
 
     const { data: outputs, error: outputError } = await supabaseAdmin
@@ -79,9 +79,9 @@ export async function loadCapabilityExecutionContext(userId: string, capabilityI
     for (const dependencyId of dependencyIds) {
       const ref = dependencyRefs[dependencyId];
       const output = ref?.execution_id ? outputByExecutionId.get(ref.execution_id) : undefined;
-      if (!ref?.execution_id || !output) throw new Error(`CAPABILITY_DEPENDENCY_OUTPUT_MISSING: ${capabilityId}->${dependencyId}`);
+      if (!ref?.execution_id || !ref.output_hash || !output) throw new Error(`CAPABILITY_DEPENDENCY_OUTPUT_MISSING_OR_UNBOUND: ${capabilityId}->${dependencyId}`);
       if (output.output_key !== dependencyId) throw new Error(`CAPABILITY_DEPENDENCY_OUTPUT_KEY_MISMATCH: ${capabilityId}->${dependencyId}`);
-      if (ref.output_hash && output.hash !== ref.output_hash) throw new Error(`CAPABILITY_DEPENDENCY_OUTPUT_HASH_MISMATCH: ${capabilityId}->${dependencyId}`);
+      if (output.hash !== ref.output_hash) throw new Error(`CAPABILITY_DEPENDENCY_OUTPUT_HASH_MISMATCH: ${capabilityId}->${dependencyId}`);
       dependencyOutputs[dependencyId] = {
         capability_id: dependencyId,
         execution_id: output.execution_id,
