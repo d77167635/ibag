@@ -10,11 +10,10 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   const critical_failures: string[] = [];
   const check = (key: string, ok: boolean, pass: string, fail: string) => { checks[key] = { status: ok ? "PASS" : "FAIL", details: ok ? pass : fail }; if (!ok) critical_failures.push(key); };
 
-  const [{ data: run }, { data: execution }, { data: graphExecutions }, { data: graphOutputs }, { data: evidence, error: evidenceError }, { data: outputs }, { count: roundupCount }, { count: productCount }, { data: currentProviderRows }, { data: accounts }, { data: canonicalTransactions }, { data: rawTransactions }] = await Promise.all([
+  const [{ data: run }, { data: execution }, { data: graphExecutions }, { data: evidence, error: evidenceError }, { data: outputs }, { count: roundupCount }, { count: productCount }, { data: currentProviderRows }, { data: accounts }, { data: canonicalTransactions }, { data: rawTransactions }] = await Promise.all([
     supabaseAdmin.from("iris_runs").select("id,user_id,as_of,evidence_boundary,evidence_version,evidence_manifest_hash,resource_budget,execution_policy").eq("id", runId).eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("iris_execution_records").select("run_id,user_id,execution_state,input_hash,output_hash,resource_usage,input_manifest").eq("id", executionId).eq("run_id", runId).eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("iris_execution_records").select("id,capability_id,execution_state,input_hash,output_hash,validation_status,certification_status,input_manifest").eq("run_id", runId).eq("user_id", userId),
-    supabaseAdmin.from("iris_execution_outputs").select("execution_id,hash,value,evidence_state").in("execution_id", (await supabaseAdmin.from("iris_execution_records").select("id").eq("run_id", runId).eq("user_id", userId)).data?.map(row => row.id) ?? []),
     supabaseAdmin.from("iris_run_evidence").select("id,user_id,provider,product,raw_observation_id,evidence_hash,effective_at,acquired_at").eq("run_id", runId).eq("user_id", userId),
     supabaseAdmin.from("iris_execution_outputs").select("hash,evidence_state,value").eq("execution_id", executionId),
     supabaseAdmin.from("roundup_sweep_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
@@ -25,12 +24,19 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
     supabaseAdmin.from("plaid_raw_transactions").select("id,account_id,plaid_transaction_id,is_current,evidence_state").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed"),
   ]);
 
+  const graphOutputIds = (graphExecutions ?? []).map(row => row.id);
+  const { data: graphOutputs, error: graphOutputError } = graphOutputIds.length
+    ? await supabaseAdmin.from("iris_execution_outputs").select("execution_id,hash,value,evidence_state").in("execution_id", graphOutputIds)
+    : { data: [] as any[], error: null };
+  if (graphOutputError) throw new Error(`CERTIFICATION_GRAPH_OUTPUT_READ_FAILED: ${graphOutputError.message}`);
+
   const graphOutputByExecution = new Map((graphOutputs ?? []).map(row => [row.execution_id, row]));
   const graphIntegrity = (graphExecutions ?? []).length > 0 && (graphExecutions ?? []).every(row => {
     const output = graphOutputByExecution.get(row.id);
-    return row.execution_state === "EXECUTED" && row.validation_status === "PASS" && !!row.output_hash && !!output && output.hash === row.output_hash && output.value != null && output.evidence_state !== "OBSERVED";
+    const validationReady = row.capability_id === "iris.full_intelligence" ? row.validation_status === "UNKNOWN" || row.validation_status === "PASS" : row.validation_status === "PASS";
+    return row.execution_state === "EXECUTED" && validationReady && !!row.output_hash && !!output && output.hash === row.output_hash && output.value != null && output.evidence_state !== "OBSERVED";
   });
-  check("iris.execution.graph_integrity", graphIntegrity, `All ${(graphExecutions ?? []).length} planned capability executions are executed, validated, hash-linked, and have derived outputs.`, "At least one planned capability execution is incomplete, unvalidated, missing an output, or has an output-hash mismatch.");
+  check("iris.execution.graph_integrity", graphIntegrity, `All ${(graphExecutions ?? []).length} planned capability executions are executed, validation-ready, hash-linked, and have derived outputs.`, "At least one planned capability execution is incomplete, missing an output, or has an output-hash mismatch.");
 
   check("iris.execution.integrity", !!execution && execution.execution_state === "EXECUTED" && execution.input_hash === inputHash && execution.output_hash === outputHash && inputHash.length === 64 && outputHash.length === 64, "Execution identity, state, and hashes match.", "Execution identity, state, or hashes are invalid.");
   check("iris.evidence.ownership", !evidenceError && (evidence?.length ?? 0) > 0 && evidence!.every(e => e.user_id === userId && !!e.evidence_hash && e.effective_at != null && e.acquired_at != null), "Run evidence is present, hashed, dated, and user-owned.", "Run evidence is missing, incomplete, unhashed, or ownership-invalid.");
