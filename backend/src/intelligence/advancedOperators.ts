@@ -91,5 +91,5 @@ export async function executeScenarioOperator(userId: string, context?: Capabili
   }
   const result = buildScenarioSensitivityIntelligence({ causal: upstreamCausal, predictive: upstreamPredictive, safeToSpend: base.safety.safeToSpend, cashFlowNet: base.windows.length ? base.windows[base.windows.length - 1].net : null, revolvingDebt: base.balances.revolvingDebt });
   const dependencyInputs = ["causal", "predictive"].filter(id => Boolean(context?.dependencyOutputs[id]));
-  return { capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.evidence_state, evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: upstreamCausal, predictive_intelligence: upstreamPredictive, scenario_sensitivity: result, composed_from: dependencyInputs } };
+  return { capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.evidence_state as Envelope<unknown>["evidence_state"], evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: upstreamCausal, predictive_intelligence: upstreamPredictive, scenario_sensitivity: result, composed_from: dependencyInputs } };
 }
