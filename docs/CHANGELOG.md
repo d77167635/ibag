@@ -17,7 +17,7 @@
 - Expanded emergent intelligence to include a canonical financial-life state derived from the exact evidence-gated transaction set, preserving run IDs, evidence manifests, evidence boundaries, and explicit limitations.
 - Expanded the canonical financial-life state from basic entity/relationship topology into production analytical state: observation span/activity density, economic inflow/outflow/net flow, transaction-class distribution, account activity, merchant concentration, domain concentration, and explicit evidence/limitation semantics.
 - Strengthened the canonical ontology so transaction classifications are first-class entities and account-to-class relationships, rather than incorrectly representing classifications as generic categories.
-- Hardened the canonical life-state flow contract so a transaction set containing no economically classified inflows/outflows returns null economic flow values with `insufficient_evidence`, rather than exposing zero as a substitute for unknown evidence; regression coverage now enforces this for both empty and unknown-classification inputs.
+- Hardened the canonical life-state flow contract so a transaction set containing no economically classified inflows/outflows returns `insufficient_evidence`, rather than exposing zero as a substitute for unknown evidence; regression coverage enforces this for both empty and unknown-classification inputs.
 - Hardened relational composition so absent/non-numeric amounts are not silently converted into observed zero values before higher-order findings are calculated.
 - Bound canonical temporal window calculations to the explicit evidence boundary so supplied transaction sets cannot leak later observations into a historical run.
 - Bound orchestrated cash-flow safety to the exact run state when a governed execution run is present, preventing the prior unscoped `computeCashFlowSafety(userId)` path from leaking current provider state into historical/run-bound intelligence.
@@ -30,9 +30,11 @@
 - Reconciled the connected Supabase schema: `iris_run_evidence`, `iris_capability_contracts`, `iris_execution_lineage`, `iris_field_lineage_edges`, and `iris_source_field_observations` exist; the previously discussed `iris_intelligence_state_nodes`, `iris_intelligence_state_edges`, and `iris_execution_lineage_links` are not present in the connected project and are not treated as authoritative until introduced through governed migration history.
 - Reconciled the connected capability registry against executable code: the stale active `iris.full_intelligence` contract referenced `computeFullIntelligence` operator version `1`, while the governed executable registry does not expose that capability; migration `076_deactivate_stale_full_intelligence_contract.sql` now preserves the historical row but deactivates that stale contract.
 - Verified the stale `iris.full_intelligence` contract is inactive in the connected Supabase project after migration `076`.
-- Verified the canonical financial-life state deployment reached `live` on Render before the subsequent documentation continuity deployment.
-- Verified the recursive synthesis deployment reached `live` on Render after the current test/build pipeline completed; the exact deployed commit remains tracked by Render rather than inferred from documentation commits.
-- Verified Render commit `5e55cca208cbe231edcc2d6117353f693ebcf189` reached `live` after a successful backend test/build deployment.
+- Added a production-safe run boundary to provider-domain synthesis: run-bound executions no longer consume the current unscoped provider-domain observation set; provider-domain synthesis is withheld until its source observations can be resolved from the exact run evidence manifest.
+- Bound category-drift analysis to the supplied `asOf` boundary and optional run ID instead of using wall-clock time and unscoped canonical transactions.
+- Bound relational financial reasoning to the exact run transaction manifest and run-bound state when a run is present; debt-cost provider observations remain explicitly insufficient in run context until liability evidence is manifest-bound.
+- Propagated the run ID/evidence boundary through the orchestrator into category drift and relational reasoning.
+- Verified the last known production Render deployment before the current queued changes remains `dep-dahagci01d6s739gk76g`; newer commits are not marked live until Render reports them live.
 
 ## 2026-09-09
 
