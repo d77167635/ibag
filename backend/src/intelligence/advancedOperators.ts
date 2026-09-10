@@ -140,15 +140,7 @@ export async function executeScenarioOperator(userId: string, context?: Capabili
   }
   const causal = upstreamCausal;
   const predictive = upstreamPredictive;
-  const decision = null;
-  const optimization = null;
-  const result = buildCounterfactualIntelligence({
-    decision: { decision_ready: false, source: "scenario_without_downstream_decision" },
-    optimization: { ranking_status: "blocked", options: [] },
-    safeToSpend: base.safety.safeToSpend,
-    cashFlowNet: base.windows.length ? base.windows[base.windows.length - 1].net : null,
-    revolvingDebt: base.balances.revolvingDebt,
-  });
+  const result = buildCounterfactualIntelligence({ decision: {}, optimization: {}, safeToSpend: base.safety.safeToSpend, cashFlowNet: base.windows.length ? base.windows[base.windows.length - 1].net : null, revolvingDebt: base.balances.revolvingDebt });
   const dependencyInputs = ["causal", "predictive"].filter(id => Boolean(context?.dependencyOutputs[id]));
   return { capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.scenarios.length ? "SCENARIO" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: causal, predictive_intelligence: predictive, counterfactual_intelligence: result, composed_from: dependencyInputs } };
 }
