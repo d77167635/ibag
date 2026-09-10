@@ -81,8 +81,8 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 ### Analytical and relational intelligence
 - [ ] Classification intelligence
 - [x] Temporal window aggregation is explicitly clipped to its evidence boundary
-- [ ] Statistical intelligence
-- [ ] Adaptive baselines
+- [x] Robust statistical primitives and user-specific observed activity-day baseline
+- [x] Adaptive historical outflow references with explicit insufficient/limited states
 - [ ] Pattern intelligence
 - [ ] Behavioral intelligence
 - [ ] Relationship intelligence
@@ -146,8 +146,8 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 
 ## 8. Verification and clean release
 - [x] CI foundation
-- [x] Clean dependency-installed backend tests/build for the current evidence-bound temporal block
-- [x] Clean frontend build for the current evidence-bound temporal block
+- [x] Clean dependency-installed backend tests/build for the current evidence-bound temporal and adaptive-statistics block
+- [x] Clean frontend build for the current evidence-bound intelligence block
 - [ ] Backend/frontend contract synchronization
 - [ ] Provider → database reconciliation
 - [ ] Evidence lineage verification
@@ -156,7 +156,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [ ] Durable webhook verification/retry verification
 - [ ] Round-Up feature certification
 - [ ] Intelligence sufficiency/accuracy regression suite
-- [x] Current Render deployment verification for commit `232ec0210bf654299c9af128140d7e2d052328ba`
+- [x] Current Render deployment verification for commit `5e55cca208cbe231edcc2d6117353f693ebcf189`
 - [x] Supabase runtime migration 075 applied for raw financial run-evidence expansion
 - [ ] Plaid Sandbox end-to-end verification
 - [ ] Full observable user-journey certification
