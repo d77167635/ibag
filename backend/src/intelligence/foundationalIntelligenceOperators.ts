@@ -3,6 +3,7 @@ import { getCanonicalTransactions } from "./transactionSemantics.js";
 import { buildCanonicalLifeState } from "./canonicalLifeState.js";
 import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.js";
 import { buildIncomeIntelligence, buildRecurrenceIntelligence } from "./financialLifeStateExtensions.js";
+import { buildDebtPaymentIntelligence } from "./debtPaymentIntelligence.js";
 import type { CapabilityExecutionContext, CapabilityOperatorResult, GovernedCapabilityResult } from "./capabilityOperators.js";
 
 type Tx = Awaited<ReturnType<typeof getCanonicalTransactions>>[number];
@@ -61,6 +62,7 @@ export async function executeFinancialLifeState(userId: string, context?: Capabi
   const lifeState = buildCanonicalLifeState(txs, context?.evidenceBoundary ?? context?.asOf ?? null);
   const income = buildIncomeIntelligence(txs);
   const recurrence = buildRecurrenceIntelligence(txs);
+  const debtPayments = buildDebtPaymentIntelligence(txs);
   return wrap(
     "financial_life_state",
     {
@@ -68,9 +70,11 @@ export async function executeFinancialLifeState(userId: string, context?: Capabi
         ...lifeState,
         income,
         recurrence,
+        debt_payments: debtPayments,
         life_state_extensions: {
           income_version: "IRIS_INCOME_INTELLIGENCE_V1",
           recurrence_version: "IRIS_RECURRENCE_INTELLIGENCE_V1",
+          debt_payment_version: "IRIS_DEBT_PAYMENT_INTELLIGENCE_V1",
         },
       },
       transaction_count: txs.length,
