@@ -15,10 +15,13 @@ export interface CategoryDrift {
 }
 
 /** LAYER 5/6 — spending behavior excludes transfers and other non-economic movements. */
-export async function computeCategoryDrift(userId: string, recentDays = 30, baselineDays = 90): Promise<CategoryDrift[]> {
-  const baselineStart = new Date(Date.now() - baselineDays * 86_400_000).toISOString().slice(0, 10);
-  const recentStart = new Date(Date.now() - recentDays * 86_400_000).toISOString().slice(0, 10);
-  const txs = await getCanonicalTransactions(userId, baselineStart);
+export async function computeCategoryDrift(userId: string, recentDays = 30, baselineDays = 90, asOf?: string | Date | null, runId?: string | null): Promise<CategoryDrift[]> {
+  const anchor = asOf ? new Date(asOf) : new Date();
+  if (!Number.isFinite(anchor.getTime())) throw new Error("INVALID_CATEGORY_DRIFT_ANCHOR");
+  const baselineStart = new Date(anchor.getTime() - baselineDays * 86_400_000).toISOString().slice(0, 10);
+  const recentStart = new Date(anchor.getTime() - recentDays * 86_400_000).toISOString().slice(0, 10);
+  const boundary = asOf ?? undefined;
+  const txs = await getCanonicalTransactions(userId, baselineStart, boundary, runId ?? null);
   const rows = txs.filter(isEconomicOutflow);
   if (!rows.length) return [];
 
@@ -32,7 +35,7 @@ export async function computeCategoryDrift(userId: string, recentDays = 30, base
 
   const results: CategoryDrift[] = [];
   for (const [key, categoryRows] of bySubdomain) {
-    const recentRows = categoryRows.filter(r => r.posted_date >= recentStart);
+    const recentRows = categoryRows.filter(r => r.posted_date >= recentStart && r.posted_date <= anchor.toISOString().slice(0, 10));
     if (categoryRows.length < MIN_BASELINE_TRANSACTIONS) {
       results.push({ subdomainKey: key, subdomainLabel: categoryRows[0].subdomain?.label ?? "Uncategorized", recentDailyAvg: 0, baselineDailyAvg: 0, deviationPct: 0, significant: false, evidence: "insufficient_evidence", baselineTransactionCount: categoryRows.length });
       continue;
