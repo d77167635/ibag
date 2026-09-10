@@ -14,7 +14,7 @@ export type CapabilityOperatorResult = {
   operator_id: string;
   operator_version: string;
   evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE";
-  result: unknown;
+  result: Record<string, unknown>;
 };
 
 export type CapabilityOperator = {
