@@ -1,9 +1,9 @@
 {
   "project": "Iris",
-  "repository": "d77167635/ibag",
+  "repository": "d77167635/iris",
   "branch": "main",
-  "head": "de5f487b801a64e4fb668eaef30c5730eb3a8600",
-  "generated_at": "2026-09-10T17:35:13.005Z",
+  "head": "a761df5f4b7cced3a5fde2c3c647c72a8c8f83a9",
+  "generated_at": "2026-09-10T17:51:55.708Z",
   "continuity": {
     "master_state": "docs/MASTER_STATE.md",
     "architecture": "docs/ARCHITECTURE.md",
