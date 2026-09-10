@@ -98,6 +98,8 @@ The workspace model is not a fixed list of pages. The preferred traversal is:
 
 `Domain → Subdomain → Entity → Detail → Evidence → Relationships → Intelligence`
 
+The intelligence model is likewise recursive rather than a finite numbered stack. Iris begins with its defined top-level financial-life domains, then may branch through observations, canonical facts, classifications, temporal change, relationships, patterns, statistics, baselines, adaptive thresholds, anomalies, causal reasoning where evidence supports it, forecasts, scenarios/counterfactuals, risks, opportunities, decisions, recommendations, outcomes, learning, cross-domain synthesis, and higher-order intelligence. Further recursion is permitted whenever governed evidence can produce additional meaningful intelligence; there is no artificial maximum depth.
+
 Examples:
 - Account → observations → transactions → relationships → changes → evidence → Iris interpretation
 - Merchant → transactions → spending pattern → baseline → anomaly → explanation → evidence
@@ -105,7 +107,7 @@ Examples:
 
 ## Economic boundary
 
-Plaid product cost and iBag/user charges are configuration, not intelligence logic. The initial commercial rule is that a product is included unless Plaid charges iBag for it; where Plaid charges iBag, the corresponding user-plan/cost policy determines whether and how it is made available.
+Plaid product cost and Iris/user charges are configuration, not intelligence logic. The initial commercial rule is that a product is included unless Plaid charges Iris for it; where Plaid charges Iris, the corresponding user-plan/cost policy determines whether and how it is made available.
 
 ## Verification principle
 
