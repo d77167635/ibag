@@ -20,6 +20,11 @@ export type GovernedCapabilityResult = {
   [key: string]: unknown;
 };
 
+export type CapabilityExecutionContext = {
+  asOf?: string | null;
+  evidenceBoundary?: string | null;
+};
+
 export type CapabilityOperatorResult = {
   capability_id: string;
   operator_id: string;
@@ -35,7 +40,7 @@ export type CapabilityOperator = {
   status: CapabilityOperatorStatus;
   execution_stage: string;
   evidence_state: CapabilityOperatorResult["evidence_state"];
-  execute?: (userId: string) => Promise<CapabilityOperatorResult>;
+  execute?: (userId: string, context?: CapabilityExecutionContext) => Promise<CapabilityOperatorResult>;
 };
 
 const temporalOperator: CapabilityOperator = {
@@ -45,8 +50,8 @@ const temporalOperator: CapabilityOperator = {
   status: "implemented",
   execution_stage: "multi_window_flow",
   evidence_state: "CALCULATED",
-  execute: async (userId) => {
-    const windows = await computeMultiWindowFlow(userId);
+  execute: async (userId, context) => {
+    const windows = await computeMultiWindowFlow(userId, undefined, context?.asOf ?? null);
     const trajectory = assessTrajectory(windows);
     const hasEvidence = windows.some((window) => window.economicTxCount > 0);
     return {
@@ -57,6 +62,7 @@ const temporalOperator: CapabilityOperator = {
       result: {
         windows,
         trajectory,
+        evidence_boundary: context?.evidenceBoundary ?? context?.asOf ?? null,
         evidence: {
           state: hasEvidence ? "observed" : "insufficient_evidence",
           source: "canonical_financial_transactions",
