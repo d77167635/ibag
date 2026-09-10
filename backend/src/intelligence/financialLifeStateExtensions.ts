@@ -173,7 +173,7 @@ export function buildRecurrenceIntelligence(transactions: CanonicalTransaction[]
       median_gap_days: candidate.median_gap_days ?? 0,
       regularity: candidate.regularity,
       candidate_strength: candidate.regularity,
-      evidence: "calculated",
+      evidence: "calculated" as const,
       interpretation: "This is an evidence-derived obligation candidate based on repeated observed outflows. It is not a verified bill, contractual obligation, essential expense, authorization, or guarantee of future occurrence.",
     }))
     .slice(0, 100);
