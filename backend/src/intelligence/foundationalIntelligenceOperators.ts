@@ -6,6 +6,7 @@ import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.
 import { buildIncomeIntelligence, buildRecurrenceIntelligence } from "./financialLifeStateExtensions.js";
 import { buildDebtPaymentIntelligence } from "./debtPaymentIntelligence.js";
 import { buildLiabilityIntelligence, type LiabilityObservation } from "./liabilityIntelligence.js";
+import { computeRunBoundState } from "./runBoundState.js";
 import type { CapabilityExecutionContext, CapabilityOperatorResult, GovernedCapabilityResult } from "./capabilityOperators.js";
 
 type Tx = Awaited<ReturnType<typeof getCanonicalTransactions>>[number];
@@ -100,12 +101,17 @@ function wrap(
 export async function executeFinancialLifeState(userId: string, context?: CapabilityExecutionContext): Promise<CapabilityOperatorResult> {
   const txs = await transactions(userId, context);
   const state = txs.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE";
-  const lifeState = buildCanonicalLifeState(txs, context?.evidenceBoundary ?? context?.asOf ?? null);
+  const boundary = context?.evidenceBoundary ?? context?.asOf ?? null;
+  const lifeState = buildCanonicalLifeState(txs, boundary);
   const income = buildIncomeIntelligence(txs);
   const recurrence = buildRecurrenceIntelligence(txs);
   const debtPayments = buildDebtPaymentIntelligence(txs);
   const liabilityObservations = await exactLiabilityObservations(userId, context);
   const liabilities = buildLiabilityIntelligence(liabilityObservations);
+  const runBoundAccountState = context?.runId && boundary
+    ? await computeRunBoundState({ userId, runId: context.runId, evidenceBoundary: boundary, asOf: context.asOf ?? null })
+    : null;
+
   return wrap(
     "financial_life_state",
     {
@@ -115,11 +121,13 @@ export async function executeFinancialLifeState(userId: string, context?: Capabi
         recurrence,
         debt_payments: debtPayments,
         liabilities,
+        account_state: runBoundAccountState,
         life_state_extensions: {
           income_version: "IRIS_INCOME_INTELLIGENCE_V1",
           recurrence_version: "IRIS_RECURRENCE_INTELLIGENCE_V1",
           debt_payment_version: "IRIS_DEBT_PAYMENT_INTELLIGENCE_V1",
           liability_version: "IRIS_LIABILITY_INTELLIGENCE_V1",
+          account_state_version: "IRIS_RUN_BOUND_ACCOUNT_STATE_V1",
         },
       },
       transaction_count: txs.length,
