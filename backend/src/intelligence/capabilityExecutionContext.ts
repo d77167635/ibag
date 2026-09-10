@@ -95,7 +95,7 @@ export async function loadCapabilityExecutionContext(userId: string, capabilityI
 
   const { data: run, error: runError } = await supabaseAdmin
     .from("iris_runs")
-    .select("resource_budget")
+    .select("resource_budget,evidence_boundary")
     .eq("id", record.run_id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -148,7 +148,7 @@ export async function loadCapabilityExecutionContext(userId: string, capabilityI
     capabilityId,
     executionId: record.id,
     runId: record.run_id,
-    evidenceBoundary: typeof manifest.as_of === "string" ? manifest.as_of : null,
+    evidenceBoundary: typeof run?.evidence_boundary === "string" ? run.evidence_boundary : null,
     dependencyOutputs,
     dependencyIds,
     resourceBudget,
