@@ -5,7 +5,7 @@
 ## Current state
 - Product: **Iris**
 - Branch: `main`
-- Current build tip: `5b44246c2119293d7109465002db2451ffede7b1`
+- Current source is continuously changing; the exact Git/Render tip must be re-queried before certification claims.
 - Architecture: recursive financial-life intelligence with no artificial intelligence-depth ceiling
 - Data posture: evidence-gated; no fabricated/mock/seeded financial truth
 - Current operating scope: read-only intelligence; no money movement
@@ -21,16 +21,18 @@
 ## Verified implementation state
 - Plaid capability/catalog and selection foundations exist.
 - Provider observation and source-field lineage foundations exist.
-- Canonical transaction semantics restrict analytical transactions to certified core evidence.
+- Canonical transaction semantics restrict analytical transactions to certified core evidence and can additionally bind transaction reads to exact run-evidence raw transaction identities.
 - Iris feature/catalog and governed publication foundations exist.
 - Persisted capability contracts include output, lineage, resource, and user-control dimensions.
 - Capability planning validates persisted contracts, dependencies, implemented operators, and resource estimates.
 - Independent execution persists runs, run evidence, execution inputs/outputs, validation, and routes eligible certification through the atomic certification boundary.
-- A real runtime operator now exists for every currently named governed capability: temporal, analysis, behavioral, pattern, relationship, anomaly, causal, predictive, scenario, decision, recommendation, outcome, learning, and emergent.
-- The new recursive operator engine is evidence-grounded in canonical financial transactions, emits explicit evidence state/provenance, and refuses to fabricate missing outcome/learning evidence.
+- Provider-observation run evidence now expands to exact current raw transaction and balance observation identities for the same authorized Item, bounded by the run evidence boundary.
+- The governed aggregate dispatcher now receives execution context, and aggregate canonical transaction reads can consume the run ID and evidence boundary.
+- A real runtime operator exists for every currently named governed capability: temporal, analysis, behavioral, pattern, relationship, anomaly, causal, predictive, scenario, decision, recommendation, outcome, learning, and emergent.
+- The recursive operator engine is evidence-grounded in canonical financial transactions, emits explicit evidence state/provenance, and refuses to fabricate missing outcome/learning evidence.
 - Causal runtime behavior is explicitly observational candidate analysis and does not assert causation.
-- The operator registry no longer misrepresents planned capability families as executable stubs.
-- Dependency-result propagation from persisted upstream execution outputs into downstream operator context remains the next execution-integrity boundary; merely ordering dependencies is not treated as recursive composition.
+- Dependency-result propagation from persisted upstream execution outputs into downstream operator context is implemented; downstream capabilities record upstream execution identity/hash as inputs.
+- The compact recursive operator layer is not treated as the semantic ceiling; richer orchestration, composition, financial-state, decision, counterfactual, higher-order, and meta-intelligence modules remain part of the authoritative implementation surface and must be unified rather than duplicated.
 - CI and current deployment status must always be re-verified from the current commit rather than inferred from an older checkpoint.
 
 ## Current large-block build program
@@ -40,10 +42,11 @@
 - [x] Planner consumes persisted contract
 - [x] Certification consumes persisted contract
 - [x] Independent execution persistence path
-- [ ] Bind operator inputs to the exact run-evidence manifest
+- [x] Persist exact raw transaction/balance identities as run-evidence records
+- [x] Pass governed execution context into aggregate intelligence
+- [x] Allow canonical transaction reads to resolve exact run-evidence transaction identities
 - [ ] Persist explicit input/output field lineage for each capability execution
-- [ ] Propagate certified dependency outputs into downstream operators
-- [ ] Verify every persisted execution artifact
+- [ ] Verify every persisted execution artifact against the complete run manifest
 - [ ] Verify independent certification and queryable certified result
 
 ### Block B — Canonical financial-life state
@@ -54,7 +57,7 @@
 - [ ] Liabilities/debt
 - [ ] Assets/investments
 - [ ] Merchant/category/entity relationships
-- [ ] Historical provider lifecycle
+- [ ] Historical provider observation lifecycle
 - [ ] Field-level evidence lineage/freshness
 - [ ] Cross-domain relationship graph
 
@@ -74,13 +77,13 @@
 - [x] Evidence-based review recommendations
 - [x] Honest insufficient-evidence outcome/learning states
 - [x] Higher-order descriptive synthesis
-- [ ] Dependency-result composition at runtime
+- [ ] Unify named operator surfaces with the richer Iris intelligence engine
 - [ ] Statistical primitives beyond current operators
 - [ ] Adaptive baselines and thresholds across user history
 - [ ] Risk/opportunity synthesis
 - [ ] Consequence analysis
 - [ ] Continuous/proactive recomputation
-- [ ] Recursive composition with no arbitrary depth ceiling
+- [ ] Recursive composition with no arbitrary semantic depth ceiling
 
 ### Block D — Intelligence experience
 - [ ] Authoritative Iris read model
@@ -96,7 +99,7 @@
 - [ ] Proactive controls
 
 ### Block E — Production certification
-- [ ] Clean backend build/test after recursive operator integration
+- [ ] Clean backend build/test after current recursive/evidence integration
 - [ ] Clean frontend build/test
 - [ ] Provider/database reconciliation
 - [ ] RLS/security certification
@@ -104,7 +107,8 @@
 - [ ] Plaid Sandbox lifecycle certification
 - [ ] Intelligence regression/sufficiency suite
 - [ ] Current Render verification
-- [ ] Current Supabase migration/runtime verification
+- [x] Supabase migration 075 applied for raw financial run-evidence expansion
+- [ ] Current Supabase migration/runtime reconciliation with repository history
 - [ ] Full user journey certification
 
 ## Build policy
@@ -123,6 +127,6 @@ Work in **large coherent blocks**, not tiny sequential status messages. Do not s
 ## Session protocol
 1. Inspect current `main` before changes.
 2. Cross-check authoritative architecture and roadmap.
-3. Build the largest dependency-complete block available.
+3. Build the largest dependency-complete block.
 4. Run/inspect verification before claiming completion.
 5. Update this state and roadmap with the actual verified state.
