@@ -223,16 +223,27 @@ export async function executeIrisRun(request: RunRequest) {
 
     let evidenceQuery = supabaseAdmin.from("plaid_raw_product_observations").select("id,item_id,product,raw_response,effective_at,acquired_at").eq("user_id", userId).eq("is_current", true).eq("evidence_state", "observed");
     if (selectedItemId) evidenceQuery = evidenceQuery.eq("item_id", selectedItemId);
+    if (evidenceObservationBoundary) evidenceQuery = evidenceQuery.lte("acquired_at", evidenceObservationBoundary);
     const rawEvidence = (await evidenceQuery).data ?? [];
     if (rawEvidence.length) {
       const evidenceRows = rawEvidence.map(e => ({ run_id: run.id, user_id: userId, evidence_type: "provider_raw_observation", provider: "plaid", product: e.product, raw_observation_id: e.id, effective_at: e.effective_at ?? e.acquired_at, acquired_at: e.acquired_at, evidence_hash: hash(e.raw_response) }));
       const { error: evidenceInsertError } = await supabaseAdmin.from("iris_run_evidence").insert(evidenceRows);
       if (evidenceInsertError) throw new Error(`RUN_EVIDENCE_PERSIST_FAILED: ${evidenceInsertError.message}`);
+      const evidenceManifest = {
+        ...initialManifest,
+        evidence_boundary: evidenceObservationBoundary,
+        evidence: evidenceRows.map(row => ({ raw_observation_id: row.raw_observation_id, product: row.product, effective_at: row.effective_at, acquired_at: row.acquired_at, evidence_hash: row.evidence_hash })),
+      };
+      const { error: evidenceManifestUpdateError } = await supabaseAdmin.from("iris_runs").update({ evidence_manifest_hash: hash(evidenceManifest), updated_at: new Date().toISOString() }).eq("id", run.id).eq("user_id", userId);
+      if (evidenceManifestUpdateError) throw new Error(`EVIDENCE_MANIFEST_UPDATE_FAILED: ${evidenceManifestUpdateError.message}`);
     }
 
     const finishedAt = new Date().toISOString();
     const evidenceBoundary = aggregateResult?.evidence_boundary ?? evidenceObservationBoundary ?? null;
-    await updateRunOrThrow(run.id, userId, { status: "EXECUTED", evidence_boundary: evidenceBoundary, evidence_version: "provider-observation-boundary-v2", completed_at: finishedAt, updated_at: finishedAt }, "RUN_STATE_UPDATE_FAILED:EXECUTED");
+    if (evidenceObservationBoundary && evidenceBoundary && new Date(evidenceBoundary).getTime() > new Date(evidenceObservationBoundary).getTime()) {
+      throw new Error(`EVIDENCE_BOUNDARY_DRIFT: aggregate boundary ${evidenceBoundary} exceeds run boundary ${evidenceObservationBoundary}`);
+    }
+    await updateRunOrThrow(run.id, userId, { status: "EXECUTED", evidence_boundary: evidenceObservationBoundary ?? evidenceBoundary, evidence_version: "provider-observation-boundary-v2", completed_at: finishedAt, updated_at: finishedAt }, "RUN_STATE_UPDATE_FAILED:EXECUTED");
 
     const gate = await evaluateCertificationGate({ runId: run.id, executionId: aggregateExecution.id, userId, inputHash: aggregateInputHash, outputHash: aggregateOutputHash });
     const validationRows = Object.entries(gate.checks).map(([ruleId, gateCheck]) => ({ run_id: run.id, execution_id: aggregateExecution.id, user_id: userId, rule_id: ruleId, rule_version: CERTIFICATION_POLICY_VERSION, status: gateCheck.status, severity: gateCheck.status === "PASS" ? "INFO" : "CRITICAL", expected: { status: "PASS" }, actual: { status: gateCheck.status }, details: { message: gateCheck.details, gate_version: CERTIFICATION_POLICY_VERSION } }));
