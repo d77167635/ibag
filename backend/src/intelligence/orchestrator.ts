@@ -68,7 +68,7 @@ export async function computeFullIntelligence(userId: string, context?: Capabili
     : Promise.resolve(null);
   const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
     runBoundStatePromise.then(state => state?.balances ?? computeBalanceMetrics(userId)),
-    computeCashFlowSafety(userId),
+    runBoundStatePromise.then(state => state?.cashFlowSafety ?? computeCashFlowSafety(userId)),
     runBoundStatePromise.then(state => state?.balanceHistory ?? computeBalanceHistory(userId)),
     runBoundStatePromise.then(state => state?.debtTrend ?? computeDebtTrend(userId)),
     computeCanonicalAnomalies(userId, 30, effectiveBoundary, context?.runId ?? null, context?.asOf ?? null),
