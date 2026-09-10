@@ -10,6 +10,12 @@ export type ExecutionBudget = {
   maxCompositions: number;
 };
 
+type CapabilityDispatcher = (request: {
+  userId: string;
+  capabilityId: string;
+  context?: CapabilityExecutionContext;
+}) => Promise<CapabilityOperatorResult>;
+
 export type RecursiveCapabilityExecutionResult = {
   executor_version: typeof RECURSIVE_CAPABILITY_EXECUTOR_VERSION;
   status: "COMPLETED" | "PARTIAL" | "BLOCKED" | "EXECUTION_BUDGET_EXCEEDED" | "FAILED";
@@ -32,16 +38,20 @@ function finitePositive(value: number): boolean {
 /**
  * Execute the capability graph produced by the governed planner.
  *
- * The planner supplies a dependency-ordered DAG. This executor deliberately
+ * The planner supplies a dependency-ordered graph. This executor deliberately
  * does not impose a semantic depth ceiling. Resource budgets are execution
  * controls only and therefore terminate with EXECUTION_BUDGET_EXCEEDED rather
  * than inventing a maximum intelligence level.
+ *
+ * The dispatcher is injectable for deterministic structural/runtime tests; the
+ * production default is the governed capability dispatcher.
  */
 export async function executeRecursiveCapabilityPlan(
   userId: string,
   plan: CapabilityPlan,
   context: CapabilityExecutionContext = {},
   budget: ExecutionBudget = { maxNodes: 10_000, maxEdges: 30_000, maxCompositions: 5_000 },
+  dispatcher: CapabilityDispatcher = dispatchGovernedCapability,
 ): Promise<RecursiveCapabilityExecutionResult> {
   if (!finitePositive(budget.maxNodes) || !finitePositive(budget.maxEdges) || !finitePositive(budget.maxCompositions)) {
     throw new Error("INVALID_EXECUTION_BUDGET");
@@ -135,7 +145,7 @@ export async function executeRecursiveCapabilityPlan(
     }
 
     try {
-      const result = await dispatchGovernedCapability({
+      const result = await dispatcher({
         userId,
         capabilityId,
         context: {
