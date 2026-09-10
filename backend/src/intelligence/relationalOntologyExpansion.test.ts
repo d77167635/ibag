@@ -36,5 +36,5 @@ test("builds multiple relational dimensions from one canonical observation", () 
 
 test("does not invent relationships when identifying dimensions are absent", () => {
   const relations = buildRelationalOntologyExpansion([tx({ merchant_id: null, merchant_name: null, domain: undefined, subdomain: undefined, plaid_category_detailed: null, plaid_category_primary: null })]);
-  assert.deepEqual(relations.map(relation => relation.relation), ["account_transaction_class"]);
+  assert.deepEqual(relations, []);
 });
