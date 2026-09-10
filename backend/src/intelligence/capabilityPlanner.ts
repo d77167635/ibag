@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
-export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v4";
+export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v5";
 
 type CapabilityContract = {
   capability_id: string;
@@ -12,6 +12,10 @@ type CapabilityContract = {
   dependencies: unknown;
   validation_rules: unknown;
   output_type: string;
+  output_contract: unknown;
+  lineage_requirements: unknown;
+  resource_limits: unknown;
+  user_control: unknown;
   recursive: boolean;
   cross_domain: boolean;
 };
@@ -34,11 +38,14 @@ function asStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
-/** Resolve the governed capability graph against both persisted contracts and actual executable code. */
+/** Resolve the governed capability graph against persisted contracts and actual executable code. */
 export async function planCapabilities(userId: string, requested: string[]): Promise<CapabilityPlan> {
   const requestedIds = [...new Set(requested.filter(Boolean))];
   const [{ data: contracts, error: contractError }, { data: products, error: productError }, { count: fieldCount, error: fieldError }] = await Promise.all([
-    supabaseAdmin.from("iris_capability_contracts").select("capability_id,version,operator_id,operator_version,evidence_requirements,dependencies,validation_rules,output_type,recursive,cross_domain").eq("active", true),
+    supabaseAdmin
+      .from("iris_capability_contracts")
+      .select("capability_id,version,operator_id,operator_version,evidence_requirements,dependencies,validation_rules,output_type,output_contract,lineage_requirements,resource_limits,user_control,recursive,cross_domain")
+      .eq("active", true),
     supabaseAdmin.from("plaid_product_observations").select("product,item_id,evidence_state,lifecycle_state").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("lifecycle_state", "observed").eq("evidence_state", "observed"),
     supabaseAdmin.from("iris_source_field_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("evidence_state", "observed"),
   ]);
@@ -82,6 +89,10 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     if (!operator || operator.status !== "implemented") unsupported.push(id);
     else if (contract && contract.operator_id !== operator.operator_id) limitations.push(`Capability ${id} contract operator ${contract.operator_id} does not match executable operator ${operator.operator_id}.`);
     else if (contract && contract.operator_version !== operator.version) limitations.push(`Capability ${id} contract version ${contract.operator_version} does not match executable version ${operator.version}.`);
+    if (contract && (!contract.output_contract || typeof contract.output_contract !== "object" || Array.isArray(contract.output_contract))) limitations.push(`Capability ${id} has no governed output contract.`);
+    if (contract && (!Array.isArray(contract.lineage_requirements) || !asStrings(contract.lineage_requirements).length)) limitations.push(`Capability ${id} has no governed lineage requirements.`);
+    if (contract && (!contract.resource_limits || typeof contract.resource_limits !== "object" || Array.isArray(contract.resource_limits))) limitations.push(`Capability ${id} has no governed resource limits.`);
+    if (contract && (!contract.user_control || typeof contract.user_control !== "object" || Array.isArray(contract.user_control))) limitations.push(`Capability ${id} has no governed user-control policy.`);
   }
 
   if (missing.size) limitations.push(`Missing governed capability contracts: ${[...missing].join(", ")}.`);
