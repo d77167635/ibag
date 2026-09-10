@@ -88,12 +88,3 @@ export async function executeScenarioOperator(userId: string, context?: Capabili
   const dependencyInputs = ["predictive", "causal", "relationship"];
   return { capability_id: "scenario", operator_id: "scenario", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: result.evidence_state as Envelope<unknown>["evidence_state"], evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { causal_analysis: upstreamCausal, predictive_intelligence: upstreamPredictive, relationship_intelligence: upstreamRelationship, scenario_sensitivity: result, composed_from: dependencyInputs } };
 }
-
-export async function executeRelationshipOperator(userId: string, context?: CapabilityExecutionContext): Promise<Envelope<unknown>> {
-  const asOf = await boundary(userId, context); const executionContext = requiredContext(context, "relationship", ["analysis", "behavioral", "pattern"]);
-  const upstreamAnalysis = dependencyResult<any>(executionContext, "analysis"), upstreamBehavioral = dependencyResult<any>(executionContext, "behavioral"), upstreamPattern = dependencyResult<any>(executionContext, "pattern");
-  const result = buildComposedRelationshipIntelligence(upstreamAnalysis, upstreamBehavioral, upstreamPattern);
-  const dependencyInputs = ["analysis", "behavioral", "pattern"];
-  const evidenceState = result.risks.length || result.opportunities.length || result.relationalChain.length ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
-  return { capability_id: "relationship", operator_id: "relationship", version: GOVERNED_ADVANCED_OPERATOR_VERSION, evidence_state: evidenceState, evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { ...result, upstream_intelligence: Object.fromEntries(dependencyInputs.map(id => [id, executionContext.dependencyOutputs[id].value])), composed_from: dependencyInputs } };
-}
