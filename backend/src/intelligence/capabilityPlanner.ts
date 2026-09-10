@@ -1,7 +1,8 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
-export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v5";
+export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v6";
+const FULL_INTELLIGENCE_REQUEST = "iris.full_intelligence";
 
 type CapabilityContract = {
   capability_id: string;
@@ -38,21 +39,19 @@ function asStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
-/** Resolve the governed capability graph against persisted contracts and actual executable code. */
+/** Resolve a request into the persisted, executable capability dependency graph. The full-intelligence alias expands to the currently active governed registry; it is not itself an intelligence operator or semantic ceiling. */
 export async function planCapabilities(userId: string, requested: string[]): Promise<CapabilityPlan> {
   const requestedIds = [...new Set(requested.filter(Boolean))];
   const [{ data: contracts, error: contractError }, { data: products, error: productError }, { count: fieldCount, error: fieldError }] = await Promise.all([
-    supabaseAdmin
-      .from("iris_capability_contracts")
-      .select("capability_id,version,operator_id,operator_version,evidence_requirements,dependencies,validation_rules,output_type,output_contract,lineage_requirements,resource_limits,user_control,recursive,cross_domain")
-      .eq("active", true),
+    supabaseAdmin.from("iris_capability_contracts").select("capability_id,version,operator_id,operator_version,evidence_requirements,dependencies,validation_rules,output_type,output_contract,lineage_requirements,resource_limits,user_control,recursive,cross_domain").eq("active", true),
     supabaseAdmin.from("plaid_product_observations").select("product,item_id,evidence_state,lifecycle_state").eq("user_id", userId).eq("provider", "plaid").eq("is_current", true).eq("lifecycle_state", "observed").eq("evidence_state", "observed"),
     supabaseAdmin.from("iris_source_field_observations").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("evidence_state", "observed"),
   ]);
   if (contractError) throw new Error(`CAPABILITY_REGISTRY_READ_FAILED: ${contractError.message}`);
 
   const registry = new Map<string, CapabilityContract>((contracts ?? []).map((row) => [row.capability_id, row as CapabilityContract]));
-  const missing = new Set(requestedIds.filter((id) => id !== "iris.full_intelligence" && !registry.has(id)));
+  const expansion = requestedIds.includes(FULL_INTELLIGENCE_REQUEST) ? [...registry.keys()].sort() : requestedIds;
+  const missing = new Set(expansion.filter((id) => !registry.has(id)));
   const unsupported: string[] = [];
   const ordered: string[] = [];
   const visited = new Set<string>();
@@ -73,7 +72,6 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
       limitations.push(`Missing governed capability contract for dependency: ${id}.`);
       return;
     }
-
     activePath.add(id);
     for (const dep of asStrings(contract.dependencies)) visit(dep);
     activePath.delete(id);
@@ -81,7 +79,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     ordered.push(id);
   };
 
-  for (const id of requestedIds) if (id !== "iris.full_intelligence") visit(id);
+  for (const id of expansion) visit(id);
 
   for (const id of ordered) {
     const contract = registry.get(id);
