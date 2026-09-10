@@ -18,6 +18,13 @@ async function getVerificationKey(kid: string) {
   return key;
 }
 
+function timingSafeHexEqual(expected: unknown, actualHex: string): boolean {
+  if (typeof expected !== "string") return false;
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const actualBuffer = Buffer.from(actualHex, "utf8");
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
 async function verifyPlaidWebhook(verificationHeader: string | undefined, rawBody: Buffer | undefined): Promise<boolean> {
   if (!verificationHeader || !rawBody) return false;
   try {
@@ -28,7 +35,7 @@ async function verifyPlaidWebhook(verificationHeader: string | undefined, rawBod
     const issuedAt = (payload.iat as number | undefined) ?? 0;
     if (Math.abs(Date.now() / 1000 - issuedAt) > 300) return false;
     const actualHash = crypto.createHash("sha256").update(rawBody).digest("hex");
-    return payload.request_body_sha256 === actualHash;
+    return timingSafeHexEqual(payload.request_body_sha256, actualHash);
   } catch {
     return false;
   }
