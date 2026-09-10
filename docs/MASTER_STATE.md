@@ -5,7 +5,7 @@
 ## Current state
 - Product: **Iris**
 - Branch: `main`
-- Current continuity target: `946a8962735fa663a33f35b738239b276628ccb8`
+- Current build tip: `5b44246c2119293d7109465002db2451ffede7b1`
 - Architecture: recursive financial-life intelligence with no artificial intelligence-depth ceiling
 - Data posture: evidence-gated; no fabricated/mock/seeded financial truth
 - Current operating scope: read-only intelligence; no money movement
@@ -18,35 +18,35 @@
 - **Iris Dashboard:** synthesized, evidence-grounded intelligence.
 - **Iris Features:** independently controllable intelligence capabilities; a feature may consume multiple provider products.
 
-## What is actually implemented
+## Verified implementation state
 - Plaid capability/catalog and selection foundations exist.
 - Provider observation and source-field lineage foundations exist.
-- Canonical transaction semantics foundation exists and restricts analytical transactions to certified core evidence. fileciteturn238file0
+- Canonical transaction semantics restrict analytical transactions to certified core evidence.
 - Iris feature/catalog and governed publication foundations exist.
-- Persisted capability contracts now include output, lineage, resource, and user-control dimensions.
+- Persisted capability contracts include output, lineage, resource, and user-control dimensions.
 - Capability planning validates persisted contracts, dependencies, implemented operators, and resource estimates.
-- Independent capability execution persists runs, run evidence, execution inputs/outputs, validation, and routes eligible certification through the atomic certification boundary.
-- Temporal is the first independently dispatchable operator.
-- CI exists; current production deployment status must always be re-verified rather than inferred from an older checkpoint.
+- Independent execution persists runs, run evidence, execution inputs/outputs, validation, and routes eligible certification through the atomic certification boundary.
+- A real runtime operator now exists for every currently named governed capability: temporal, analysis, behavioral, pattern, relationship, anomaly, causal, predictive, scenario, decision, recommendation, outcome, learning, and emergent.
+- The new recursive operator engine is evidence-grounded in canonical financial transactions, emits explicit evidence state/provenance, and refuses to fabricate missing outcome/learning evidence.
+- Causal runtime behavior is explicitly observational candidate analysis and does not assert causation.
+- The operator registry no longer misrepresents planned capability families as executable stubs.
+- Dependency-result propagation from persisted upstream execution outputs into downstream operator context remains the next execution-integrity boundary; merely ordering dependencies is not treated as recursive composition.
+- CI and current deployment status must always be re-verified from the current commit rather than inferred from an older checkpoint.
 
 ## Current large-block build program
 
 ### Block A — Intelligence execution integrity
-Goal: make one intelligence capability completely evidence-bound and independently certifiable.
-
 - [x] Persist complete capability contract dimensions
 - [x] Planner consumes persisted contract
 - [x] Certification consumes persisted contract
 - [x] Independent execution persistence path
 - [ ] Bind operator inputs to the exact run-evidence manifest
-- [ ] Persist explicit input/output field lineage for temporal
-- [ ] Execute temporal against real observed evidence
+- [ ] Persist explicit input/output field lineage for each capability execution
+- [ ] Propagate certified dependency outputs into downstream operators
 - [ ] Verify every persisted execution artifact
 - [ ] Verify independent certification and queryable certified result
 
 ### Block B — Canonical financial-life state
-Goal: create the durable relational state on which recursive intelligence can operate.
-
 - [ ] Complete account/entity semantics
 - [ ] Complete transaction/economic classification
 - [ ] Income and recurring income
@@ -59,26 +59,30 @@ Goal: create the durable relational state on which recursive intelligence can op
 - [ ] Cross-domain relationship graph
 
 ### Block C — Recursive intelligence engine
-Goal: move beyond isolated analyses into composable intelligence.
-
-- [ ] Statistical primitives
-- [ ] Adaptive baselines and thresholds
-- [ ] Pattern/behavioral/anomaly composition
-- [ ] Relationship intelligence
-- [ ] Evidence-grounded causal reasoning
-- [ ] Forecasting and uncertainty
-- [ ] Risk/opportunity
-- [ ] Scenario/counterfactuals
-- [ ] Decision/constraint optimization
-- [ ] Recommendations and consequence analysis
-- [ ] Outcome measurement/learning
+- [x] Runtime operator surfaces for the current governed capability universe
+- [x] Evidence-state/provenance boundary on operator outputs
+- [x] Deterministic temporal analysis
+- [x] Semantic spending/flow analysis
+- [x] Behavioral merchant/category analysis
+- [x] Pattern candidate analysis
+- [x] Relationship association analysis without causal claims
+- [x] Robust category-conditioned anomaly detection
+- [x] Evidence-grounded causal candidate analysis without causal assertions
+- [x] Constrained forward projection
+- [x] Deterministic scenario construction
+- [x] Decision candidate generation
+- [x] Evidence-based review recommendations
+- [x] Honest insufficient-evidence outcome/learning states
+- [x] Higher-order descriptive synthesis
+- [ ] Dependency-result composition at runtime
+- [ ] Statistical primitives beyond current operators
+- [ ] Adaptive baselines and thresholds across user history
+- [ ] Risk/opportunity synthesis
+- [ ] Consequence analysis
 - [ ] Continuous/proactive recomputation
-- [ ] Higher-order/emergent discovery
 - [ ] Recursive composition with no arbitrary depth ceiling
 
 ### Block D — Intelligence experience
-Goal: make the intelligence understandable, explorable, controllable, and educational.
-
 - [ ] Authoritative Iris read model
 - [ ] Domain/subdomain/entity exploration
 - [ ] Evidence/lineage traversal
@@ -92,9 +96,7 @@ Goal: make the intelligence understandable, explorable, controllable, and educat
 - [ ] Proactive controls
 
 ### Block E — Production certification
-Goal: prove the complete system rather than merely deploy code.
-
-- [ ] Clean backend build/test
+- [ ] Clean backend build/test after recursive operator integration
 - [ ] Clean frontend build/test
 - [ ] Provider/database reconciliation
 - [ ] RLS/security certification
