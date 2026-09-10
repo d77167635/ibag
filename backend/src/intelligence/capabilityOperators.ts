@@ -2,6 +2,7 @@ import { assessTrajectory } from "./temporal.js";
 import { getCanonicalTransactions, computeCanonicalWindowFlows } from "./transactionSemantics.js";
 import { executeAnalysis, executeBehavioral, executePattern, executeRelationship, executeAnomaly, executeCausal, executePredictive, executeScenario, executeDecision, executeRecommendation, executeOutcome, executeLearning } from "./recursiveOperators.js";
 import { executeFinancialLifeState, executeRelationalOntology } from "./foundationalIntelligenceOperators.js";
+import { executeRisk, executeOpportunity, executeConsequence } from "./riskOpportunityConsequenceOperators.js";
 import { buildRecursiveIntelligenceSynthesis } from "./recursiveIntelligenceSynthesis.js";
 import { buildCanonicalLifeState } from "./canonicalLifeState.js";
 import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.js";
@@ -23,21 +24,14 @@ const temporalOperator: CapabilityOperator = {
     const transactions = await getCanonicalTransactions(userId, cutoff, boundary, context?.runId ?? null);
     const windows = computeCanonicalWindowFlows(transactions, windowsDays, context?.asOf ?? undefined, context?.runId ?? null, boundary);
     const trajectory = assessTrajectory(windows as any);
-    const hasEvidence = windows.some((window) => window.economicTxCount > 0);
-    const state = hasEvidence ? "CALCULATED" : "INSUFFICIENT_EVIDENCE";
-    return { capability_id: "temporal", operator_id: "temporal", operator_version: "1.0.0", evidence_state: state, result: {
-      windows, trajectory, evidence_boundary: boundary,
-      evidence: { state: state === "CALCULATED" ? "calculated" : "insufficient_evidence", source: "canonical_financial_transactions", transaction_count: transactions.length, provider_observations_created: false, financial_values_created: false, money_movement_executed: false },
-      provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(), evidence_boundary: boundary },
-    } };
+    const state = windows.some((window) => window.economicTxCount > 0) ? "CALCULATED" : "INSUFFICIENT_EVIDENCE";
+    return { capability_id: "temporal", operator_id: "temporal", operator_version: "1.0.0", evidence_state: state, result: { windows, trajectory, evidence_boundary: boundary, evidence: { state: state === "CALCULATED" ? "calculated" : "insufficient_evidence", source: "canonical_financial_transactions", transaction_count: transactions.length, provider_observations_created: false, financial_values_created: false, money_movement_executed: false }, provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(), evidence_boundary: boundary } } };
   },
 };
 
 function op(capability_id: string, execute: CapabilityOperator["execute"], evidence_state: CapabilityOperatorResult["evidence_state"], execution_stage: string, version = "1.0.0"): CapabilityOperator { return { capability_id, operator_id: capability_id, version, status: "implemented", execution_stage, evidence_state, execute }; }
-
 const financialLifeStateOperator: CapabilityOperator = op("financial_life_state", executeFinancialLifeState, "CALCULATED", "canonical_financial_life_state");
 const relationalOntologyOperator: CapabilityOperator = op("relational_ontology", executeRelationalOntology, "CALCULATED", "relational_ontology_expansion");
-
 const emergentOperator: CapabilityOperator = {
   capability_id: "emergent", operator_id: "emergent", version: "1.1.0", status: "implemented", execution_stage: "recursive_higher_order_synthesis", evidence_state: "INFERRED",
   execute: async (userId, context) => {
@@ -52,43 +46,12 @@ const emergentOperator: CapabilityOperator = {
     const lifeState = lifeStateDependency ?? buildCanonicalLifeState(transactions, boundary);
     const relationalOntology = Array.isArray(ontologyDependency?.relationships) ? ontologyDependency.relationships : buildRelationalOntologyExpansion(transactions);
     const state = synthesis.dependency_count > 0 || lifeState.transaction_count > 0 ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
-    return {
-      capability_id: "emergent",
-      operator_id: "emergent",
-      operator_version: "1.1.0",
-      evidence_state: state,
-      result: {
-        ...synthesis,
-        canonical_life_state: lifeState,
-        relational_ontology: {
-          architecture_version: "IRIS_RELATIONAL_ONTOLOGY_EXPANSION_V2",
-          relation_count: relationalOntology.length,
-          relationships: relationalOntology,
-          evidence_state: transactions.length ? "calculated" : "insufficient_evidence",
-          limitation: transactions.length
-            ? "Relationships are calculated from shared canonical observations; they do not establish causation, intent, necessity, or future behavior."
-            : "No canonical transaction evidence is available to construct relational observations.",
-        },
-        evidence: { state: state === "INFERRED" ? "inferred" : "insufficient_evidence", source: "certified_capability_outputs_and_canonical_financial_transactions", dependency_count: synthesis.dependency_count, transaction_count: transactions.length },
-        provenance: {
-          source: "certified_capability_outputs_and_canonical_financial_transactions",
-          provider_observations_created: false,
-          financial_values_created: false,
-          money_movement_executed: false,
-          run_id: context?.runId ?? null,
-          evidence_manifest_hash: context?.evidenceManifestHash ?? null,
-          run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(),
-          evidence_boundary: boundary,
-        },
-      },
-    };
+    return { capability_id: "emergent", operator_id: "emergent", operator_version: "1.1.0", evidence_state: state, result: { ...synthesis, canonical_life_state: lifeState, relational_ontology: { architecture_version: "IRIS_RELATIONAL_ONTOLOGY_EXPANSION_V2", relation_count: relationalOntology.length, relationships: relationalOntology, evidence_state: transactions.length ? "calculated" : "insufficient_evidence", limitation: transactions.length ? "Relationships are calculated from shared canonical observations; they do not establish causation, intent, necessity, or future behavior." : "No canonical transaction evidence is available to construct relational observations." }, evidence: { state: state === "INFERRED" ? "inferred" : "insufficient_evidence", source: "certified_capability_outputs_and_canonical_financial_transactions", dependency_count: synthesis.dependency_count, transaction_count: transactions.length }, provenance: { source: "certified_capability_outputs_and_canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(), evidence_boundary: boundary } } };
   },
 };
 
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
-  temporalOperator,
-  financialLifeStateOperator,
-  relationalOntologyOperator,
+  temporalOperator, financialLifeStateOperator, relationalOntologyOperator,
   op("analysis", executeAnalysis, "CALCULATED", "canonical_semantic_analysis"),
   op("behavioral", executeBehavioral, "CALCULATED", "category_behavior"),
   op("pattern", executePattern, "CALCULATED", "pattern_composition"),
@@ -99,6 +62,9 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   op("scenario", executeScenario, "SCENARIO", "counterfactual_spending_analysis"),
   op("decision", executeDecision, "INFERRED", "decision_intelligence"),
   op("recommendation", executeRecommendation, "INFERRED", "review_recommendations"),
+  op("risk", executeRisk, "INFERRED", "risk_signal_synthesis"),
+  op("opportunity", executeOpportunity, "INFERRED", "opportunity_investigation_synthesis"),
+  op("consequence", executeConsequence, "INFERRED", "conditional_consequence_propagation"),
   op("outcome", executeOutcome, "CALCULATED", "durable_outcome_loop"),
   op("learning", executeLearning, "INFERRED", "validated_outcome_learning", "1.1.0"),
   emergentOperator,
