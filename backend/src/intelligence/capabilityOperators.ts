@@ -3,6 +3,7 @@ import { getCanonicalTransactions, computeCanonicalWindowFlows } from "./transac
 import { executeAnalysis, executeBehavioral, executePattern, executeRelationship, executeAnomaly, executeCausal, executePredictive, executeScenario, executeDecision, executeRecommendation, executeOutcome, executeLearning } from "./recursiveOperators.js";
 import { buildRecursiveIntelligenceSynthesis } from "./recursiveIntelligenceSynthesis.js";
 import { buildCanonicalLifeState } from "./canonicalLifeState.js";
+import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
 export type GovernedCapabilityResult = { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } }; uncertainty?: unknown; evidence_boundary?: string | null; [key: string]: unknown };
@@ -41,6 +42,7 @@ const emergentOperator: CapabilityOperator = {
     const cutoff = new Date(anchor.getTime() - 365 * 86_400_000).toISOString().slice(0, 10);
     const transactions = await getCanonicalTransactions(userId, cutoff, boundary, context?.runId ?? null);
     const lifeState = buildCanonicalLifeState(transactions, boundary);
+    const relationalOntology = buildRelationalOntologyExpansion(transactions);
     const state = synthesis.dependency_count > 0 || lifeState.transaction_count > 0 ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
     return {
       capability_id: "emergent",
@@ -50,6 +52,15 @@ const emergentOperator: CapabilityOperator = {
       result: {
         ...synthesis,
         canonical_life_state: lifeState,
+        relational_ontology: {
+          architecture_version: "IRIS_RELATIONAL_ONTOLOGY_EXPANSION_V1",
+          relation_count: relationalOntology.length,
+          relationships: relationalOntology,
+          evidence_state: transactions.length ? "calculated" : "insufficient_evidence",
+          limitation: transactions.length
+            ? "Relationships are calculated from shared canonical observations; they do not establish causation, intent, necessity, or future behavior."
+            : "No canonical transaction evidence is available to construct relational observations.",
+        },
         evidence: { state: state === "INFERRED" ? "inferred" : "insufficient_evidence", source: "certified_capability_outputs_and_canonical_financial_transactions", dependency_count: synthesis.dependency_count, transaction_count: transactions.length },
         provenance: {
           source: "certified_capability_outputs_and_canonical_financial_transactions",
