@@ -1,6 +1,7 @@
 import { assessTrajectory } from "./temporal.js";
 import { getCanonicalTransactions, computeCanonicalWindowFlows } from "./transactionSemantics.js";
 import { executeAnalysis, executeBehavioral, executePattern, executeRelationship, executeAnomaly, executeCausal, executePredictive, executeScenario, executeDecision, executeRecommendation, executeOutcome, executeLearning } from "./recursiveOperators.js";
+import { executeFinancialLifeState, executeRelationalOntology } from "./foundationalIntelligenceOperators.js";
 import { buildRecursiveIntelligenceSynthesis } from "./recursiveIntelligenceSynthesis.js";
 import { buildCanonicalLifeState } from "./canonicalLifeState.js";
 import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.js";
@@ -32,6 +33,9 @@ const temporalOperator: CapabilityOperator = {
   },
 };
 
+const financialLifeStateOperator: CapabilityOperator = op("financial_life_state", executeFinancialLifeState, "CALCULATED", "canonical_financial_life_state");
+const relationalOntologyOperator: CapabilityOperator = op("relational_ontology", executeRelationalOntology, "CALCULATED", "relational_ontology_expansion");
+
 const emergentOperator: CapabilityOperator = {
   capability_id: "emergent", operator_id: "emergent", version: "1.1.0", status: "implemented", execution_stage: "recursive_higher_order_synthesis", evidence_state: "INFERRED",
   execute: async (userId, context) => {
@@ -41,8 +45,10 @@ const emergentOperator: CapabilityOperator = {
     const boundary = context?.evidenceBoundary ?? context?.asOf ?? null;
     const cutoff = new Date(anchor.getTime() - 365 * 86_400_000).toISOString().slice(0, 10);
     const transactions = await getCanonicalTransactions(userId, cutoff, boundary, context?.runId ?? null);
-    const lifeState = buildCanonicalLifeState(transactions, boundary);
-    const relationalOntology = buildRelationalOntologyExpansion(transactions);
+    const lifeStateDependency = dependencyResults.financial_life_state?.result?.canonical_life_state;
+    const ontologyDependency = dependencyResults.relational_ontology?.result;
+    const lifeState = lifeStateDependency ?? buildCanonicalLifeState(transactions, boundary);
+    const relationalOntology = ontologyDependency?.relationships ?? buildRelationalOntologyExpansion(transactions);
     const state = synthesis.dependency_count > 0 || lifeState.transaction_count > 0 ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
     return {
       capability_id: "emergent",
@@ -53,7 +59,7 @@ const emergentOperator: CapabilityOperator = {
         ...synthesis,
         canonical_life_state: lifeState,
         relational_ontology: {
-          architecture_version: "IRIS_RELATIONAL_ONTOLOGY_EXPANSION_V1",
+          architecture_version: "IRIS_RELATIONAL_ONTOLOGY_EXPANSION_V2",
           relation_count: relationalOntology.length,
           relationships: relationalOntology,
           evidence_state: transactions.length ? "calculated" : "insufficient_evidence",
@@ -71,7 +77,6 @@ const emergentOperator: CapabilityOperator = {
           evidence_manifest_hash: context?.evidenceManifestHash ?? null,
           run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(),
           evidence_boundary: boundary,
-          canonical_transaction_count: transactions.length,
         },
       },
     };
@@ -82,6 +87,8 @@ function op(capability_id: string, execute: CapabilityOperator["execute"], evide
 
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   temporalOperator,
+  financialLifeStateOperator,
+  relationalOntologyOperator,
   op("analysis", executeAnalysis, "CALCULATED", "canonical_semantic_analysis"),
   op("behavioral", executeBehavioral, "CALCULATED", "category_behavior"),
   op("pattern", executePattern, "CALCULATED", "pattern_composition"),
