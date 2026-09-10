@@ -15,7 +15,7 @@ test("derives flows, activity density, concentration and relationships from cano
     tx({ id: "tx-2", amount: -100, posted_date: "2026-08-02", transaction_class: "income" }),
     tx({ id: "tx-3", amount: 15, posted_date: "2026-08-04", merchant_id: "m-2", merchant_name: "Second Merchant" }),
   ], "2026-09-10T00:00:00Z");
-  assert.equal(state.architecture_version, "IRIS_CANONICAL_LIFE_STATE_V6");
+  assert.equal(state.architecture_version, "IRIS_CANONICAL_LIFE_STATE_V7");
   assert.equal(state.flow.inflow, 100);
   assert.equal(state.flow.outflow, 40);
   assert.equal(state.flow.net, 60);
