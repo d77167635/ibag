@@ -52,6 +52,13 @@ export async function computeFullIntelligence(userId: string, context?: Capabili
   const prior30 = canonical.filter(tx => tx.posted_date < current30Start);
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
+  const dailyOutflowByDate = new Map<string, number>();
+  for (const tx of canonical) {
+    if (tx.amount > 0 && ["purchase", "debt_payment", "fee"].includes(tx.transaction_class)) {
+      dailyOutflowByDate.set(tx.posted_date, (dailyOutflowByDate.get(tx.posted_date) ?? 0) + tx.amount);
+    }
+  }
+  const dailyOutflowRates = [...dailyOutflowByDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, amount]) => amount).filter(Number.isFinite);
   const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: effectiveBoundary, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
   const forwardProjectionPromise = context?.runId
     ? computeRunBoundForwardProjection(userId, context.runId, 30, effectiveBoundary ?? context.asOf ?? null)
@@ -78,7 +85,7 @@ export async function computeFullIntelligence(userId: string, context?: Capabili
   const goalDataLimitations = declaredGoalsResult.error ? ["Persistent user goals could not be loaded; Iris is falling back to evidence-derived objectives."] : [];
   const trajectory = assessTrajectory(multiWindowFlow);
   const narrative = buildNarrative(reasoning, { safeToSpend: cashFlowSafety.safeToSpend, essentialBillsCount: cashFlowSafety.upcomingBills.length, cashFlowNet: cashFlow.net, cashFlowNetChangePct: cashFlow.netChangePct, debtChangePct: debtTrend.changePct, anomalyCount: anomalies.length });
-  const maximumIntelligence = buildMaximumIntelligence({ flows: multiWindowFlow, reasoning, safeToSpend: cashFlowSafety.safeToSpend, cashFlowNet: cashFlow.net, cashFlowWindowDays: cashFlow.windowDays, currentLiquidAssets: balances.liquidAssets, forwardProjectionBasis: forwardProjection.basis ?? null });
+  const maximumIntelligence = buildMaximumIntelligence({ flows: multiWindowFlow, reasoning, safeToSpend: cashFlowSafety.safeToSpend, cashFlowNet: cashFlow.net, cashFlowWindowDays: cashFlow.windowDays, currentLiquidAssets: balances.liquidAssets, forwardProjectionBasis: forwardProjection.basis ?? null, dailyOutflowRates });
   const providerNetWorth = providerDomainIntelligence.derived?.net_worth ?? null;
   const layerMetrics = { net_worth: { liquid_assets: balances.liquidAssets, provider_domain_net_worth: providerNetWorth, provider_domain_components: providerDomainIntelligence.derived?.net_worth_components ?? null, as_of: balances.asOf }, debt_health: { revolving_debt: balances.revolvingDebt, credit_utilization: balances.creditUtilization, provider_liability_balance: providerDomainIntelligence.derived?.liability_state?.liability_balance ?? null, change_pct_30d: debtTrend.changePct, as_of: balances.asOf }, cash_flow_safety: cashFlowSafety, roundup_projection: roundupProjection, cash_flow: cashFlow, spending_by_domain: spendingByDomain, spending_hierarchy: spendingHierarchy, balance_history: balanceHistory, forward_projection: forwardProjection, anomalies, provider_domains: providerDomainIntelligence };
   const baseResult = { narrative, generated_at: new Date().toISOString(), feature_flags: featureFlags, layer_metrics: layerMetrics, layer_debt_cost: debtCost, layer_temporal: { windows: multiWindowFlow, trajectory }, layer_behavioral: { categoryDrift }, layer_reasoning: reasoning, layer_max_intelligence: maximumIntelligence, provider_lineage: providerLineage, evidence_boundary: effectiveBoundary };
