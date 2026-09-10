@@ -1,13 +1,10 @@
-export type IrisCatalogCapability = {
-  id: string;
-  name: string;
-  description: string;
-  family: string;
-  depth: "core" | "advanced" | "frontier";
-  atlas_ids: string[];
-};
-
-export const IRIS_CATALOG_VERSION = "IRIS_CATALOG_V1";
+/**
+ * Internal Iris capability catalog.
+ * This is NOT the user product catalog. User-facing products are report
+ * definitions in irisReportCatalog.ts.
+ */
+export type IrisCatalogCapability = { id: string; name: string; description: string; family: string; depth: "core" | "advanced" | "frontier"; atlas_ids: string[] };
+export const IRIS_CATALOG_VERSION = "IRIS_INTERNAL_CAPABILITY_CATALOG_V1";
 const C = (id: string, name: string, description: string, family: string, depth: IrisCatalogCapability["depth"], atlas_ids: string[] = []): IrisCatalogCapability => ({ id, name, description, family, depth, atlas_ids });
 
 export const IRIS_CATALOG: IrisCatalogCapability[] = [
@@ -71,12 +68,6 @@ export const IRIS_CATALOG: IrisCatalogCapability[] = [
   C("maximum-intelligence", "Maximum Intelligence", "Let Iris combine the broadest evidence-valid set of analyses, relationships, questions, scenarios, and explanations available.", "synthesis", "frontier", ["synthesis.maximum-intelligence-synthesis"]),
 ];
 
-/** Canonical default user experience. This is a preference baseline, not a ceiling on Iris intelligence. */
-export const IRIS_STANDARD_CAPABILITY_IDS = [
-  "roundups", "financial-state", "cash-flow", "spending", "liquidity",
-  "debt", "forecast", "recurrence", "causality", "decision-lab",
-] as const;
-
-export function getIrisCatalogCapability(id: string) {
-  return IRIS_CATALOG.find(capability => capability.id === id) ?? null;
-}
+/** Internal planning baseline only. Never expose this as a user product set. */
+export const IRIS_STANDARD_CAPABILITY_IDS = ["roundups", "financial-state", "cash-flow", "spending", "liquidity", "debt", "forecast", "recurrence", "causality", "decisions"] as const;
+export function getIrisCatalogCapability(id: string) { return IRIS_CATALOG.find(capability => capability.id === id) ?? null; }
