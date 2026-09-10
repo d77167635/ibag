@@ -4,19 +4,9 @@ import { buildIncomeIntelligence, buildRecurrenceIntelligence } from "./financia
 import type { CanonicalTransaction } from "./transactionSemantics.js";
 
 const tx = (overrides: Partial<CanonicalTransaction> = {}): CanonicalTransaction => ({
-  id: "tx-1",
-  account_id: "acct-1",
-  amount: 100,
-  posted_date: "2026-01-01",
-  transaction_class: "purchase",
-  classification_evidence: "observed",
-  plaid_category_primary: null,
-  plaid_category_detailed: null,
-  merchant_id: "merchant-1",
-  merchant_name: "Observed Merchant",
-  subdomain: null,
-  domain: null,
-  ...overrides,
+  id: "tx-1", account_id: "acct-1", amount: 100, posted_date: "2026-01-01", transaction_class: "purchase",
+  classification_evidence: "observed", plaid_category_primary: null, plaid_category_detailed: null,
+  merchant_id: "merchant-1", merchant_name: "Observed Merchant", subdomain: null, domain: null, ...overrides,
 });
 
 test("income intelligence is derived only from observed canonical income inflows", () => {
@@ -25,58 +15,44 @@ test("income intelligence is derived only from observed canonical income inflows
     tx({ id: "income-2", amount: -1300, transaction_class: "income", posted_date: "2026-01-15", merchant_name: "Observed Income Source" }),
     tx({ id: "purchase-1", amount: 80, transaction_class: "purchase" }),
   ]);
-
-  assert.equal(state.evidence_state, "calculated");
-  assert.equal(state.transaction_count, 2);
-  assert.equal(state.total_observed_income, 2500);
-  assert.equal(state.active_income_days, 2);
-  assert.equal(state.income_sources[0]?.label, "Observed Income Source");
-  assert.equal(state.income_sources[0]?.share_of_observed_income, 1);
-  assert.equal(state.cadence.observation_count, 2);
-  assert.equal(state.cadence.median_gap_days, 14);
-  assert.equal(state.cadence.regularity, "high");
-  assert.equal(state.cadence.modeled_next_date, "2026-01-29");
+  assert.equal(state.evidence_state, "calculated"); assert.equal(state.transaction_count, 2); assert.equal(state.total_observed_income, 2500);
+  assert.equal(state.active_income_days, 2); assert.equal(state.income_sources[0]?.label, "Observed Income Source"); assert.equal(state.income_sources[0]?.share_of_observed_income, 1);
+  assert.equal(state.cadence.observation_count, 2); assert.equal(state.cadence.median_gap_days, 14); assert.equal(state.cadence.regularity, "high"); assert.equal(state.cadence.modeled_next_date, "2026-01-29");
 });
 
 test("income cadence stays limited when only one income date is observed", () => {
-  const state = buildIncomeIntelligence([
-    tx({ id: "income-1", amount: -1200, transaction_class: "income", posted_date: "2026-01-01" }),
-  ]);
-
-  assert.equal(state.cadence.observation_count, 1);
-  assert.equal(state.cadence.regularity, "limited");
-  assert.equal(state.cadence.median_gap_days, null);
-  assert.equal(state.cadence.modeled_next_date, null);
+  const state = buildIncomeIntelligence([tx({ id: "income-1", amount: -1200, transaction_class: "income", posted_date: "2026-01-01" })]);
+  assert.equal(state.cadence.observation_count, 1); assert.equal(state.cadence.regularity, "limited"); assert.equal(state.cadence.median_gap_days, null); assert.equal(state.cadence.modeled_next_date, null);
 });
 
 test("recurrence intelligence identifies repeated intervals without calling them obligations", () => {
   const state = buildRecurrenceIntelligence([
-    tx({ id: "r1", posted_date: "2026-01-01", amount: 50 }),
-    tx({ id: "r2", posted_date: "2026-01-15", amount: 52 }),
-    tx({ id: "r3", posted_date: "2026-01-29", amount: 49 }),
+    tx({ id: "r1", posted_date: "2026-01-01", amount: 50 }), tx({ id: "r2", posted_date: "2026-01-15", amount: 52 }), tx({ id: "r3", posted_date: "2026-01-29", amount: 49 }),
   ]);
-
-  assert.equal(state.evidence_state, "calculated");
-  assert.equal(state.candidate_count, 1);
-  assert.equal(state.candidates[0]?.median_gap_days, 14);
-  assert.equal(state.candidates[0]?.first_observed_date, "2026-01-01");
-  assert.equal(state.candidates[0]?.last_observed_date, "2026-01-29");
-  assert.equal(state.candidates[0]?.modeled_next_date, "2026-02-12");
-  assert.equal(state.candidates[0]?.transaction_class, "purchase");
-  assert.equal(state.obligation_candidate_count, 1);
-  assert.equal(state.obligation_candidates[0]?.candidate_strength, "high");
-  assert.equal(state.obligation_candidates[0]?.modeled_next_date, "2026-02-12");
+  assert.equal(state.evidence_state, "calculated"); assert.equal(state.candidate_count, 1); assert.equal(state.candidates[0]?.median_gap_days, 14);
+  assert.equal(state.candidates[0]?.first_observed_date, "2026-01-01"); assert.equal(state.candidates[0]?.last_observed_date, "2026-01-29");
+  assert.equal(state.candidates[0]?.modeled_next_date, "2026-02-12"); assert.equal(state.candidates[0]?.transaction_class, "purchase");
+  assert.equal(state.obligation_candidate_count, 1); assert.equal(state.obligation_candidates[0]?.candidate_strength, "high"); assert.equal(state.obligation_candidates[0]?.modeled_next_date, "2026-02-12");
 });
 
 test("recurrence intelligence remains evidence-limited with too few observations", () => {
-  const state = buildRecurrenceIntelligence([
-    tx({ id: "one", posted_date: "2026-01-01" }),
-    tx({ id: "two", posted_date: "2026-01-15" }),
-  ]);
+  const state = buildRecurrenceIntelligence([tx({ id: "one", posted_date: "2026-01-01" }), tx({ id: "two", posted_date: "2026-01-15" })]);
+  assert.equal(state.evidence_state, "insufficient_evidence"); assert.equal(state.candidate_count, 0); assert.equal(state.obligation_candidate_count, 0);
+  assert.deepEqual(state.candidates, []); assert.deepEqual(state.obligation_candidates, []);
+});
 
-  assert.equal(state.evidence_state, "insufficient_evidence");
-  assert.equal(state.candidate_count, 0);
-  assert.equal(state.obligation_candidate_count, 0);
-  assert.deepEqual(state.candidates, []);
-  assert.deepEqual(state.obligation_candidates, []);
+test("income cadence uses all observed income dates rather than only a single adjacent gap", () => {
+  const state = buildIncomeIntelligence([
+    tx({ id: "i1", amount: -1000, transaction_class: "income", posted_date: "2026-01-01" }), tx({ id: "i2", amount: -1020, transaction_class: "income", posted_date: "2026-01-15" }),
+    tx({ id: "i3", amount: -980, transaction_class: "income", posted_date: "2026-01-29" }), tx({ id: "i4", amount: -1010, transaction_class: "income", posted_date: "2026-02-12" }),
+  ]);
+  assert.equal(state.cadence.observation_count, 4); assert.equal(state.cadence.median_gap_days, 14); assert.equal(state.cadence.gap_mad_days, 0);
+  assert.equal(state.cadence.regularity, "high"); assert.equal(state.cadence.modeled_next_date, "2026-02-26");
+});
+
+test("recurrence candidates reject non-plausible short intervals and keep missing dates unknown", () => {
+  const state = buildRecurrenceIntelligence([
+    tx({ id: "s1", posted_date: "2026-01-01", amount: 20 }), tx({ id: "s2", posted_date: "2026-01-02", amount: 21 }), tx({ id: "s3", posted_date: "2026-01-03", amount: 19 }),
+  ]);
+  assert.equal(state.evidence_state, "insufficient_evidence"); assert.equal(state.candidate_count, 0); assert.equal(state.obligation_candidate_count, 0); assert.deepEqual(state.candidates, []);
 });
