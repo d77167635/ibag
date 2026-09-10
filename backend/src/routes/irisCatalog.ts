@@ -43,17 +43,21 @@ irisCatalogRouter.get("/iris/catalog", requireAuth, async (req: AuthedRequest, r
 
 irisCatalogRouter.put("/iris/catalog/selection", requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const supplied = Array.isArray(req.body?.report_ids) ? [...new Set(req.body.report_ids.filter((v: unknown): v is string => typeof v === "string"))] : [];
-    const invalid = supplied.filter((id) => !REPORT_IDS.has(id));
+    const rawReportIds: unknown = req.body?.report_ids;
+    const supplied: string[] = Array.isArray(rawReportIds)
+      ? rawReportIds.filter((value: unknown): value is string => typeof value === "string")
+      : [];
+    const uniqueSupplied = [...new Set(supplied)];
+    const invalid = uniqueSupplied.filter((id: string) => !REPORT_IDS.has(id));
     if (invalid.length) return res.status(400).json({ error: "Selection contains unknown Iris report products.", invalid_report_ids: invalid });
 
     const { error } = await supabaseAdmin.from("iris_user_report_preferences").upsert({
-      user_id: req.userId!, catalog_version: IRIS_REPORT_CATALOG_VERSION, selected_report_ids: supplied,
+      user_id: req.userId!, catalog_version: IRIS_REPORT_CATALOG_VERSION, selected_report_ids: uniqueSupplied,
       activation_mode: "explicit", updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
     if (error) throw error;
 
-    res.json({ saved: true, activation: { mode: "explicit", count: supplied.length, report_ids: supplied }, product_boundary: "Report activation controls publication only; it does not create evidence, activate provider products, or limit Iris's underlying intelligence hierarchy." });
+    res.json({ saved: true, activation: { mode: "explicit", count: uniqueSupplied.length, report_ids: uniqueSupplied }, product_boundary: "Report activation controls publication only; it does not create evidence, activate provider products, or limit Iris's underlying intelligence hierarchy." });
   } catch (error) {
     console.error("iris/catalog/selection error:", error);
     res.status(500).json({ error: "Unable to save Iris report activation" });
