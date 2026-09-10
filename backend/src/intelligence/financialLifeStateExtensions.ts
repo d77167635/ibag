@@ -20,11 +20,14 @@ export type RecurrenceCandidate = {
   merchant: string | null;
   transaction_class: string;
   occurrences: number;
+  first_observed_date: string;
+  last_observed_date: string;
   median_gap_days: number | null;
   gap_mad_days: number | null;
   median_amount: number;
   amount_mad: number;
   regularity: "high" | "moderate" | "limited";
+  modeled_next_date: string | null;
   evidence: "calculated";
   interpretation: string;
 };
@@ -38,6 +41,7 @@ export type ObligationCandidate = {
   median_gap_days: number;
   regularity: "high" | "moderate" | "limited";
   candidate_strength: "high" | "moderate" | "limited";
+  modeled_next_date: string | null;
   evidence: "calculated";
   interpretation: string;
 };
@@ -69,6 +73,13 @@ function mad(values: number[], center: number | null): number | null {
 
 function dateDistanceDays(left: string, right: string): number {
   return Math.round((new Date(`${right}T00:00:00Z`).getTime() - new Date(`${left}T00:00:00Z`).getTime()) / 86_400_000);
+}
+
+function modeledNextDate(lastObservedDate: string, medianGapDays: number | null): string | null {
+  if (medianGapDays === null || !Number.isFinite(medianGapDays) || medianGapDays <= 0) return null;
+  const next = new Date(`${lastObservedDate}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + Math.round(medianGapDays));
+  return next.toISOString().slice(0, 10);
 }
 
 export function buildIncomeIntelligence(transactions: CanonicalTransaction[]): IncomeIntelligence {
@@ -150,13 +161,16 @@ export function buildRecurrenceIntelligence(transactions: CanonicalTransaction[]
       merchant: ordered[0].merchant_name ?? ordered[0].merchant_id ?? null,
       transaction_class: ordered[0].transaction_class,
       occurrences: ordered.length,
+      first_observed_date: ordered[0].posted_date,
+      last_observed_date: ordered.at(-1)!.posted_date,
       median_gap_days: round(medianGap),
       gap_mad_days: round(gapDeviation === Infinity ? 0 : gapDeviation),
       median_amount: round(medianAmount),
       amount_mad: round(amountMad),
       regularity,
+      modeled_next_date: modeledNextDate(ordered.at(-1)!.posted_date, medianGap),
       evidence: "calculated",
-      interpretation: "Repeated observed transactions with a recurring interval are a recurrence candidate only; recurrence does not establish a contractual obligation, essential status, intent, or future occurrence.",
+      interpretation: "Repeated observed transactions with a recurring interval are a recurrence candidate only; the modeled next date is a deterministic timing estimate from observed spacing and does not establish a contractual obligation, essential status, intent, or future occurrence.",
     });
   }
 
@@ -173,8 +187,9 @@ export function buildRecurrenceIntelligence(transactions: CanonicalTransaction[]
       median_gap_days: candidate.median_gap_days ?? 0,
       regularity: candidate.regularity,
       candidate_strength: candidate.regularity,
+      modeled_next_date: candidate.modeled_next_date,
       evidence: "calculated" as const,
-      interpretation: "This is an evidence-derived obligation candidate based on repeated observed outflows. It is not a verified bill, contractual obligation, essential expense, authorization, or guarantee of future occurrence.",
+      interpretation: "This is an evidence-derived obligation candidate based on repeated observed outflows. The modeled date is a timing estimate from observed recurrence, not a verified due date, contractual obligation, essential expense, authorization, or guarantee of future occurrence.",
     }))
     .slice(0, 100);
 
