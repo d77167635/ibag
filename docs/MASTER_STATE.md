@@ -5,7 +5,7 @@
 ## Current state
 - Product: **Iris**
 - Branch: `main`
-- Current source is continuously changing; the exact Git/Render tip must be re-queried before certification claims.
+- Last verified application deployment: commit `5e55cca208cbe231edcc2d6117353f693ebcf189` is `live` on Render; documentation-only commits may subsequently be queued without changing the verified application code.
 - Architecture: recursive financial-life intelligence with no artificial intelligence-depth ceiling
 - Data posture: evidence-gated; no fabricated/mock/seeded financial truth
 - Current operating scope: read-only intelligence; no money movement
@@ -22,17 +22,23 @@
 - Plaid capability/catalog and selection foundations exist.
 - Provider observation and source-field lineage foundations exist.
 - Canonical transaction semantics restrict analytical transactions to certified core evidence and can additionally bind transaction reads to exact run-evidence raw transaction identities.
+- Canonical temporal window aggregation now explicitly clips supplied transaction sets to the requested evidence boundary, preventing later observations from entering a historical window calculation.
 - Iris feature/catalog and governed publication foundations exist.
 - Persisted capability contracts include output, lineage, resource, and user-control dimensions.
 - Capability planning validates persisted contracts, dependencies, implemented operators, and resource estimates.
 - Independent execution persists runs, run evidence, execution inputs/outputs, validation, and routes eligible certification through the atomic certification boundary.
 - Provider-observation run evidence now expands to exact current raw transaction and balance observation identities for the same authorized Item, bounded by the run evidence boundary.
-- The governed aggregate dispatcher now receives execution context, and aggregate canonical transaction reads can consume the run ID and evidence boundary.
+- A run-bound state adapter derives balance/liquidity history and debt history from exact run evidence; safe-to-spend remains withheld when recurrence evidence does not establish contractual/essential obligations.
+- The governed aggregate dispatcher receives execution context, and aggregate canonical transaction reads can consume the run ID and evidence boundary.
 - A real runtime operator exists for every currently named governed capability: temporal, analysis, behavioral, pattern, relationship, anomaly, causal, predictive, scenario, decision, recommendation, outcome, learning, and emergent.
 - The recursive operator engine is evidence-grounded in canonical financial transactions, emits explicit evidence state/provenance, and refuses to fabricate missing outcome/learning evidence.
 - Causal runtime behavior is explicitly observational candidate analysis and does not assert causation.
 - Dependency-result propagation from persisted upstream execution outputs into downstream operator context is implemented; downstream capabilities record upstream execution identity/hash as inputs.
+- Maximum intelligence now consumes observed activity-day outflow history to establish a user-specific adaptive historical baseline using robust median/MAD dispersion; missing activity days are excluded rather than converted to zero observations.
+- Reusable robust statistical and adaptive-baseline primitives have regression coverage.
 - The compact recursive operator layer is not treated as the semantic ceiling; richer orchestration, composition, financial-state, decision, counterfactual, higher-order, and meta-intelligence modules remain part of the authoritative implementation surface and must be unified rather than duplicated.
+- Supabase schema inspection confirms the exact raw-balance/run-evidence fields required by the run-bound state path exist in the connected project.
+- The connected project currently has no `iris_run_evidence` rows, so real provider-evidence end-to-end certification remains pending rather than being inferred from empty state.
 - CI and current deployment status must always be re-verified from the current commit rather than inferred from an older checkpoint.
 
 ## Current large-block build program
@@ -45,6 +51,8 @@
 - [x] Persist exact raw transaction/balance identities as run-evidence records
 - [x] Pass governed execution context into aggregate intelligence
 - [x] Allow canonical transaction reads to resolve exact run-evidence transaction identities
+- [x] Clip canonical temporal calculations to the explicit evidence boundary
+- [x] Add run-bound state derivation for balances/history/debt
 - [ ] Persist explicit input/output field lineage for each capability execution
 - [ ] Verify every persisted execution artifact against the complete run manifest
 - [ ] Verify independent certification and queryable certified result
@@ -77,9 +85,11 @@
 - [x] Evidence-based review recommendations
 - [x] Honest insufficient-evidence outcome/learning states
 - [x] Higher-order descriptive synthesis
+- [x] Robust statistical primitives
+- [x] User-specific adaptive activity-day outflow baseline
 - [ ] Unify named operator surfaces with the richer Iris intelligence engine
-- [ ] Statistical primitives beyond current operators
-- [ ] Adaptive baselines and thresholds across user history
+- [ ] Statistical intelligence across additional financial-life metrics
+- [ ] Adaptive baselines and thresholds across additional entities/domains
 - [ ] Risk/opportunity synthesis
 - [ ] Consequence analysis
 - [ ] Continuous/proactive recomputation
@@ -99,14 +109,14 @@
 - [ ] Proactive controls
 
 ### Block E — Production certification
-- [ ] Clean backend build/test after current recursive/evidence integration
-- [ ] Clean frontend build/test
+- [x] Clean backend build/test after current recursive/evidence/statistical integration
+- [x] Clean frontend build
 - [ ] Provider/database reconciliation
 - [ ] RLS/security certification
 - [ ] Sync/webhook durability certification
 - [ ] Plaid Sandbox lifecycle certification
 - [ ] Intelligence regression/sufficiency suite
-- [ ] Current Render verification
+- [x] Current Render verification for commit `5e55cca208cbe231edcc2d6117353f693ebcf189`
 - [x] Supabase migration 075 applied for raw financial run-evidence expansion
 - [ ] Current Supabase migration/runtime reconciliation with repository history
 - [ ] Full user journey certification
