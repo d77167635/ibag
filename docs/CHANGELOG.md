@@ -1,5 +1,15 @@
 # Iris Changelog
 
+## 2026-09-10
+
+- Corrected the durable Iris architecture so the deleted historical project is not treated as a product, foundation, or architectural source; the current product boundary is Iris, with Round-Ups remaining one feature within Iris.
+- Explicitly documented recursive Iris intelligence as an unbounded governed graph: defined top-level domains and capability families are not a maximum depth, and further evidence-supported reasoning may continue wherever it produces meaningful intelligence.
+- Added `074_complete_iris_capability_contract.sql`, extending the persisted capability contract with output contracts, lineage requirements, resource limits, and user-control semantics.
+- Applied migration `074_complete_iris_capability_contract` to the connected Supabase project and verified active capability contracts now contain all four governing dimensions.
+- Updated the capability planner to load and require the complete persisted contract rather than relying only on executable-code assumptions.
+- Updated independent capability certification to validate persisted output type/evidence-state policy, lineage requirements, resource limits, and user-control semantics in addition to existing evidence and integrity checks.
+- Preserved the rule that independent execution remains uncertified until a real end-to-end run against existing observed evidence verifies the complete persistence, validation, lineage, and certification boundary.
+
 ## 2026-09-09
 
 - Established repository-backed cross-session continuity.
