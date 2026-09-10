@@ -1,12 +1,16 @@
 import "dotenv/config";
 import type { Products } from "plaid";
 
+const isTest = process.env.NODE_ENV === "test";
+
 function required(key: string): string {
   const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
+  if (value) return value;
+  if (isTest) {
+    if (key === "SUPABASE_URL") return "https://test-only.invalid";
+    return "test-only-unconfigured";
   }
-  return value;
+  throw new Error(`Missing required environment variable: ${key}`);
 }
 
 const TRIAL_PRODUCTS = "auth,transactions,identity,assets,liabilities,investments,statements";
