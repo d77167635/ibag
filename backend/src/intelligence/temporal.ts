@@ -13,12 +13,12 @@ export interface WindowedFlow {
   economicTxCount: number;
 }
 
-/** LAYER 3 — every temporal window is anchored to the same certified evidence boundary. */
-export async function computeMultiWindowFlow(userId: string, windows: readonly WindowDays[] = STANDARD_WINDOWS_DAYS, asOf?: string | null): Promise<WindowedFlow[]> {
+/** LAYER 3 — every temporal window is anchored to the same certified evidence boundary and, when supplied, exact run evidence. */
+export async function computeMultiWindowFlow(userId: string, windows: readonly WindowDays[] = STANDARD_WINDOWS_DAYS, asOf?: string | null, runId?: string | null): Promise<WindowedFlow[]> {
   const widest = Math.max(...windows);
   const anchor = asOf ? new Date(asOf) : new Date();
   const cutoff = new Date(anchor.getTime() - widest * 86_400_000).toISOString().slice(0, 10);
-  const txs = await getCanonicalTransactions(userId, cutoff);
+  const txs = await getCanonicalTransactions(userId, cutoff, asOf ?? undefined, runId);
   return computeCanonicalWindowFlows(txs, windows, asOf ?? undefined) as WindowedFlow[];
 }
 
