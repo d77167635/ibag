@@ -11,6 +11,7 @@ export type LearningOperatorResult = {
   evidence_state: "INFERRED" | "INSUFFICIENT_EVIDENCE";
   validated_outcome_count: number;
   experience_count: number;
+  persisted_experience_count: number;
   experiences: Array<{ outcome_id: string; outcome_type: string; observed_at: string; rule_type: "validated_outcome_presence"; rule_key: string; input_fingerprint: string; learned_value: { observed: true }; evidence_hash: string }>;
   consumed_outcome_output_hash: string | null;
   output_hash: string;
@@ -44,7 +45,34 @@ export async function executeLearningOperator(userId: string, context?: Capabili
     };
   });
 
-  const payload = JSON.stringify({ userId, experiences, consumed_outcome_output_hash });
+  let persisted_experience_count = 0;
+  if (experiences.length) {
+    const payload = experiences.map(experience => ({
+      user_id: userId,
+      outcome_id: experience.outcome_id,
+      rule_type: experience.rule_type,
+      rule_key: experience.rule_key,
+      input_fingerprint: experience.input_fingerprint,
+      evidence_hash: experience.evidence_hash,
+      learning_state: "PROPOSED",
+      learned_value: experience.learned_value,
+      validation: {
+        source: "validated_outcome_observation",
+        outcome_id: experience.outcome_id,
+        evidence_bound: true,
+        upstream_outcome_output_hash: consumed_outcome_output_hash,
+        operator_version: LEARNING_OPERATOR_VERSION,
+      },
+    }));
+    const { data: persisted, error: persistError } = await supabaseAdmin
+      .from("iris_learning_experiences")
+      .upsert(payload, { onConflict: "user_id,rule_type,rule_key,input_fingerprint,evidence_hash", ignoreDuplicates: true })
+      .select("id");
+    if (persistError) throw new Error(`Learning experience persistence failed: ${persistError.message}`);
+    persisted_experience_count = persisted?.length ?? 0;
+  }
+
+  const outputPayload = { userId, experiences, consumed_outcome_output_hash, persisted_experience_count };
   return {
     capability_id: "learning",
     operator_id: "learning",
@@ -52,8 +80,9 @@ export async function executeLearningOperator(userId: string, context?: Capabili
     evidence_state: rows.length ? "INFERRED" : "INSUFFICIENT_EVIDENCE",
     validated_outcome_count: rows.length,
     experience_count: experiences.length,
+    persisted_experience_count,
     experiences,
     consumed_outcome_output_hash,
-    output_hash: crypto.createHash("sha256").update(payload).digest("hex"),
+    output_hash: crypto.createHash("sha256").update(JSON.stringify(outputPayload)).digest("hex"),
   };
 }
