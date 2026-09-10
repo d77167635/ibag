@@ -12,19 +12,36 @@ export type CanonicalTransaction = {
 const ECONOMIC_INFLOW = new Set(["income", "refund"]);
 const ECONOMIC_OUTFLOW = new Set(["purchase", "debt_payment", "fee"]);
 
-/** Canonical transactions are restricted to independently certified Items and, when supplied, an evidence acquisition boundary. */
-export async function getCanonicalTransactions(userId: string, since?: string, evidenceBoundary?: string | Date | null): Promise<CanonicalTransaction[]> {
+/** Canonical transactions are restricted to independently certified Items, the supplied acquisition boundary, and optionally the exact run-evidence manifest. */
+export async function getCanonicalTransactions(userId: string, since?: string, evidenceBoundary?: string | Date | null, runId?: string | null): Promise<CanonicalTransaction[]> {
   const itemIds = await getCertifiedCoreItemIds(userId);
   if (!itemIds.length) return [];
   const { data: accounts, error: accountError } = await supabaseAdmin.from("plaid_accounts").select("id").eq("user_id", userId).in("item_id", itemIds);
   if (accountError) throw accountError;
   const accountIds = (accounts ?? []).map((a: any) => a.id).filter(Boolean);
   if (!accountIds.length) return [];
+
+  let runRawObservationIds: string[] | null = null;
+  if (runId) {
+    const { data: runEvidence, error: runEvidenceError } = await supabaseAdmin
+      .from("iris_run_evidence")
+      .select("raw_observation_id,evidence_type")
+      .eq("run_id", runId)
+      .eq("user_id", userId)
+      .eq("provider", "plaid")
+      .eq("evidence_type", "provider_raw_observation")
+      .not("raw_observation_id", "is", null);
+    if (runEvidenceError) throw new Error(`RUN_EVIDENCE_RESOLUTION_FAILED: ${runEvidenceError.message}`);
+    runRawObservationIds = [...new Set((runEvidence ?? []).map((row: any) => row.raw_observation_id).filter((id: unknown): id is string => typeof id === "string"))];
+    if (!runRawObservationIds.length) return [];
+  }
+
   let query = supabaseAdmin.from("transactions")
-    .select("id, account_id, amount, posted_date, transaction_class, classification_evidence, plaid_category_primary, plaid_category_detailed, merchant_id, merchant_name, merchants(canonical_name), subdomains(key, label, domains(key, label)), plaid_raw_transactions!inner(acquired_at,is_current,evidence_state)")
+    .select("id, account_id, raw_transaction_id, amount, posted_date, transaction_class, classification_evidence, plaid_category_primary, plaid_category_detailed, merchant_id, merchant_name, merchants(canonical_name), subdomains(key, label, domains(key, label)), plaid_raw_transactions!inner(acquired_at,is_current,evidence_state)")
     .eq("user_id", userId).eq("is_active", true).eq("pending", false)
     .in("account_id", accountIds).in("classification_evidence", ["observed", "calculated"])
     .eq("plaid_raw_transactions.is_current", true).eq("plaid_raw_transactions.evidence_state", "observed");
+  if (runRawObservationIds) query = query.in("raw_transaction_id", runRawObservationIds);
   if (since) query = query.gte("posted_date", since);
   if (evidenceBoundary) {
     const boundary = new Date(evidenceBoundary);
