@@ -81,20 +81,17 @@ export async function computeRunBoundState(context: RunBoundStateContext) {
   const currentAvailable = checkingBalances.length ? checkingBalances.reduce((sum, row) => sum + Number(row.available), 0) : null;
 
   const forward = await computeRunBoundForwardProjection(context.userId, context.runId, 14, context.evidenceBoundary);
-  const upcomingBills = forward.recurring_series?.map((series) => ({
-    merchant: series.merchant,
-    amount: series.amount,
-    expectedDate: series.nextDate,
-  })) ?? [];
+  const recurringSeries = "recurring_series" in forward && Array.isArray(forward.recurring_series) ? forward.recurring_series : [];
+  const upcomingBills = recurringSeries.map((series) => ({ merchant: series.merchant, amount: series.amount, expectedDate: series.nextDate }));
   const safeToSpend = currentAvailable !== null && upcomingBills.length
     ? currentAvailable - upcomingBills.filter((bill) => bill.amount > 0).reduce((sum, bill) => sum + bill.amount, 0)
     : null;
 
   const balanceHistory = depository.length
-    ? reconstructHistory(depository.reduce((sum, row) => sum + Number(row.current), 0), transactions.filter((tx) => depository.some((row) => row.account_id === tx.account_id)), 90)
+    ? reconstructHistory(depository.reduce((sum, row) => sum + Number(row.current), 0), transactions.filter((tx) => depository.some((row) => row.account_id === tx.account_id)), 90, context.evidenceBoundary)
     : [];
   const debtHistory = credit.length
-    ? reconstructDebtHistory(credit.reduce((sum, row) => sum + Number(row.current), 0), transactions.filter((tx) => credit.some((row) => row.account_id === tx.account_id)), 30)
+    ? reconstructDebtHistory(credit.reduce((sum, row) => sum + Number(row.current), 0), transactions.filter((tx) => credit.some((row) => row.account_id === tx.account_id)), 30, context.evidenceBoundary)
     : [];
 
   const firstDebt = debtHistory[0]?.debt ?? null;
@@ -119,20 +116,22 @@ export async function computeRunBoundState(context: RunBoundStateContext) {
   };
 }
 
-function reconstructHistory(currentTotal: number, transactions: any[], days: number) {
+function reconstructHistory(currentTotal: number, transactions: any[], days: number, boundary: string) {
+  const anchor = new Date(boundary);
   const series: { date: string; liquidAssets: number }[] = [];
   for (let i = days; i >= 0; i--) {
-    const date = new Date(new Date().getTime() - i * 86_400_000).toISOString().slice(0, 10);
+    const date = new Date(anchor.getTime() - i * 86_400_000).toISOString().slice(0, 10);
     const after = transactions.filter((tx) => tx.posted_date > date).reduce((sum, tx) => sum + Number(tx.amount), 0);
     series.push({ date, liquidAssets: currentTotal + after });
   }
   return series;
 }
 
-function reconstructDebtHistory(currentTotal: number, transactions: any[], days: number) {
+function reconstructDebtHistory(currentTotal: number, transactions: any[], days: number, boundary: string) {
+  const anchor = new Date(boundary);
   const series: { date: string; debt: number }[] = [];
   for (let i = days; i >= 0; i--) {
-    const date = new Date(new Date().getTime() - i * 86_400_000).toISOString().slice(0, 10);
+    const date = new Date(anchor.getTime() - i * 86_400_000).toISOString().slice(0, 10);
     const after = transactions.filter((tx) => tx.posted_date > date).reduce((sum, tx) => sum + Number(tx.amount), 0);
     series.push({ date, debt: currentTotal - after });
   }
