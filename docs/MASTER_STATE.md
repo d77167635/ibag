@@ -5,7 +5,7 @@
 ## Current state
 - Product: **Iris**
 - Branch: `main`
-- Last verified application deployment: commit `5e55cca208cbe231edcc2d6117353f693ebcf189` is `live` on Render; documentation-only commits may subsequently be queued without changing the verified application code.
+- Last verified application deployment: the current recursive-synthesis code path is live on Render after the latest successful deployment; exact commit remains to be re-read from Render after the documentation queue settles.
 - Architecture: recursive financial-life intelligence with no artificial intelligence-depth ceiling
 - Data posture: evidence-gated; no fabricated/mock/seeded financial truth
 - Current operating scope: read-only intelligence; no money movement
@@ -36,6 +36,8 @@
 - Dependency-result propagation from persisted upstream execution outputs into downstream operator context is implemented; downstream capabilities record upstream execution identity/hash as inputs.
 - Maximum intelligence now consumes observed activity-day outflow history to establish a user-specific adaptive historical baseline using robust median/MAD dispersion; missing activity days are excluded rather than converted to zero observations.
 - Reusable robust statistical and adaptive-baseline primitives have regression coverage.
+- A governed recursive higher-order synthesis layer now consumes persisted capability dependency outputs, reconstructs their dependency graph, preserves output hashes and evidence states, identifies supported cross-capability chains/interactions, and exposes explicit evidence gaps without creating provider observations or financial values.
+- The emergent governed operator is now routed through that recursive synthesis layer rather than the prior isolated descriptive emergent calculation.
 - The compact recursive operator layer is not treated as the semantic ceiling; richer orchestration, composition, financial-state, decision, counterfactual, higher-order, and meta-intelligence modules remain part of the authoritative implementation surface and must be unified rather than duplicated.
 - Supabase schema inspection confirms the exact raw-balance/run-evidence fields required by the run-bound state path exist in the connected project.
 - The connected project currently has no `iris_run_evidence` rows, so real provider-evidence end-to-end certification remains pending rather than being inferred from empty state.
@@ -85,6 +87,7 @@
 - [x] Evidence-based review recommendations
 - [x] Honest insufficient-evidence outcome/learning states
 - [x] Higher-order descriptive synthesis
+- [x] Governed recursive dependency-output synthesis
 - [x] Robust statistical primitives
 - [x] User-specific adaptive activity-day outflow baseline
 - [ ] Unify named operator surfaces with the richer Iris intelligence engine
@@ -93,7 +96,7 @@
 - [ ] Risk/opportunity synthesis
 - [ ] Consequence analysis
 - [ ] Continuous/proactive recomputation
-- [ ] Recursive composition with no arbitrary semantic depth ceiling
+- [ ] Recursive composition certification across real provider evidence
 
 ### Block D — Intelligence experience
 - [ ] Authoritative Iris read model
@@ -116,7 +119,7 @@
 - [ ] Sync/webhook durability certification
 - [ ] Plaid Sandbox lifecycle certification
 - [ ] Intelligence regression/sufficiency suite
-- [x] Current Render verification for commit `5e55cca208cbe231edcc2d6117353f693ebcf189`
+- [ ] Current Render commit verification for the recursive-synthesis deployment after queue settlement
 - [x] Supabase migration 075 applied for raw financial run-evidence expansion
 - [ ] Current Supabase migration/runtime reconciliation with repository history
 - [ ] Full user journey certification
