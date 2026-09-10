@@ -47,7 +47,6 @@ export async function executeLearningOperator(userId: string, context?: Capabili
   });
 
   let persisted_experience_count = 0;
-  const experienceIds: string[] = [];
   if (experiences.length) {
     const payload = experiences.map(experience => ({
       user_id: userId,
@@ -66,23 +65,38 @@ export async function executeLearningOperator(userId: string, context?: Capabili
         operator_version: LEARNING_OPERATOR_VERSION,
       },
     }));
-    const { data: persisted, error: persistError } = await supabaseAdmin
+    const { error: persistError } = await supabaseAdmin
       .from("iris_learning_experiences")
-      .upsert(payload, { onConflict: "user_id,rule_type,rule_key,input_fingerprint,evidence_hash", ignoreDuplicates: true })
-      .select("id");
+      .upsert(payload, { onConflict: "user_id,rule_type,rule_key,input_fingerprint,evidence_hash", ignoreDuplicates: true });
     if (persistError) throw new Error(`Learning experience persistence failed: ${persistError.message}`);
-    for (const row of persisted ?? []) experienceIds.push(row.id);
-    persisted_experience_count = experienceIds.length;
   }
 
   let validated_experience_count = 0;
-  for (const experienceId of experienceIds) {
+  for (const experience of experiences) {
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("iris_learning_experiences")
+      .select("id,learning_state")
+      .eq("user_id", userId)
+      .eq("rule_type", experience.rule_type)
+      .eq("rule_key", experience.rule_key)
+      .eq("input_fingerprint", experience.input_fingerprint)
+      .eq("evidence_hash", experience.evidence_hash)
+      .maybeSingle();
+    if (existingError) throw new Error(`Learning experience lookup failed: ${existingError.message}`);
+    if (!existing?.id) continue;
+    if (existing.learning_state === "VALIDATED") {
+      validated_experience_count += 1;
+      continue;
+    }
+    if (existing.learning_state !== "PROPOSED") continue;
+
     const { data: validated, error: validationError } = await supabaseAdmin
-      .rpc("validate_iris_learning_experience", { p_experience_id: experienceId });
+      .rpc("validate_iris_learning_experience", { p_experience_id: existing.id });
     if (validationError) throw new Error(`Learning experience validation failed: ${validationError.message}`);
     if (validated === true) validated_experience_count += 1;
   }
 
+  const persisted_experience_count = experiences.length;
   const outputPayload = { userId, experiences, consumed_outcome_output_hash, persisted_experience_count, validated_experience_count };
   return {
     capability_id: "learning",
