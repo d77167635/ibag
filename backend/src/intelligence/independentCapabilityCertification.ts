@@ -63,17 +63,19 @@ export async function evaluateIndependentCapabilityCertification(input: {
 
   const boundary = run?.evidence_boundary ? new Date(run.evidence_boundary) : null;
   const validBoundary = !!boundary && Number.isFinite(boundary.getTime());
-  const runEvidence = (evidence ?? []).filter((entry) => entry.evidence_type === "provider_raw_observation" && entry.provider === "plaid");
-  const providerEvidencePresent = runEvidence.length > 0 && runEvidence.every((entry) => entry.user_id === userId && !!entry.raw_observation_id && !!entry.evidence_hash && entry.effective_at != null && entry.acquired_at != null && validBoundary && new Date(entry.acquired_at).getTime() <= boundary!.getTime());
-  const rawIds = sortedStrings(runEvidence.map((entry) => entry.raw_observation_id));
-  const runEvidenceRecordIds = sortedStrings(runEvidence.map((entry) => entry.id));
+  const providerEvidence = (evidence ?? []).filter((entry) => entry.provider === "plaid");
+  const providerEvidencePresent = providerEvidence.length > 0 && providerEvidence.every((entry) => entry.user_id === userId && !!entry.raw_observation_id && !!entry.evidence_hash && entry.effective_at != null && entry.acquired_at != null && validBoundary && new Date(entry.acquired_at).getTime() <= boundary!.getTime());
+  const rawIds = sortedStrings(providerEvidence.map((entry) => entry.raw_observation_id));
+  const runEvidenceRecordIds = sortedStrings(providerEvidence.map((entry) => entry.id));
+  const transactionRawIds = sortedStrings(providerEvidence.filter((entry) => entry.evidence_type === "provider_raw_transaction").map((entry) => entry.raw_observation_id));
   const persistedManifestIds = sortedStrings(objectValue(run?.execution_policy).run_evidence_ids);
-  check("run.evidence_manifest_identity", !!run?.evidence_manifest_hash && rawIds.length > 0 && persistedManifestIds.length > 0 && JSON.stringify(rawIds) === JSON.stringify(persistedManifestIds), "The run's persisted evidence identity matches the exact provider raw observations bound to the run.", "The run's persisted evidence identity does not match the provider raw observations available for certification.");
+  check("run.evidence_manifest_identity", !!run?.evidence_manifest_hash && rawIds.length > 0 && persistedManifestIds.length > 0 && JSON.stringify(rawIds) === JSON.stringify(persistedManifestIds), "The run's persisted evidence identity matches every typed provider raw observation bound to the run.", "The run's persisted evidence identity does not match the complete typed provider evidence manifest.");
 
-  const { data: lineage } = rawIds.length ? await supabaseAdmin.from("iris_data_lineage").select("id,user_id,source_id,evidence_state").eq("user_id", userId).in("source_id", rawIds.slice(0, 5000)).limit(5000) : { data: [] as Array<{ id: string; user_id: string; source_id: string; evidence_state: string }> };
+  const lineageSourceIds = sortedStrings(providerEvidence.filter((entry) => entry.evidence_type === "provider_raw_observation").map((entry) => entry.raw_observation_id));
+  const { data: lineage } = lineageSourceIds.length ? await supabaseAdmin.from("iris_data_lineage").select("id,user_id,source_id,evidence_state").eq("user_id", userId).in("source_id", lineageSourceIds.slice(0, 5000)).limit(5000) : { data: [] as Array<{ id: string; user_id: string; source_id: string; evidence_state: string }> };
 
   let canonicalQuery = supabaseAdmin.from("transactions").select("id,raw_transaction_id,plaid_raw_transactions!inner(acquired_at,is_current,evidence_state)", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true).eq("pending", false).in("classification_evidence", ["observed", "calculated"]).eq("plaid_raw_transactions.is_current", true).eq("plaid_raw_transactions.evidence_state", "observed");
-  if (rawIds.length) canonicalQuery = canonicalQuery.in("raw_transaction_id", rawIds.slice(0, 5000));
+  if (transactionRawIds.length) canonicalQuery = canonicalQuery.in("raw_transaction_id", transactionRawIds.slice(0, 5000));
   else canonicalQuery = canonicalQuery.in("raw_transaction_id", ["00000000-0000-0000-0000-000000000000"]);
   if (validBoundary) canonicalQuery = canonicalQuery.lte("plaid_raw_transactions.acquired_at", boundary!.toISOString());
   const { count: canonicalTransactionCount, error: canonicalError } = await canonicalQuery;
@@ -90,11 +92,11 @@ export async function evaluateIndependentCapabilityCertification(input: {
   check("contract.resource_limits", Object.keys(resourceLimits).length > 0, "Persisted contract declares execution resource limits.", "Persisted contract does not declare execution resource limits.");
   check("contract.user_control", Object.keys(userControl).length > 0, "Persisted contract declares user-control semantics.", "Persisted contract does not declare user-control semantics.");
   if (canonicalError) check("contract.canonical_financial_model", false, "Canonical financial model is readable.", `Canonical financial model could not be verified: ${canonicalError.message}`);
-  else if (requirements.includes("canonical_financial_model")) check("contract.canonical_financial_model", (canonicalTransactionCount ?? 0) > 0, "Persisted capability contract requires canonical financial evidence and it is present within the exact run evidence boundary.", "Persisted capability contract requires canonical financial evidence, but no qualifying exact-run canonical transactions are available.");
-  if (requirements.includes("authorized_plaid_evidence")) check("contract.authorized_plaid_evidence", providerEvidencePresent, "Persisted capability contract requires provider evidence and the run has dated, hashed, boundary-valid evidence.", "Persisted capability contract requires provider evidence, but the run does not contain qualifying boundary-valid provider observations.");
+  else if (requirements.includes("canonical_financial_model")) check("contract.canonical_financial_model", (canonicalTransactionCount ?? 0) > 0, "Persisted capability contract requires canonical financial evidence and it is present within the exact transaction evidence boundary.", "Persisted capability contract requires canonical financial evidence, but no qualifying exact-run canonical transactions are available.");
+  if (requirements.includes("authorized_plaid_evidence")) check("contract.authorized_plaid_evidence", providerEvidencePresent, "Persisted capability contract requires provider evidence and the run has dated, hashed, boundary-valid typed evidence.", "Persisted capability contract requires provider evidence, but the run does not contain qualifying boundary-valid provider evidence.");
   if (validationRules.includes("user_isolation")) check("contract.user_isolation", !!run && run.user_id === userId && !!execution && execution.user_id === userId && (evidence ?? []).every((entry) => entry.user_id === userId), "All certification inputs are constrained to the requested user.", "A certification input failed the persisted user-isolation rule.");
   if (validationRules.includes("lineage_present") || lineageRequirements.includes("source_lineage")) check("contract.lineage_present", (lineage?.length ?? 0) > 0 && lineage!.every((entry) => entry.user_id === userId), "Provider evidence has user-owned lineage.", "The persisted contract requires source lineage, but no user-owned provider lineage is attached to this execution.");
-  if (lineageRequirements.includes("run_evidence")) check("contract.run_evidence", providerEvidencePresent, "The persisted lineage contract is backed by dated run evidence within the run boundary.", "The persisted lineage contract requires run evidence, but the run evidence boundary is empty, incomplete, or contains post-boundary evidence.");
+  if (lineageRequirements.includes("run_evidence")) check("contract.run_evidence", providerEvidencePresent, "The persisted lineage contract is backed by dated typed run evidence within the run boundary.", "The persisted lineage contract requires run evidence, but the run evidence boundary is empty, incomplete, or contains post-boundary evidence.");
 
   const output = outputs?.find((entry) => entry.hash === outputHash);
   const allowedEvidenceStates = stringList(outputContract.evidence_state_policy);
@@ -108,7 +110,7 @@ export async function evaluateIndependentCapabilityCertification(input: {
   const outputRunId = typeof outputProvenance.run_id === "string" ? outputProvenance.run_id : null;
   const outputManifestHash = typeof outputProvenance.evidence_manifest_hash === "string" ? outputProvenance.evidence_manifest_hash : null;
   const outputEvidenceIds = sortedStrings(outputProvenance.run_evidence_ids);
-  check("output.run_evidence_provenance", !!run?.evidence_manifest_hash && outputRunId === runId && outputManifestHash === run.evidence_manifest_hash && JSON.stringify(outputEvidenceIds) === JSON.stringify(rawIds), "Capability output provenance identifies the exact Iris run and exact run-evidence manifest used for the output.", "Capability output provenance does not identify the exact Iris run and evidence manifest used for the output.");
+  check("output.run_evidence_provenance", !!run?.evidence_manifest_hash && outputRunId === runId && outputManifestHash === run.evidence_manifest_hash && JSON.stringify(outputEvidenceIds) === JSON.stringify(rawIds), "Capability output provenance identifies the exact Iris run and complete typed run-evidence manifest used for the output.", "Capability output provenance does not identify the exact Iris run and complete evidence manifest used for the output.");
 
   const usage = execution?.resource_usage as { duration_ms?: number } | null | undefined;
   const maxExecutionTime = typeof resourceLimits.max_execution_time_ms === "number" ? resourceLimits.max_execution_time_ms : null;
@@ -119,7 +121,7 @@ export async function evaluateIndependentCapabilityCertification(input: {
     status: failures.length === 0 ? "PASS" : "FAIL",
     critical_failures: failures,
     checks,
-    evidence_snapshot: { evidence_state: "CALCULATED", run_id: runId, execution_id: executionId, capability_id: contract.capability_id, contract_version: contract.version, operator_id: execution?.operator_id ?? null, operator_version: execution?.operator_version ?? null, evidence_count: runEvidence.length, run_evidence_record_ids: runEvidenceRecordIds, run_evidence_raw_observation_ids: rawIds, lineage_count: lineage?.length ?? 0, canonical_transaction_count: canonicalTransactionCount ?? 0, evidence_boundary: run?.evidence_boundary ?? null, evidence_manifest_hash: run?.evidence_manifest_hash ?? null },
+    evidence_snapshot: { evidence_state: "CALCULATED", run_id: runId, execution_id: executionId, capability_id: contract.capability_id, contract_version: contract.version, operator_id: execution?.operator_id ?? null, operator_version: execution?.operator_version ?? null, evidence_count: providerEvidence.length, run_evidence_record_ids: runEvidenceRecordIds, run_evidence_raw_observation_ids: rawIds, transaction_raw_observation_ids: transactionRawIds, lineage_count: lineage?.length ?? 0, canonical_transaction_count: canonicalTransactionCount ?? 0, evidence_boundary: run?.evidence_boundary ?? null, evidence_manifest_hash: run?.evidence_manifest_hash ?? null },
     reconciliation_snapshot: { status: failures.length === 0 ? "PASS" : "FAIL", scope: "independent_capability_evidence_lineage_contract", contract_version: contract.version, evidence_requirements: contract.evidence_requirements, validation_rules: contract.validation_rules, output_contract: contract.output_contract, lineage_requirements: contract.lineage_requirements, resource_limits: contract.resource_limits, user_control: contract.user_control, recursive: contract.recursive, cross_domain: contract.cross_domain },
   };
 }
