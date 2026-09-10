@@ -75,3 +75,17 @@ test("recursive synthesis exposes foundational life-state and higher-order risk 
   assert.ok(synthesis.higher_order_findings.some(f => f.id === "risk-opportunity-consequence-chain"));
   assert.ok(synthesis.higher_order_findings.some(f => f.capabilities.includes("consequence") && f.kind === "chain"));
 });
+
+test("generic recursive composition traverses beyond the former 32-level guard", () => {
+  const results: Record<string, CapabilityOperatorResult> = {};
+  const depth = 40;
+  for (let index = 0; index < depth; index += 1) {
+    const id = `layer_${index}`;
+    results[id] = result(id, "CALCULATED", index === 0 ? [] : [`layer_${index - 1}`]);
+  }
+
+  const synthesis = buildRecursiveIntelligenceSynthesis(results);
+
+  assert.equal(synthesis.composition_depth, depth);
+  assert.ok(synthesis.higher_order_findings.some(f => f.kind === "chain" && f.capabilities.length === depth));
+});
