@@ -44,9 +44,13 @@ test("recurrence intelligence identifies repeated intervals without calling them
   assert.equal(state.evidence_state, "calculated");
   assert.equal(state.candidate_count, 1);
   assert.equal(state.candidates[0]?.median_gap_days, 14);
+  assert.equal(state.candidates[0]?.first_observed_date, "2026-01-01");
+  assert.equal(state.candidates[0]?.last_observed_date, "2026-01-29");
+  assert.equal(state.candidates[0]?.modeled_next_date, "2026-02-12");
   assert.equal(state.candidates[0]?.transaction_class, "purchase");
   assert.equal(state.obligation_candidate_count, 1);
   assert.equal(state.obligation_candidates[0]?.candidate_strength, "high");
+  assert.equal(state.obligation_candidates[0]?.modeled_next_date, "2026-02-12");
   assert.match(state.obligation_candidates[0]?.interpretation ?? "", /not a verified bill/);
   assert.match(state.candidates[0]?.interpretation ?? "", /does not establish a contractual obligation/);
 });
