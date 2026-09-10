@@ -59,7 +59,8 @@ unifiedDashboardRouter.get("/dashboard/unified", requireAuth, async (req: Authed
         result: full,
       },
       publication: {
-        selected_capability_ids: publication.selected_capability_ids,
+        selected_report_ids: publication.selected_report_ids,
+        report_catalog: publication.report_catalog,
         feature_runtime: publication.feature_runtime,
         intelligence_output_runtime: publication.intelligence_output_runtime,
         publication_boundary: publication.publication_boundary,
