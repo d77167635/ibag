@@ -25,21 +25,24 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-/** Load the exact durable execution context for one execution record. */
-export async function loadCapabilityExecutionContext(userId: string, capabilityId: string, executionId: string): Promise<CapabilityExecutionContext> {
-  const { data: record, error: recordError } = await supabaseAdmin
+/** Load the durable execution context for the current capability. Prefer an exact execution id; the legacy fallback is only used by callers that have not yet supplied it. */
+export async function loadCapabilityExecutionContext(userId: string, capabilityId: string, executionId?: string): Promise<CapabilityExecutionContext> {
+  const query = supabaseAdmin
     .from("iris_execution_records")
     .select("id,run_id,capability_id,input_manifest,execution_state")
-    .eq("id", executionId)
     .eq("user_id", userId)
     .eq("capability_id", capabilityId)
-    .maybeSingle();
+    .eq("execution_state", "EXECUTING");
+  const { data: records, error: recordError } = executionId
+    ? await query.eq("id", executionId).limit(1)
+    : await query.order("started_at", { ascending: false }).limit(2);
 
   if (recordError) throw new Error(`CAPABILITY_CONTEXT_RECORD_READ_FAILED: ${recordError.message}`);
-  if (!record) throw new Error(`CAPABILITY_CONTEXT_MISSING: ${capabilityId}:${executionId}`);
-  if (record.execution_state !== "EXECUTING") throw new Error(`CAPABILITY_CONTEXT_NOT_EXECUTING: ${capabilityId}:${executionId}`);
+  if (!records?.length) throw new Error(`CAPABILITY_CONTEXT_MISSING: ${capabilityId}${executionId ? `:${executionId}` : ""}`);
+  if (!executionId && records.length > 1) throw new Error(`CAPABILITY_CONTEXT_AMBIGUOUS: ${capabilityId}`);
 
-  const manifest = (record.input_manifest ?? {}) as Record<string, unknown>;
+  const record = records[0] as { id: string; run_id: string; capability_id: string; input_manifest: Record<string, unknown>; execution_state: string };
+  const manifest = record.input_manifest ?? {};
   const dependencyIds = asStringArray(manifest.dependencies);
   const dependencyRefs = manifest.dependency_outputs && typeof manifest.dependency_outputs === "object"
     ? manifest.dependency_outputs as Record<string, { execution_id?: string; output_hash?: string } | null>
@@ -108,7 +111,7 @@ export async function loadCapabilityExecutionContext(userId: string, capabilityI
   return {
     userId,
     capabilityId,
-    executionId,
+    executionId: record.id,
     runId: record.run_id,
     evidenceBoundary: typeof manifest.as_of === "string" ? manifest.as_of : null,
     dependencyOutputs,
