@@ -83,9 +83,11 @@ export async function computeRunBoundState(context: RunBoundStateContext) {
   const forward = await computeRunBoundForwardProjection(context.userId, context.runId, 14, context.evidenceBoundary);
   const recurringSeries = "recurring_series" in forward && Array.isArray(forward.recurring_series) ? forward.recurring_series : [];
   const upcomingBills = recurringSeries.map((series) => ({ merchant: series.merchant, amount: series.amount, expectedDate: series.nextDate }));
-  const safeToSpend = currentAvailable !== null && upcomingBills.length
-    ? currentAvailable - upcomingBills.filter((bill) => bill.amount > 0).reduce((sum, bill) => sum + bill.amount, 0)
-    : null;
+
+  // Recurrence is not obligation evidence. Do not subtract every recurring
+  // candidate from available cash or label it essential without explicit
+  // obligation evidence. Safe-to-spend therefore remains unavailable here.
+  const safeToSpend = null;
 
   const balanceHistory = depository.length
     ? reconstructHistory(depository.reduce((sum, row) => sum + Number(row.current), 0), transactions.filter((tx) => depository.some((row) => row.account_id === tx.account_id)), 90, context.evidenceBoundary)
@@ -103,12 +105,14 @@ export async function computeRunBoundState(context: RunBoundStateContext) {
     cashFlowSafety: {
       safeToSpend,
       currentAvailable,
-      essentialBillsTotal: upcomingBills.reduce((sum, bill) => sum + bill.amount, 0),
+      essentialBillsTotal: null,
       upcomingBills,
       billCollisions: [],
       horizonDays: 14,
-      evidence_state: currentAvailable !== null && upcomingBills.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE",
-      limitation: upcomingBills.length ? "Upcoming obligations are recurrence candidates derived only from exact-run observed transactions; contractual obligation is not asserted." : "Exact-run evidence does not establish upcoming recurring obligations sufficient for a safe-to-spend calculation.",
+      evidence_state: "INSUFFICIENT_EVIDENCE" as const,
+      limitation: upcomingBills.length
+        ? "Exact-run evidence establishes recurring candidates, but does not establish which candidates are contractual or essential obligations; safe-to-spend is withheld."
+        : "Exact-run evidence does not establish upcoming recurring obligations sufficient for a safe-to-spend calculation.",
     },
     balanceHistory,
     debtTrend: { changePct: debtChangePct, series: debtHistory },
