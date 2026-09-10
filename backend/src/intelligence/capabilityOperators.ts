@@ -1,12 +1,9 @@
 /**
- * Capability catalog / operator readiness registry.
+ * Capability catalog / governed operator readiness registry.
  *
- * A persisted capability contract is not enough to make a capability executable.
- * "planned" means the capability has a defined implementation surface in the
- * repository but is not independently dispatchable through the governed
- * execution boundary. The governed aggregate operator (iris.full_intelligence)
- * is intentionally kept outside this catalog because it is dispatched directly
- * by irisExecution.ts as computeFullIntelligence.
+ * A capability is marked implemented only when a distinct runtime operator exists
+ * and the governed dispatcher can execute it without falling back to the
+ * monolithic aggregate operator.
  */
 export type CapabilityOperatorStatus = "implemented" | "planned";
 
@@ -19,12 +16,6 @@ export type CapabilityOperator = {
   evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE";
 };
 
-/**
- * These entries describe repository implementation surfaces, not independent
- * governed dispatchers. Until each capability is wired to a distinct operator
- * and runtime-proven, it must remain planned rather than being represented as
- * an independently executable capability.
- */
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   { capability_id: "temporal", operator_id: "temporal", version: "1.0.0", status: "planned", execution_stage: "multi_window_flow", evidence_state: "CALCULATED" },
   { capability_id: "analysis", operator_id: "analysis", version: "1.0.0", status: "planned", execution_stage: "canonical_semantic_analysis", evidence_state: "CALCULATED" },
@@ -37,9 +28,9 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   { capability_id: "scenario", operator_id: "scenario", version: "1.0.0", status: "planned", execution_stage: "counterfactual_analysis", evidence_state: "SCENARIO" },
   { capability_id: "decision", operator_id: "decision", version: "1.0.0", status: "planned", execution_stage: "decision_intelligence", evidence_state: "INFERRED" },
   { capability_id: "recommendation", operator_id: "recommendation", version: "1.0.0", status: "planned", execution_stage: "optimization_and_goals", evidence_state: "INFERRED" },
-  { capability_id: "outcome", operator_id: "outcome", version: "1.0.0", status: "planned", execution_stage: "durable_outcome_loop", evidence_state: "CALCULATED" },
-  { capability_id: "learning", operator_id: "learning", version: "1.0.0", status: "planned", execution_stage: "validated_outcome_learning", evidence_state: "INFERRED" },
-  { capability_id: "emergent", operator_id: "emergent", version: "1.0.0", status: "planned", execution_stage: "higher_order_discovery", evidence_state: "INFERRED" },
+  { capability_id: "outcome", operator_id: "outcome", version: "1.0.0", status: "implemented", execution_stage: "durable_outcome_loop", evidence_state: "CALCULATED" },
+  { capability_id: "learning", operator_id: "learning", version: "1.0.0", status: "implemented", execution_stage: "validated_outcome_learning", evidence_state: "INFERRED" },
+  { capability_id: "emergent", operator_id: "emergent", version: "1.0.0", status: "implemented", execution_stage: "higher_order_discovery", evidence_state: "INFERRED" },
 ];
 
 export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null {
