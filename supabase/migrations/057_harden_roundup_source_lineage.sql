@@ -50,10 +50,13 @@ begin
      and rt.plaid_transaction_id = p_provider_transaction_id
      and rt.is_current = true
      and rt.evidence_state = 'observed'
+    join public.plaid_accounts source_account
+      on source_account.id = rt.account_id
+     and source_account.item_id = s.item_id
+     and source_account.user_id = s.user_id
     where s.id = p_source_observation_id
       and s.user_id = p_user_id
       and s.product = 'transactions'
-      and s.item_id = rt.account_id::uuid
   ) then
     raise exception 'source observation does not prove the eligible provider transaction lineage';
   end if;
