@@ -76,7 +76,7 @@ export async function computeFullIntelligence(userId: string, context?: Capabili
     runBoundStatePromise.then(state => state?.debtTrend ?? computeDebtTrend(userId)),
     computeCanonicalAnomalies(userId, 30, effectiveBoundary, context?.runId ?? null, context?.asOf ?? null),
     forwardProjectionPromise,
-    computeDebtCostIntelligence(userId),
+    computeDebtCostIntelligence(userId, context?.runId ?? null),
     computeCategoryDrift(userId, 30, 90, effectiveBoundary, context?.runId ?? null),
     computeMultiWindowFlow(userId, undefined, effectiveBoundary, context?.runId ?? null),
     computeFinancialReasoning(userId, effectiveBoundary, context?.runId ?? null),
