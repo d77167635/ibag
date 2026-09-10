@@ -1,0 +1,159 @@
+import { createHash } from "node:crypto";
+import type { CapabilityExecutionContext, CapabilityOperatorResult, GovernedCapabilityResult } from "./capabilityOperators.js";
+
+type RecursiveNode = {
+  capability_id: string;
+  evidence_state: CapabilityOperatorResult["evidence_state"];
+  output_hash: string;
+  dependencies: string[];
+  depth: number;
+};
+
+export type RecursiveSynthesis = {
+  synthesis_version: "IRIS_RECURSIVE_SYNTHESIS_V1";
+  composition_depth: number;
+  dependency_count: number;
+  evidence_profile: {
+    calculated: number;
+    inferred: number;
+    predicted: number;
+    scenario: number;
+    insufficient_evidence: number;
+    complete: boolean;
+  };
+  recursive_nodes: RecursiveNode[];
+  higher_order_findings: Array<{
+    id: string;
+    kind: "interaction" | "chain" | "evidence_gap" | "cross_domain";
+    capabilities: string[];
+    statement: string;
+    evidence_states: string[];
+    limitation: string | null;
+  }>;
+  unresolved_evidence: string[];
+  provenance: {
+    source: "certified_capability_outputs";
+    provider_observations_created: false;
+    financial_values_created: false;
+    money_movement_executed: false;
+    run_id: string | null;
+    evidence_manifest_hash: string | null;
+    run_evidence_ids: string[];
+    evidence_boundary: string | null;
+  };
+};
+
+function hash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function resultDependencies(result: GovernedCapabilityResult): string[] {
+  const value = result.provenance;
+  if (!value || typeof value !== "object") return [];
+  const dependencyCapabilities = (value as { dependency_capabilities?: unknown }).dependency_capabilities;
+  if (!Array.isArray(dependencyCapabilities)) return [];
+  return dependencyCapabilities
+    .map(item => item && typeof item === "object" && typeof (item as { capability_id?: unknown }).capability_id === "string" ? (item as { capability_id: string }).capability_id : null)
+    .filter((item): item is string => Boolean(item));
+}
+
+function walk(results: Record<string, CapabilityOperatorResult>): RecursiveNode[] {
+  const nodes: RecursiveNode[] = [];
+  const seen = new Set<string>();
+  const visit = (capabilityId: string, result: CapabilityOperatorResult, depth: number) => {
+    const key = `${capabilityId}:${hash(result.result)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const dependencies = resultDependencies(result.result);
+    nodes.push({ capability_id: capabilityId, evidence_state: result.evidence_state, output_hash: hash(result.result), dependencies: [...new Set(dependencies)].sort(), depth });
+    for (const dependency of dependencies) {
+      const child = results[dependency];
+      if (child) visit(dependency, child, depth + 1);
+    }
+  };
+  for (const [capabilityId, result] of Object.entries(results).sort(([a], [b]) => a.localeCompare(b))) visit(capabilityId, result, 1);
+  return nodes.sort((a, b) => a.depth - b.depth || a.capability_id.localeCompare(b.capability_id));
+}
+
+function has(results: Record<string, CapabilityOperatorResult>, capabilityId: string, states?: CapabilityOperatorResult["evidence_state"][]) {
+  const result = results[capabilityId];
+  return Boolean(result && (!states || states.includes(result.evidence_state)));
+}
+
+/**
+ * Composes already-certified capability outputs into deeper intelligence.
+ * This layer creates no provider observations and never invents financial values.
+ * Recursion is bounded by execution resources outside this pure synthesis step,
+ * not by a semantic maximum hierarchy depth.
+ */
+export function buildRecursiveIntelligenceSynthesis(
+  results: Record<string, CapabilityOperatorResult>,
+  context?: CapabilityExecutionContext,
+): RecursiveSynthesis {
+  const nodes = walk(results);
+  const counts = {
+    calculated: nodes.filter(node => node.evidence_state === "CALCULATED").length,
+    inferred: nodes.filter(node => node.evidence_state === "INFERRED").length,
+    predicted: nodes.filter(node => node.evidence_state === "PREDICTED").length,
+    scenario: nodes.filter(node => node.evidence_state === "SCENARIO").length,
+    insufficient_evidence: nodes.filter(node => node.evidence_state === "INSUFFICIENT_EVIDENCE").length,
+  };
+  const findings: RecursiveSynthesis["higher_order_findings"] = [];
+  const add = (id: string, kind: RecursiveSynthesis["higher_order_findings"][number]["kind"], capabilities: string[], statement: string, limitation: string | null = null) => {
+    findings.push({ id, kind, capabilities, statement, evidence_states: capabilities.map(capability => results[capability]?.evidence_state ?? "INSUFFICIENT_EVIDENCE"), limitation });
+  };
+
+  if (has(results, "causal") && has(results, "relationship") && has(results, "causal", ["INFERRED"])) {
+    add("causal-relationship-chain", "chain", ["relationship", "causal"], "Observed relationships can be passed into observational causal-candidate analysis without converting association into causation.", "The causal capability remains observational and does not establish a causal effect.");
+  }
+  if (has(results, "behavioral") && has(results, "anomaly") && has(results, "anomaly", ["CALCULATED"])) {
+    add("behavior-anomaly-interaction", "interaction", ["behavioral", "anomaly"], "Behavioral concentration and transaction-level anomaly evidence can be jointly inspected to distinguish repeated activity from unusual activity.", "The interaction does not establish why an unusual transaction occurred.");
+  }
+  if (has(results, "predictive") && has(results, "scenario")) {
+    add("prediction-scenario-chain", "chain", ["predictive", "scenario"], "A constrained forward projection can serve as the baseline context for explicitly modeled counterfactual scenarios.", "Scenario results remain assumptions applied to evidence and are not forecasts of behavior change.");
+  }
+  if (has(results, "scenario") && has(results, "decision") && has(results, "decision", ["INFERRED"])) {
+    add("scenario-decision-chain", "chain", ["scenario", "decision"], "Scenario outputs can inform analytical decision options while keeping the decision separate from any executed action.", "No financial action is executed and the analytical option is not a guaranteed outcome.");
+  }
+  if (has(results, "decision") && has(results, "recommendation")) {
+    add("decision-recommendation-chain", "chain", ["decision", "recommendation"], "Decision alternatives can be transformed into user-reviewable recommendations while preserving the upstream analytical context.", "A recommendation is advisory and does not imply authorization or execution.");
+  }
+  if (has(results, "outcome") && has(results, "learning")) {
+    add("outcome-learning-chain", "chain", ["outcome", "learning"], "Validated outcomes are the required evidence bridge for future learning rather than inferred learning from activity alone.", "Current learning remains evidence-limited until durable observed outcomes exist.");
+  }
+  if (has(results, "temporal") && has(results, "analysis")) {
+    add("temporal-analysis-cross-domain", "cross_domain", ["temporal", "analysis"], "Temporal windows can be combined with canonical semantic analysis so changes are interpreted against the same evidence boundary.", "A temporal relationship does not by itself establish a cause.");
+  }
+  if (nodes.length >= 4) {
+    add("multi-capability-synthesis", "interaction", nodes.slice(0, Math.min(nodes.length, 8)).map(node => node.capability_id), "Multiple governed capability outputs are available as a recursively composable evidence graph rather than isolated analytical cards.", "Only capability outputs present in the current run can be composed; missing evidence remains explicit.");
+  }
+
+  const expected = ["temporal", "analysis", "behavioral", "pattern", "relationship", "anomaly", "causal", "predictive", "scenario", "decision", "recommendation", "outcome", "learning"];
+  for (const capability of expected) {
+    if (!results[capability] || results[capability].evidence_state === "INSUFFICIENT_EVIDENCE") {
+      findings.push({ id: `evidence-gap-${capability}`, kind: "evidence_gap", capabilities: [capability], statement: `${capability} cannot contribute a fully evidenced higher-order conclusion in this run until its required evidence is available.`, evidence_states: [results[capability]?.evidence_state ?? "INSUFFICIENT_EVIDENCE"], limitation: "Iris does not convert missing evidence into a zero, observed fact, or inferred conclusion." });
+    }
+  }
+
+  const evidenceStateOrder: CapabilityOperatorResult["evidence_state"][] = ["CALCULATED", "INFERRED", "PREDICTED", "SCENARIO", "INSUFFICIENT_EVIDENCE"];
+  const maxDepth = nodes.reduce((max, node) => Math.max(max, node.depth), 0);
+  return {
+    synthesis_version: "IRIS_RECURSIVE_SYNTHESIS_V1",
+    composition_depth: maxDepth,
+    dependency_count: nodes.length,
+    evidence_profile: { ...counts, complete: counts.insufficient_evidence === 0 && nodes.length > 0 },
+    recursive_nodes: nodes,
+    higher_order_findings: findings.sort((a, b) => a.id.localeCompare(b.id)).slice(0, 64),
+    unresolved_evidence: [...new Set(findings.filter(f => f.kind === "evidence_gap").map(f => f.statement))].slice(0, 32),
+    provenance: {
+      source: "certified_capability_outputs",
+      provider_observations_created: false,
+      financial_values_created: false,
+      money_movement_executed: false,
+      run_id: context?.runId ?? null,
+      evidence_manifest_hash: context?.evidenceManifestHash ?? null,
+      run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(),
+      evidence_boundary: context?.evidenceBoundary ?? context?.asOf ?? null,
+    },
+  };
+}
