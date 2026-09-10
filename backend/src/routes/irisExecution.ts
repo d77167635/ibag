@@ -7,7 +7,7 @@ export const irisExecutionRouter = Router();
 
 irisExecutionRouter.post("/iris/runs", requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const requestedCapabilities = Array.isArray(req.body?.requested_capabilities)
+    const requestedCapabilities: string[] | undefined = Array.isArray(req.body?.requested_capabilities)
       ? req.body.requested_capabilities.filter((x: unknown): x is string => typeof x === "string" && x.trim().length > 0)
       : undefined;
 
@@ -19,7 +19,9 @@ irisExecutionRouter.post("/iris/runs", requireAuth, async (req: AuthedRequest, r
       requestedCapabilities,
     };
 
-    const hasIndependentCapability = requestedCapabilities?.some(capability => capability !== "iris.full_intelligence") ?? false;
+    const hasIndependentCapability = requestedCapabilities?.some(
+      (capability: string) => capability !== "iris.full_intelligence",
+    ) ?? false;
     const run = hasIndependentCapability
       ? await executeIndependentCapabilities({ ...request, requestedCapabilities: requestedCapabilities! })
       : await executeIrisRun(request);
