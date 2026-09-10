@@ -1,6 +1,7 @@
 import { getCanonicalTransactions, isEconomicOutflow } from "./transactionSemantics.js";
+import { buildAdaptiveBaseline, isRobustOutlier, round } from "./statisticalPrimitives.js";
 
-export const IRIS_ANOMALY_INTELLIGENCE_V1 = "IRIS_ANOMALY_INTELLIGENCE_V1" as const;
+export const IRIS_ANOMALY_INTELLIGENCE_V2 = "IRIS_ANOMALY_INTELLIGENCE_V2" as const;
 
 export interface IrisAnomaly {
   merchant: string;
@@ -9,11 +10,13 @@ export interface IrisAnomaly {
   date: string;
   pctAboveTypical: number;
   evidence_state: "calculated";
-  rule: "merchant_relative_50_percent_above_historical_average";
+  rule: "merchant_relative_robust_mad";
   history_count: number;
+  modified_z: number | null;
+  baseline_status: "established" | "limited" | "insufficient_evidence";
 }
 
-/** Merchant-relative anomaly detection over canonical transactions. A supplied run ID makes the entire calculation exact-run bounded. */
+/** Merchant-relative robust anomaly detection over canonical transactions. A run ID makes the calculation exact-run bounded. */
 export async function computeCanonicalAnomalies(userId: string, windowDays = 30, evidenceBoundary?: string | null, runId?: string | null, asOf?: string | null): Promise<IrisAnomaly[]> {
   const anchor = asOf ? new Date(asOf) : evidenceBoundary ? new Date(evidenceBoundary) : new Date();
   const safeAnchor = Number.isFinite(anchor.getTime()) ? anchor : new Date();
@@ -35,12 +38,24 @@ export async function computeCanonicalAnomalies(userId: string, windowDays = 30,
 
   const anomalies: IrisAnomaly[] = [];
   for (const tx of recent) {
-    const baseline = (byMerchant.get(tx.merchant_id!) ?? []).filter(h => h.id !== tx.id && h.posted_date < tx.posted_date);
-    if (baseline.length < 2) continue;
-    const typicalAmount = baseline.reduce((sum, h) => sum + h.amount, 0) / baseline.length;
-    if (!Number.isFinite(tx.amount) || !Number.isFinite(typicalAmount) || typicalAmount <= 0) continue;
-    if (tx.amount < typicalAmount * 1.5) continue;
-    anomalies.push({ merchant: tx.merchant_name ?? "Unknown", amount: tx.amount, typicalAmount, date: tx.posted_date, pctAboveTypical: ((tx.amount - typicalAmount) / typicalAmount) * 100, evidence_state: "calculated", rule: "merchant_relative_50_percent_above_historical_average", history_count: baseline.length });
+    const baselineRows = (byMerchant.get(tx.merchant_id!) ?? []).filter(h => h.id !== tx.id && h.posted_date < tx.posted_date);
+    const baseline = buildAdaptiveBaseline(baselineRows.map(h => h.amount), null);
+    if (baseline.status !== "established" || baseline.center === null) continue;
+    if (!isRobustOutlier(tx.amount, baseline, 3.5)) continue;
+    const typicalAmount = baseline.center;
+    if (typicalAmount <= 0 || !Number.isFinite(tx.amount)) continue;
+    anomalies.push({
+      merchant: tx.merchant_name ?? "Unknown",
+      amount: round(tx.amount),
+      typicalAmount: round(typicalAmount),
+      date: tx.posted_date,
+      pctAboveTypical: round(((tx.amount - typicalAmount) / typicalAmount) * 100),
+      evidence_state: "calculated",
+      rule: "merchant_relative_robust_mad",
+      history_count: baseline.sampleSize,
+      modified_z: baseline.modifiedZ,
+      baseline_status: baseline.status,
+    });
   }
   return anomalies.sort((a, b) => b.date.localeCompare(a.date));
 }
