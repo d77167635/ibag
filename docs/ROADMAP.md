@@ -99,8 +99,8 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [x] Constrained forward projection foundation
 - [ ] Probabilistic forecasting
 - [ ] Uncertainty propagation across recursive outputs
-- [ ] Risk intelligence
-- [ ] Opportunity intelligence
+- [x] Risk intelligence foundation
+- [x] Opportunity intelligence foundation
 - [x] Scenario/counterfactual intelligence foundation
 - [x] Constraint-aware optimization foundation
 - [x] Decision intelligence foundation
@@ -160,7 +160,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [x] CI foundation
 - [x] Clean dependency-installed backend tests/build for the current evidence-bound temporal and adaptive-statistics block
 - [x] Clean frontend build for the current evidence-bound intelligence block
-- [ ] Verification of the newly changed behavioral/relational TypeScript build on the current commit
+- [ ] Verification of the newly changed higher-order TypeScript/test build on the current commit
 - [ ] Backend/frontend contract synchronization
 - [ ] Provider → database reconciliation
 - [ ] Evidence lineage verification
