@@ -1,44 +1,60 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCanonicalTransactions, isEconomicOutflow } from "./transactionSemantics.js";
 
+/**
+ * Forward projection whose entire input boundary is the current execution run.
+ * No later recurring-series state, balance state, or transaction observation is
+ * imported. Resource limits belong to the caller/certification contract; this
+ * function deliberately has no semantic depth ceiling.
+ */
 export async function computeRunBoundForwardProjection(userId: string, runId: string, days = 30, asOf?: string | Date | null) {
   const boundary = asOf ? new Date(asOf) : new Date();
   if (!Number.isFinite(boundary.getTime())) throw new Error("INVALID_EVIDENCE_BOUNDARY");
+  const horizonDays = Math.max(0, Math.floor(days));
 
   const { data: evidence, error: evidenceError } = await supabaseAdmin
     .from("iris_run_evidence")
-    .select("raw_observation_id,evidence_type,acquired_at,effective_at,evidence_hash")
+    .select("id,raw_observation_id,evidence_type,acquired_at,effective_at,evidence_hash")
     .eq("run_id", runId)
     .eq("user_id", userId)
-    .eq("provider", "plaid");
+    .eq("provider", "plaid")
+    .lte("acquired_at", boundary.toISOString());
   if (evidenceError) throw new Error(`RUN_PROJECTION_EVIDENCE_READ_FAILED: ${evidenceError.message}`);
 
-  const balanceIds = [...new Set((evidence ?? []).filter((e) => e.evidence_type === "provider_raw_balance").map((e) => e.raw_observation_id).filter((id): id is string => typeof id === "string"))];
+  const balanceEvidence = (evidence ?? []).filter((e) => e.evidence_type === "provider_raw_balance" && typeof e.raw_observation_id === "string");
   const transactionEvidenceIds = [...new Set((evidence ?? []).filter((e) => e.evidence_type === "provider_raw_transaction").map((e) => e.raw_observation_id).filter((id): id is string => typeof id === "string"))];
-  if (!balanceIds.length || !transactionEvidenceIds.length) {
+  if (!balanceEvidence.length || !transactionEvidenceIds.length) {
     return { series: [], projectedLiquidPosition: null, basis: "exact_run_evidence_missing_balance_or_transactions", evidence_state: "insufficient_evidence" as const, limitations: ["An exact-run projection requires both observed Balance evidence and observed transaction evidence."] };
   }
 
+  const balanceIds = [...new Set(balanceEvidence.map((e) => e.raw_observation_id).filter((id): id is string => typeof id === "string"))];
   const { data: balances, error: balanceError } = await supabaseAdmin
     .from("plaid_raw_balances")
     .select("id,account_id,raw_response,effective_at,acquired_at,evidence_state,is_current")
     .eq("user_id", userId)
     .in("id", balanceIds)
-    .eq("is_current", true)
     .eq("evidence_state", "observed")
     .lte("acquired_at", boundary.toISOString());
   if (balanceError) throw new Error(`RUN_PROJECTION_BALANCE_READ_FAILED: ${balanceError.message}`);
 
-  const balanceRows = (balances ?? []).map((row: any) => {
+  // A historical run may contain a balance that is no longer current. Select
+  // the latest usable observed balance per account inside the exact run.
+  const latestByAccount = new Map<string, any>();
+  for (const row of balances ?? []) {
     const response = row.raw_response && typeof row.raw_response === "object" ? row.raw_response : {};
-    const available = response.available ?? response.balances?.available;
-    return { ...row, available: Number(available) };
-  }).filter((row: any) => Number.isFinite(row.available));
+    const available = Number(response.available ?? response.balances?.available);
+    if (!Number.isFinite(available) || !row.account_id) continue;
+    const prior = latestByAccount.get(row.account_id);
+    const rowTime = new Date(row.effective_at ?? row.acquired_at ?? 0).getTime();
+    const priorTime = prior ? new Date(prior.effective_at ?? prior.acquired_at ?? 0).getTime() : -Infinity;
+    if (!prior || rowTime > priorTime) latestByAccount.set(row.account_id, { ...row, available });
+  }
+  const balanceRows = [...latestByAccount.values()];
   if (!balanceRows.length) {
     return { series: [], projectedLiquidPosition: null, basis: "exact_run_balance_not_numerically_observed", evidence_state: "insufficient_evidence" as const, limitations: ["The exact run contains Balance evidence, but no usable observed available balance was found."] };
   }
 
-  const accounts = [...new Set(balanceRows.map((row: any) => row.account_id).filter(Boolean))];
+  const accounts = balanceRows.map((row) => row.account_id);
   const { data: accountRows, error: accountError } = await supabaseAdmin
     .from("plaid_accounts")
     .select("id,type,subtype")
@@ -46,7 +62,7 @@ export async function computeRunBoundForwardProjection(userId: string, runId: st
     .in("id", accounts);
   if (accountError) throw new Error(`RUN_PROJECTION_ACCOUNT_READ_FAILED: ${accountError.message}`);
   const checkingIds = new Set((accountRows ?? []).filter((a: any) => a.type === "depository" && a.subtype === "checking").map((a: any) => a.id));
-  const checkingBalances = balanceRows.filter((row: any) => checkingIds.has(row.account_id));
+  const checkingBalances = balanceRows.filter((row) => checkingIds.has(row.account_id));
   if (!checkingBalances.length) {
     return { series: [], projectedLiquidPosition: null, basis: "exact_run_has_no_checking_balance", evidence_state: "insufficient_evidence" as const, limitations: ["The exact run does not contain an observed checking balance suitable for the forward projection."] };
   }
@@ -74,19 +90,24 @@ export async function computeRunBoundForwardProjection(userId: string, runId: st
       if (Number.isFinite(gap) && gap > 0) gaps.push(gap);
     }
     if (!gaps.length) continue;
-    const averageGapDays = gaps.reduce((sum, value) => sum + value, 0) / gaps.length;
-    if (averageGapDays < 5 || averageGapDays > 45) continue;
+    const sortedGaps = [...gaps].sort((a, b) => a - b);
+    const mid = Math.floor(sortedGaps.length / 2);
+    const medianGapDays = sortedGaps.length % 2 ? sortedGaps[mid] : (sortedGaps[mid - 1] + sortedGaps[mid]) / 2;
+    if (medianGapDays < 5 || medianGapDays > 45) continue;
     const amounts = ordered.map((tx) => tx.amount).filter(Number.isFinite);
-    const amount = amounts.reduce((sum, value) => sum + value, 0) / amounts.length;
+    if (!amounts.length) continue;
+    const sortedAmounts = [...amounts].sort((a, b) => a - b);
+    const amountMid = Math.floor(sortedAmounts.length / 2);
+    const amount = sortedAmounts.length % 2 ? sortedAmounts[amountMid] : (sortedAmounts[amountMid - 1] + sortedAmounts[amountMid]) / 2;
     const last = ordered[ordered.length - 1];
-    const next = new Date(new Date(last.posted_date).getTime() + averageGapDays * 86_400_000);
+    const next = new Date(new Date(last.posted_date).getTime() + medianGapDays * 86_400_000);
     if (next <= boundary) continue;
-    recurring.push({ merchant: last.merchant_name ?? "Observed recurring outflow", amount, nextDate: next.toISOString().slice(0, 10), occurrences: ordered.length, averageGapDays });
+    recurring.push({ merchant: last.merchant_name ?? "Observed recurring outflow", amount, nextDate: next.toISOString().slice(0, 10), occurrences: ordered.length, averageGapDays: medianGapDays });
   }
 
   const projected: { date: string; balance: number; event: string | null }[] = [];
   let balance = startBalance;
-  for (let i = 0; i <= days; i++) {
+  for (let i = 0; i <= horizonDays; i++) {
     const date = new Date(boundary.getTime() + i * 86_400_000).toISOString().slice(0, 10);
     const due = recurring.filter((item) => item.nextDate === date);
     let event: string | null = null;
@@ -101,12 +122,12 @@ export async function computeRunBoundForwardProjection(userId: string, runId: st
     series: projected,
     projectedLiquidPosition: projected.at(-1)?.balance ?? null,
     basis: "exact_run_observed_checking_balance_plus_recurring_patterns_derived_from_exact_run_transactions",
-    evidence_state: recurring.length ? "calculated" as const : "limited" as const,
+    evidence_state: recurring.length ? "PREDICTED" as const : "INSUFFICIENT_EVIDENCE" as const,
     recurring_series_count: recurring.length,
     recurring_series: recurring,
     transaction_evidence_count: transactions.length,
     balance_evidence_count: checkingBalances.length,
-    horizon_days: days,
+    horizon_days: horizonDays,
     limitations: ["Recurring events are derived only from repeated outflows observed inside this exact run; no external recurring-series state is imported.", "The projection does not model unobserved future income or discretionary spending."]
   };
 }
