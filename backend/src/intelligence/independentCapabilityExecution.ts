@@ -17,15 +17,16 @@ async function persistRunEvidence(runId: string, userId: string, selectedItemId:
   if (selectedItemId) evidenceQuery = evidenceQuery.eq("item_id", selectedItemId);
   const { data: rawEvidence, error: evidenceReadError } = await evidenceQuery;
   if (evidenceReadError) throw new Error(`RUN_EVIDENCE_READ_FAILED: ${evidenceReadError.message}`);
-  if (!rawEvidence?.length) return 0;
-  const { data: existingEvidence, error: existingError } = await supabaseAdmin.from("iris_run_evidence").select("raw_observation_id").eq("run_id", runId).eq("user_id", userId);
+  const { data: existingEvidence, error: existingError } = await supabaseAdmin.from("iris_run_evidence").select("raw_observation_id,evidence_hash,effective_at,acquired_at,product").eq("run_id", runId).eq("user_id", userId);
   if (existingError) throw new Error(`RUN_EVIDENCE_EXISTING_READ_FAILED: ${existingError.message}`);
   const existingIds = new Set((existingEvidence ?? []).map((row) => row.raw_observation_id).filter((id): id is string => typeof id === "string"));
-  const rows = rawEvidence.filter((e) => !existingIds.has(e.id)).map((e) => ({ run_id: runId, user_id: userId, evidence_type: "provider_raw_observation", provider: "plaid", product: e.product, raw_observation_id: e.id, effective_at: e.effective_at ?? e.acquired_at, acquired_at: e.acquired_at, evidence_hash: hash(e.raw_response) }));
-  if (!rows.length) return existingIds.size;
-  const { error: evidenceInsertError } = await supabaseAdmin.from("iris_run_evidence").insert(rows);
-  if (evidenceInsertError) throw new Error(`RUN_EVIDENCE_PERSIST_FAILED: ${evidenceInsertError.message}`);
-  return existingIds.size + rows.length;
+  const rows = (rawEvidence ?? []).filter((e) => !existingIds.has(e.id)).map((e) => ({ run_id: runId, user_id: userId, evidence_type: "provider_raw_observation", provider: "plaid", product: e.product, raw_observation_id: e.id, effective_at: e.effective_at ?? e.acquired_at, acquired_at: e.acquired_at, evidence_hash: hash(e.raw_response) }));
+  if (rows.length) {
+    const { error: evidenceInsertError } = await supabaseAdmin.from("iris_run_evidence").insert(rows);
+    if (evidenceInsertError) throw new Error(`RUN_EVIDENCE_PERSIST_FAILED: ${evidenceInsertError.message}`);
+  }
+  const allEvidence = [...(existingEvidence ?? []), ...rows];
+  return { count: allEvidence.length, manifest: allEvidence.map((e) => ({ raw_observation_id: e.raw_observation_id, product: e.product, effective_at: e.effective_at, acquired_at: e.acquired_at, evidence_hash: e.evidence_hash })).sort((a, b) => String(a.raw_observation_id).localeCompare(String(b.raw_observation_id))) };
 }
 
 export async function executeIndependentCapabilities(request: { userId: string; requestId?: string; surface?: string; mode?: string; requestedCapabilities: string[] }) {
@@ -52,8 +53,12 @@ export async function executeIndependentCapabilities(request: { userId: string; 
   const results: Array<Record<string, unknown>> = [];
   let allCertified = true;
   const dependencyResults: Record<string, CapabilityOperatorResult> = {};
+  let evidenceManifestHash = hash(initialManifest);
   try {
-    await persistRunEvidence(run.id, userId, selectedItemId);
+    const persistedEvidence = await persistRunEvidence(run.id, userId, selectedItemId);
+    evidenceManifestHash = hash({ run_id: run.id, ...initialManifest, evidence: persistedEvidence.manifest });
+    const { error: manifestUpdateError } = await supabaseAdmin.from("iris_runs").update({ evidence_manifest_hash: evidenceManifestHash, execution_policy: { ...(run.execution_policy ?? {}), evidence_count: persistedEvidence.count, evidence_manifest_bound: true }, updated_at: new Date().toISOString() }).eq("id", run.id).eq("user_id", userId);
+    if (manifestUpdateError) throw new Error(`RUN_EVIDENCE_MANIFEST_UPDATE_FAILED: ${manifestUpdateError.message}`);
     const executionOrder = plan.ordered_capabilities;
     if (!executionOrder.length) throw new Error("CAPABILITY_PLAN_EMPTY: no requested capability was executable in the planned order");
     for (const capabilityId of executionOrder) {
@@ -64,7 +69,7 @@ export async function executeIndependentCapabilities(request: { userId: string; 
       const declaredDependencies = Array.isArray((contract as Record<string, unknown>).dependencies) ? ((contract as Record<string, unknown>).dependencies as unknown[]).filter((x): x is string => typeof x === "string") : [];
       const resolvedDependencies = declaredDependencies.map((id) => ({ capability_id: id, output_hash: dependencyResults[id] ? hash(dependencyResults[id].result) : null, evidence_state: dependencyResults[id]?.evidence_state ?? null }));
       const executionStarted = new Date().toISOString();
-      const executionManifest = { ...initialManifest, capability_id: capabilityId, contract, operator_id: operator.operator_id, operator_version: operator.version, execution_context: { as_of: asOf, evidence_boundary: asOf, dependencies: resolvedDependencies } };
+      const executionManifest = { ...initialManifest, evidence_manifest_hash: evidenceManifestHash, capability_id: capabilityId, contract, operator_id: operator.operator_id, operator_version: operator.version, execution_context: { as_of: asOf, evidence_boundary: asOf, run_id: run.id, evidence_manifest_hash: evidenceManifestHash, dependencies: resolvedDependencies } };
       const executionInputHash = hash(executionManifest);
       const { data: execution, error: executionError } = await supabaseAdmin.from("iris_execution_records").insert({ run_id: run.id, user_id: userId, capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, execution_state: "EXECUTING", started_at: executionStarted, evidence_state: "CALCULATED", validation_status: "UNKNOWN", certification_status: "PENDING", input_manifest: executionManifest }).select("*").single();
       if (executionError || !execution) throw new Error(`EXECUTION_RECORD_CREATE_FAILED: ${executionError?.message || "unknown error"}`);
@@ -74,26 +79,27 @@ export async function executeIndependentCapabilities(request: { userId: string; 
           const upstream = dependencyResults[dependencyId];
           if (!upstream) throw new Error(`DEPENDENCY_OUTPUT_UNAVAILABLE: ${capabilityId} requires ${dependencyId}`);
           const upstreamExecutionId = results.find((x) => x.capability_id === dependencyId)?.execution_id;
-          inputRows.push({ execution_id: execution.id, input_type: "dependency_output", reference_type: "iris_execution", reference_id: upstreamExecutionId ?? null, role: "dependency", hash: hash(upstream.result) });
+          if (typeof upstreamExecutionId !== "string") throw new Error(`DEPENDENCY_EXECUTION_REFERENCE_UNAVAILABLE: ${capabilityId} requires ${dependencyId}`);
+          inputRows.push({ execution_id: execution.id, input_type: "dependency_output", reference_type: "iris_execution", reference_id: upstreamExecutionId, role: "dependency", hash: hash(upstream.result) });
         }
         const { error: inputError } = await supabaseAdmin.from("iris_execution_inputs").insert(inputRows);
         if (inputError) throw new Error(`EXECUTION_INPUT_PERSIST_FAILED: ${inputError.message}`);
-        const dispatched = await dispatchGovernedCapability({ userId, capabilityId, context: { asOf, evidenceBoundary: asOf, dependencyResults } });
+        const dispatched = await dispatchGovernedCapability({ userId, capabilityId, context: { asOf, evidenceBoundary: asOf, runId: run.id, evidenceManifestHash, dependencyResults } });
         const result = dispatched.result;
         const outputHash = hash(result);
         const finishedAt = new Date().toISOString();
         const { error: outputError } = await supabaseAdmin.from("iris_execution_outputs").insert({ execution_id: execution.id, output_key: capabilityId, output_type: contract.output_type, value: result, hash: outputHash, evidence_state: dispatched.evidence_state, uncertainty: result.uncertainty ?? null });
         if (outputError) throw new Error(`EXECUTION_OUTPUT_PERSIST_FAILED: ${outputError.message}`);
         const durationMs = Date.parse(finishedAt) - Date.parse(executionStarted);
-        const { error: executionUpdateError } = await supabaseAdmin.from("iris_execution_records").update({ execution_state: "EXECUTED", completed_at: finishedAt, input_hash: executionInputHash, output_hash: outputHash, output_snapshot: { output_key: capabilityId, output_hash: outputHash, evidence_scope: evidenceScope, dispatched_capability: dispatched.capability_id, dispatched_operator: dispatched.operator_id, dispatched_operator_version: dispatched.operator_version, dependency_capabilities: declaredDependencies }, resource_usage: { duration_ms: durationMs } }).eq("id", execution.id).eq("user_id", userId);
+        const { error: executionUpdateError } = await supabaseAdmin.from("iris_execution_records").update({ execution_state: "EXECUTED", completed_at: finishedAt, input_hash: executionInputHash, output_hash: outputHash, output_snapshot: { output_key: capabilityId, output_hash: outputHash, evidence_scope: evidenceScope, dispatched_capability: dispatched.capability_id, dispatched_operator: dispatched.operator_id, dispatched_operator_version: dispatched.operator_version, dependency_capabilities: declaredDependencies, run_id: run.id, evidence_manifest_hash: evidenceManifestHash }, resource_usage: { duration_ms: durationMs } }).eq("id", execution.id).eq("user_id", userId);
         if (executionUpdateError) throw new Error(`EXECUTION_RECORD_FINALIZE_FAILED: ${executionUpdateError.message}`);
         const gate = await evaluateIndependentCapabilityCertification({ runId: run.id, executionId: execution.id, userId, inputHash: executionInputHash, outputHash, contract });
         const validationRows = Object.entries(gate.checks).map(([ruleId, gateCheck]) => ({ run_id: run.id, execution_id: execution.id, user_id: userId, rule_id: ruleId, rule_version: contract.version, status: gateCheck.status, severity: gateCheck.status === "PASS" ? "INFO" : "CRITICAL", expected: { status: "PASS" }, actual: { status: gateCheck.status }, details: { message: gateCheck.details, gate_version: CERTIFICATION_POLICY_VERSION, capability_id: capabilityId, contract_version: contract.version } }));
         const { error: validationError } = await supabaseAdmin.from("iris_validation_results").insert(validationRows);
         if (validationError) throw new Error(`VALIDATION_PERSIST_FAILED: ${validationError.message}`);
         if (gate.eligible) {
-          const certificationHash = hash({ run_id: run.id, execution_id: execution.id, input_hash: executionInputHash, output_hash: outputHash, policy: CERTIFICATION_POLICY_VERSION, capability_id: capabilityId, contract_version: contract.version, evidence: gate.evidence_snapshot });
-          const { error: certificationError } = await supabaseAdmin.rpc("finalize_iris_capability_certification", { p_run_id: run.id, p_execution_id: execution.id, p_user_id: userId, p_policy_version: CERTIFICATION_POLICY_VERSION, p_validation_snapshot: { status: "PASS", checks: gate.checks, contract_version: contract.version }, p_reconciliation_snapshot: gate.reconciliation_snapshot, p_evidence_snapshot: gate.evidence_snapshot, p_certification_hash: certificationHash, p_certified_at: new Date().toISOString() });
+          const certificationHash = hash({ run_id: run.id, execution_id: execution.id, input_hash: executionInputHash, output_hash: outputHash, policy: CERTIFICATION_POLICY_VERSION, capability_id: capabilityId, contract_version: contract.version, evidence: gate.evidence_snapshot, evidence_manifest_hash: evidenceManifestHash });
+          const { error: certificationError } = await supabaseAdmin.rpc("finalize_iris_capability_certification", { p_run_id: run.id, p_execution_id: execution.id, p_user_id: userId, p_policy_version: CERTIFICATION_POLICY_VERSION, p_validation_snapshot: { status: "PASS", checks: gate.checks, contract_version: contract.version, evidence_manifest_hash: evidenceManifestHash }, p_reconciliation_snapshot: gate.reconciliation_snapshot, p_evidence_snapshot: { ...gate.evidence_snapshot, evidence_manifest_hash: evidenceManifestHash }, p_certification_hash: certificationHash, p_certified_at: new Date().toISOString() });
           if (certificationError) throw new Error(`CERTIFICATION_FINALIZE_FAILED: ${certificationError.message}`);
           results.push({ capability_id: capabilityId, execution_id: execution.id, result, certified: true, certification_gate: gate });
         } else {
@@ -114,7 +120,7 @@ export async function executeIndependentCapabilities(request: { userId: string; 
     const now = new Date().toISOString();
     const { error: runFinalizeError } = await supabaseAdmin.from("iris_runs").update({ status: finalStatus, completed_at: now, updated_at: now }).eq("id", run.id).eq("user_id", userId);
     if (runFinalizeError) throw new Error(`IRIS_RUN_FINALIZE_FAILED: ${runFinalizeError.message}`);
-    return { ...run, id: run.id, status: finalStatus, execution_ids: results.map((x) => x.execution_id), results, certified: allCertified };
+    return { ...run, id: run.id, status: finalStatus, evidence_manifest_hash: evidenceManifestHash, execution_ids: results.map((x) => x.execution_id), results, certified: allCertified };
   } catch (error) {
     const now = new Date().toISOString();
     await supabaseAdmin.from("iris_runs").update({ status: "FAILED", failure_code: "INTELLIGENCE_EXECUTION_FAILED", failure_message: errorText(error), completed_at: now, updated_at: now }).eq("id", run.id).eq("user_id", userId);
