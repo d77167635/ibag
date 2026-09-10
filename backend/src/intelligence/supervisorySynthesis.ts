@@ -97,6 +97,14 @@ export function buildSupervisoryAggregate(
   const learning = childResult(dependencyOutputs, "learning");
   const emergent = childResult(dependencyOutputs, "emergent");
   const analysisState = analysis ?? {};
+  const netWorth = analysisState.net_worth ?? null;
+  const debtHealth = analysisState.debt_health ?? null;
+  const cashFlow = analysisState.economic_cash_flow ?? null;
+  const cashFlowSafety = analysisState.cash_flow_safety ?? null;
+  const spendingHierarchy = analysisState.spending_hierarchy ?? null;
+  const categoryDrift = behavioral?.category_drift ?? [];
+  const anomalies = anomaly?.anomalies ?? [];
+  const forwardProjection = predictive ?? null;
 
   return {
     evidence_state: graphSynthesis.evidence_state,
@@ -105,16 +113,26 @@ export function buildSupervisoryAggregate(
     narrative: null,
     feature_flags: null,
     integrity: { status: graphSynthesis.graph_complete ? "GRAPH_COMPLETE" : "INSUFFICIENT_EVIDENCE" },
+    net_worth: netWorth,
+    debt_health: debtHealth,
+    cash_flow_safety: cashFlowSafety,
+    cash_flow: cashFlow,
+    spending_hierarchy: spendingHierarchy,
+    category_drift: categoryDrift,
+    anomalies,
+    forward_projection: forwardProjection,
+    roundup_projection: null,
+    reasoning: relationship,
     layer_metrics: {
-      net_worth: analysisState.net_worth ?? null,
-      debt_health: analysisState.debt_health ?? null,
-      cash_flow_safety: analysisState.cash_flow_safety ?? null,
-      cash_flow: analysisState.economic_cash_flow ?? null,
-      spending_hierarchy: analysisState.spending_hierarchy ?? null,
+      net_worth: netWorth,
+      debt_health: debtHealth,
+      cash_flow_safety: cashFlowSafety,
+      cash_flow: cashFlow,
+      spending_hierarchy: spendingHierarchy,
       balance_history: null,
       roundup_projection: null,
-      forward_projection: predictive,
-      anomalies: anomaly?.anomalies ?? null,
+      forward_projection: forwardProjection,
+      anomalies,
       provider_domains: selectedItemId ? { selected_item_id: selectedItemId } : null,
     },
     layer_temporal: temporal,
