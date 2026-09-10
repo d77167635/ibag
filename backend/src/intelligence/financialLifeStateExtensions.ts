@@ -29,10 +29,25 @@ export type RecurrenceCandidate = {
   interpretation: string;
 };
 
+export type ObligationCandidate = {
+  key: string;
+  merchant: string | null;
+  transaction_class: "purchase" | "debt_payment";
+  occurrences: number;
+  median_amount: number;
+  median_gap_days: number;
+  regularity: "high" | "moderate" | "limited";
+  candidate_strength: "high" | "moderate" | "limited";
+  evidence: "calculated";
+  interpretation: string;
+};
+
 export type RecurrenceIntelligence = {
   evidence_state: "calculated" | "insufficient_evidence";
   candidate_count: number;
   candidates: RecurrenceCandidate[];
+  obligation_candidate_count: number;
+  obligation_candidates: ObligationCandidate[];
   limitation: string | null;
 };
 
@@ -146,10 +161,29 @@ export function buildRecurrenceIntelligence(transactions: CanonicalTransaction[]
   }
 
   candidates.sort((a, b) => b.occurrences - a.occurrences || (b.median_amount - a.median_amount));
+
+  const obligationCandidates: ObligationCandidate[] = candidates
+    .filter((candidate): candidate is RecurrenceCandidate & { transaction_class: "purchase" | "debt_payment" } => candidate.transaction_class === "purchase" || candidate.transaction_class === "debt_payment")
+    .map(candidate => ({
+      key: candidate.key,
+      merchant: candidate.merchant,
+      transaction_class: candidate.transaction_class,
+      occurrences: candidate.occurrences,
+      median_amount: candidate.median_amount,
+      median_gap_days: candidate.median_gap_days ?? 0,
+      regularity: candidate.regularity,
+      candidate_strength: candidate.regularity,
+      evidence: "calculated",
+      interpretation: "This is an evidence-derived obligation candidate based on repeated observed outflows. It is not a verified bill, contractual obligation, essential expense, authorization, or guarantee of future occurrence.",
+    }))
+    .slice(0, 100);
+
   return {
     evidence_state: candidates.length ? "calculated" : "insufficient_evidence",
     candidate_count: candidates.length,
     candidates: candidates.slice(0, 100),
+    obligation_candidate_count: obligationCandidates.length,
+    obligation_candidates: obligationCandidates,
     limitation: candidates.length ? null : "At least three repeated observations with an identifiable entity and plausible recurring interval are required to identify a recurrence candidate.",
   };
 }
