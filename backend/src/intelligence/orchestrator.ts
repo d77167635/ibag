@@ -1,5 +1,6 @@
 import { computeBalanceMetrics, computeCashFlowSafety, computeBalanceHistory, computeDebtTrend } from "../services/intelligence.js";
 import { getCanonicalTransactions, computeEconomicCashFlow, computeRoundupProjectionFromTransactions, computeSpendingByDomainFromTransactions, computeCanonicalSpendingHierarchy, computeCanonicalForwardProjection } from "./transactionSemantics.js";
+import { computeRunBoundForwardProjection } from "./runBoundProjection.js";
 import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
 import { validateCanonicalIntelligenceInput } from "./integrity.js";
@@ -51,8 +52,11 @@ export async function computeFullIntelligence(userId: string, context?: Capabili
   const priorEconomic = computeEconomicCashFlow(prior30);
   const netChangePct = priorEconomic.net !== 0 ? ((economicCurrent.net - priorEconomic.net) / Math.abs(priorEconomic.net)) * 100 : null;
   const cashFlow = { ...economicCurrent, netChangePct, windowDays: 30, evidence_boundary: effectiveBoundary, semantics: "economic_cash_flow_excludes_internal_transfers_and_unknown_movements" };
+  const forwardProjectionPromise = context?.runId
+    ? computeRunBoundForwardProjection(userId, context.runId, 30, effectiveBoundary ?? context.asOf ?? null)
+    : computeCanonicalForwardProjection(userId, 30, effectiveBoundary);
   const [balances, cashFlowSafety, balanceHistory, debtTrend, anomalies, forwardProjection, debtCost, categoryDrift, multiWindowFlow, reasoning, featureFlags, declaredGoalsResult, providerLineage] = await Promise.all([
-    computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId), computeCanonicalAnomalies(userId), computeCanonicalForwardProjection(userId, 30, effectiveBoundary), computeDebtCostIntelligence(userId), computeCategoryDrift(userId), computeMultiWindowFlow(userId, undefined, effectiveBoundary), computeFinancialReasoning(userId, effectiveBoundary), getFeatureFlags(userId), supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }), verifyProviderLineage(supabaseAdmin, userId),
+    computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeBalanceHistory(userId), computeDebtTrend(userId), computeCanonicalAnomalies(userId, 30, effectiveBoundary, context?.runId ?? null, context?.asOf ?? null), forwardProjectionPromise, computeDebtCostIntelligence(userId), computeCategoryDrift(userId), computeMultiWindowFlow(userId, undefined, effectiveBoundary), computeFinancialReasoning(userId, effectiveBoundary), getFeatureFlags(userId), supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true }), verifyProviderLineage(supabaseAdmin, userId),
   ]);
   const declaredGoals = (declaredGoalsResult.data ?? []) as DeclaredIrisGoal[];
   const goalDataLimitations = declaredGoalsResult.error ? ["Persistent user goals could not be loaded; Iris is falling back to evidence-derived objectives."] : [];
