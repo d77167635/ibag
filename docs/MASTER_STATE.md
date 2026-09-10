@@ -5,7 +5,7 @@
 ## Current state
 - Product: **Iris**
 - Branch: `main`
-- Last verified application deployment: the current recursive-synthesis code path is live on Render after the latest successful deployment; exact commit remains to be re-read from Render after the documentation queue settles.
+- Last verified application deployment: `dep-dahagci01d6s739gk76g` is the last Render deployment explicitly observed as `live`; newer production commits are queued and must not be called live until Render verifies them.
 - Architecture: recursive financial-life intelligence with no artificial intelligence-depth ceiling
 - Data posture: evidence-gated; no fabricated/mock/seeded financial truth
 - Current operating scope: read-only intelligence; no money movement
@@ -22,22 +22,25 @@
 - Plaid capability/catalog and selection foundations exist.
 - Provider observation and source-field lineage foundations exist.
 - Canonical transaction semantics restrict analytical transactions to certified core evidence and can additionally bind transaction reads to exact run-evidence raw transaction identities.
-- Canonical temporal window aggregation now explicitly clips supplied transaction sets to the requested evidence boundary, preventing later observations from entering a historical window calculation.
+- Canonical temporal window aggregation explicitly clips supplied transaction sets to the requested evidence boundary, preventing later observations from entering a historical window calculation.
 - Iris feature/catalog and governed publication foundations exist.
 - Persisted capability contracts include output, lineage, resource, and user-control dimensions.
 - Capability planning validates persisted contracts, dependencies, implemented operators, and resource estimates.
 - Independent execution persists runs, run evidence, execution inputs/outputs, validation, and routes eligible certification through the atomic certification boundary.
-- Provider-observation run evidence now expands to exact current raw transaction and balance observation identities for the same authorized Item, bounded by the run evidence boundary.
+- Provider-observation run evidence expands to exact current raw transaction and balance observation identities for the same authorized Item, bounded by the run evidence boundary.
 - A run-bound state adapter derives balance/liquidity history and debt history from exact run evidence; safe-to-spend remains withheld when recurrence evidence does not establish contractual/essential obligations.
 - The governed aggregate dispatcher receives execution context, and aggregate canonical transaction reads can consume the run ID and evidence boundary.
 - A real runtime operator exists for every currently named governed capability: temporal, analysis, behavioral, pattern, relationship, anomaly, causal, predictive, scenario, decision, recommendation, outcome, learning, and emergent.
 - The recursive operator engine is evidence-grounded in canonical financial transactions, emits explicit evidence state/provenance, and refuses to fabricate missing outcome/learning evidence.
 - Causal runtime behavior is explicitly observational candidate analysis and does not assert causation.
 - Dependency-result propagation from persisted upstream execution outputs into downstream operator context is implemented; downstream capabilities record upstream execution identity/hash as inputs.
-- Maximum intelligence now consumes observed activity-day outflow history to establish a user-specific adaptive historical baseline using robust median/MAD dispersion; missing activity days are excluded rather than converted to zero observations.
+- Maximum intelligence consumes observed activity-day outflow history to establish a user-specific adaptive historical baseline using robust median/MAD dispersion; missing activity days are excluded rather than converted to zero observations.
 - Reusable robust statistical and adaptive-baseline primitives have regression coverage.
-- A governed recursive higher-order synthesis layer now consumes persisted capability dependency outputs, reconstructs their dependency graph, preserves output hashes and evidence states, identifies supported cross-capability chains/interactions, and exposes explicit evidence gaps without creating provider observations or financial values.
-- The emergent governed operator is now routed through that recursive synthesis layer rather than the prior isolated descriptive emergent calculation.
+- A governed recursive higher-order synthesis layer consumes persisted capability dependency outputs, reconstructs their dependency graph, preserves output hashes and evidence states, identifies supported cross-capability chains/interactions, and exposes explicit evidence gaps without creating provider observations or financial values.
+- The emergent governed operator is routed through that recursive synthesis layer and now also constructs a canonical financial-life ontology from the exact evidence-gated transaction set.
+- The canonical financial-life state now includes first-class account, merchant, domain, subdomain, category, and transaction-class entities; calculated relationships; observation span/activity density; economic flow state; transaction-class distribution; account activity; merchant/domain concentration; topology; and explicit limitations.
+- Unknown transaction classifications remain ontology facts but do not become economic flow merely because a numeric amount exists.
+- Run-bound aggregate intelligence now withholds provider-domain synthesis when a run ID is present because the current provider-domain reader is not yet constrained to the exact run evidence manifest; this prevents current provider observations from contaminating historical/run-bound intelligence.
 - The compact recursive operator layer is not treated as the semantic ceiling; richer orchestration, composition, financial-state, decision, counterfactual, higher-order, and meta-intelligence modules remain part of the authoritative implementation surface and must be unified rather than duplicated.
 - Supabase schema inspection confirms the exact raw-balance/run-evidence fields required by the run-bound state path exist in the connected project.
 - The connected project currently has no `iris_run_evidence` rows, so real provider-evidence end-to-end certification remains pending rather than being inferred from empty state.
@@ -58,18 +61,22 @@
 - [ ] Persist explicit input/output field lineage for each capability execution
 - [ ] Verify every persisted execution artifact against the complete run manifest
 - [ ] Verify independent certification and queryable certified result
+- [ ] Constrain provider-domain synthesis to the exact run evidence manifest
 
 ### Block B — Canonical financial-life state
-- [ ] Complete account/entity semantics
-- [ ] Complete transaction/economic classification
+- [x] Canonical transaction-backed entity/relationship ontology foundation
+- [x] Transaction-class entities and account-to-class relationships
+- [x] Observation/activity-density state
+- [x] Economic flow state with explicit unknown handling
+- [x] Merchant/domain concentration and topology
+- [ ] Complete account/entity semantics across all provider domains
 - [ ] Income and recurring income
 - [ ] Obligations/bills/subscriptions
 - [ ] Liabilities/debt
 - [ ] Assets/investments
-- [ ] Merchant/category/entity relationships
 - [ ] Historical provider observation lifecycle
 - [ ] Field-level evidence lineage/freshness
-- [ ] Cross-domain relationship graph
+- [ ] Cross-domain relationship graph beyond transaction-backed relationships
 
 ### Block C — Recursive intelligence engine
 - [x] Runtime operator surfaces for the current governed capability universe
@@ -90,6 +97,7 @@
 - [x] Governed recursive dependency-output synthesis
 - [x] Robust statistical primitives
 - [x] User-specific adaptive activity-day outflow baseline
+- [x] Canonical financial-life ontology enters emergent intelligence
 - [ ] Unify named operator surfaces with the richer Iris intelligence engine
 - [ ] Statistical intelligence across additional financial-life metrics
 - [ ] Adaptive baselines and thresholds across additional entities/domains
@@ -119,7 +127,7 @@
 - [ ] Sync/webhook durability certification
 - [ ] Plaid Sandbox lifecycle certification
 - [ ] Intelligence regression/sufficiency suite
-- [ ] Current Render commit verification for the recursive-synthesis deployment after queue settlement
+- [ ] Current Render commit verification for queued production changes
 - [x] Supabase migration 075 applied for raw financial run-evidence expansion
 - [ ] Current Supabase migration/runtime reconciliation with repository history
 - [ ] Full user journey certification
