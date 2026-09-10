@@ -25,6 +25,11 @@ function operatorFor(capabilityId: string) {
   return { operator_id: operator.operator_id, version: operator.version };
 }
 
+async function updateRunOrThrow(runId: string, userId: string, values: Record<string, unknown>, code: string) {
+  const { error } = await supabaseAdmin.from("iris_runs").update(values).eq("id", runId).eq("user_id", userId);
+  if (error) throw new Error(`${code}: ${error.message}`);
+}
+
 /**
  * Single governed execution boundary.
  *
@@ -104,7 +109,7 @@ export async function executeIrisRun(request: RunRequest) {
   }).select("*").single();
   if (runError || !run) throw new Error(`Unable to create Iris run: ${runError?.message || "unknown error"}`);
 
-  await supabaseAdmin.from("iris_runs").update({ status: "EXECUTING", updated_at: new Date().toISOString() }).eq("id", run.id).eq("user_id", userId);
+  await updateRunOrThrow(run.id, userId, { status: "EXECUTING", updated_at: new Date().toISOString() }, "RUN_STATE_UPDATE_FAILED:EXECUTING");
 
   const completedCapabilities = new Map<string, { executionId: string; outputHash: string; result: any }>();
   let aggregateExecution: any = null;
@@ -227,7 +232,7 @@ export async function executeIrisRun(request: RunRequest) {
 
     const finishedAt = new Date().toISOString();
     const evidenceBoundary = aggregateResult?.evidence_boundary ?? evidenceObservationBoundary ?? null;
-    await supabaseAdmin.from("iris_runs").update({ status: "EXECUTED", evidence_boundary: evidenceBoundary, evidence_version: "provider-observation-boundary-v2", completed_at: finishedAt, updated_at: finishedAt }).eq("id", run.id).eq("user_id", userId);
+    await updateRunOrThrow(run.id, userId, { status: "EXECUTED", evidence_boundary: evidenceBoundary, evidence_version: "provider-observation-boundary-v2", completed_at: finishedAt, updated_at: finishedAt }, "RUN_STATE_UPDATE_FAILED:EXECUTED");
 
     const gate = await evaluateCertificationGate({ runId: run.id, executionId: aggregateExecution.id, userId, inputHash: aggregateInputHash, outputHash: aggregateOutputHash });
     const validationRows = Object.entries(gate.checks).map(([ruleId, gateCheck]) => ({ run_id: run.id, execution_id: aggregateExecution.id, user_id: userId, rule_id: ruleId, rule_version: CERTIFICATION_POLICY_VERSION, status: gateCheck.status, severity: gateCheck.status === "PASS" ? "INFO" : "CRITICAL", expected: { status: "PASS" }, actual: { status: gateCheck.status }, details: { message: gateCheck.details, gate_version: CERTIFICATION_POLICY_VERSION } }));
@@ -237,7 +242,7 @@ export async function executeIrisRun(request: RunRequest) {
     if (!gate.eligible) {
       const message = `Certification blocked: ${gate.critical_failures.join(", ")}`;
       await supabaseAdmin.from("iris_execution_records").update({ validation_status: "FAIL", certification_status: "NOT_CERTIFIED" }).eq("id", aggregateExecution.id).eq("user_id", userId);
-      await supabaseAdmin.from("iris_runs").update({ status: "VALIDATION_FAILED", failure_code: "CERTIFICATION_GATE_FAILED", failure_message: message, updated_at: new Date().toISOString() }).eq("id", run.id).eq("user_id", userId);
+      await updateRunOrThrow(run.id, userId, { status: "VALIDATION_FAILED", failure_code: "CERTIFICATION_GATE_FAILED", failure_message: message, updated_at: new Date().toISOString() }, "RUN_STATE_UPDATE_FAILED:VALIDATION_FAILED");
       return { ...run, id: run.id, status: "VALIDATION_FAILED", execution_id: aggregateExecution.id, result: aggregateResult, certified: false, certification_gate: gate, capability_executions: [...completedCapabilities.entries()].map(([capability_id, value]) => ({ capability_id, execution_id: value.executionId, output_hash: value.outputHash })) };
     }
 
@@ -249,8 +254,9 @@ export async function executeIrisRun(request: RunRequest) {
     if (certificationError) throw new Error(`CERTIFICATION_PERSIST_FAILED: ${certificationError.message}`);
 
     const certifiedAt = new Date().toISOString();
-    await supabaseAdmin.from("iris_execution_records").update({ validation_status: "PASS", certification_status: "CERTIFIED" }).eq("id", aggregateExecution.id).eq("user_id", userId);
-    await supabaseAdmin.from("iris_runs").update({ status: "CERTIFIED", completed_at: certifiedAt, updated_at: certifiedAt }).eq("id", run.id).eq("user_id", userId);
+    const { error: certificationExecutionUpdateError } = await supabaseAdmin.from("iris_execution_records").update({ validation_status: "PASS", certification_status: "CERTIFIED" }).eq("id", aggregateExecution.id).eq("user_id", userId);
+    if (certificationExecutionUpdateError) throw new Error(`EXECUTION_CERTIFICATION_STATE_UPDATE_FAILED: ${certificationExecutionUpdateError.message}`);
+    await updateRunOrThrow(run.id, userId, { status: "CERTIFIED", completed_at: certifiedAt, updated_at: certifiedAt }, "RUN_STATE_UPDATE_FAILED:CERTIFIED");
     return {
       ...run,
       id: run.id,
