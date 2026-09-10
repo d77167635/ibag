@@ -1,94 +1,74 @@
 # Iris Capability Roadmap
 
-This roadmap tracks **capability state**, not artifact count. A capability is not complete because a file, schema, endpoint, or UI exists.
+This roadmap tracks **capability state**, not artifact count. Iris is a recursive financial-life intelligence system; the intelligence graph has no artificial maximum depth.
 
-## Capability state model
-
-Every major capability is evaluated through this chain:
+## Governing execution chain
 
 `Architecture Defined → Contract Defined → Schema Implemented → Runtime Implemented → Independently Executable → Evidence Verified → Lineage Verified → Frontend Surfaced → User Controlled → Interaction Verified → Deployment Verified → End-to-End Certified`
 
-A later state never implies an earlier state is certified unless the earlier state has been verified.
+A later state never implies an earlier state is certified.
 
-## 1. Continuity foundation
-- [x] Master project state exists
-- [x] Architecture ledger exists
-- [x] Decision ledger exists
-- [x] Automated status/session continuity foundations exist
-- [ ] Master state checkpoint kept synchronized with every material implementation commit
-- [ ] Roadmap state machine fully machine-readable and automatically reconciled with repository/runtime state
+## 1. Continuity and governance
+- [x] Master state / architecture / decisions / roadmap / handoff documents exist
+- [x] Clean Iris product boundary is explicit
+- [x] Recursive, unbounded intelligence model is explicit
+- [x] Capability contracts are persisted
+- [x] Contract-aware planning and certification foundations exist
+- [ ] Automatically reconcile documentation state with repository/runtime state after every material change
 
-**Current state:** architecture/contract foundation established; documentation synchronization remains active work.
+## 2. Provider capability intelligence
+- [x] Plaid product/catalog capability foundation
+- [x] Product capability registry
+- [x] Multi-Item capability selection
+- [x] Availability / consent / authorization / billing / entitlement dimensions separated
+- [ ] Complete provider-product observation coverage certification
+- [ ] Complete provider lifecycle certification
+- [ ] Complete selection explanation and audit trail
 
-## 2. Plaid Product Capability Layer
-- [x] Expanded authoritative Plaid product/catalog foundation
-- [x] Product capability registry separating public capability from observed Item state
-- [x] Deterministic product-selection decision boundary
-- [x] Multi-Item aggregate selection semantics
-- [x] Authorization, consent, entitlement, billing, cost, and observed-evidence dimensions represented independently
-- [ ] Complete product-to-observation mapping certification across the supported universe
-- [ ] Institution/connection availability certification
-- [ ] Complete consent/authorization lifecycle certification
-- [ ] Complete plan entitlement/user-charge policy certification
-- [ ] Complete product evidence/coverage certification
-- [ ] Selection explanation/audit trail certified end-to-end
-
-**Current state:** substantial implementation exists; full evidence/runtime/certification chain remains incomplete.
-
-## 3. Plaid Dashboard
+## 3. Plaid Dashboard — source observability only
 - [x] Provider/source observability foundation
-- [x] Product capability/source surfaces exist
-- [x] Exact provider evidence/raw-observation inspection foundation exists
-- [ ] Complete product-universe presentation
-- [ ] Complete product-specific observed-data surfaces
-- [ ] Connected institution/connection lifecycle states
-- [ ] Availability/support/consent/authorization states
-- [ ] Evidence coverage and freshness presentation
-- [ ] Provider diagnostics and durable sync status
-- [ ] Cost/entitlement presentation where appropriate
-- [ ] Strict provider-only interpretation boundary verified across every surface
-
-**Current state:** source observability foundation exists; authoritative dashboard completion is not certified.
+- [x] Product capability/source surfaces
+- [x] Raw/source evidence inspection foundation
+- [ ] Complete product-universe explorer
+- [ ] Complete product-specific observed-data explorer
+- [ ] Evidence coverage/freshness/lineage visualization
+- [ ] Durable sync/webhook diagnostics
+- [ ] Strict provider-only interpretation certification across all surfaces
 
 ## 4. Canonical Financial Life State
 - [x] Canonical reconciliation foundation
 - [x] Canonical transaction semantics foundation
 - [x] Source-field observation materialization foundation
 - [x] Source-field → intelligence binding foundation
-- [ ] Complete canonical account semantics
-- [ ] Complete transaction classification persistence and economic semantics
-- [ ] Income/recurring income semantics
-- [ ] Obligations/bills/subscriptions
+- [ ] Complete account semantics
+- [ ] Complete transaction classification/economic semantics
+- [ ] Income and recurring-income state
+- [ ] Obligations, bills, subscriptions
 - [ ] Liabilities/debt
 - [ ] Assets/investments
-- [ ] Merchant/category relationships
-- [ ] Durable temporal state and historical observation lifecycle
-- [ ] Evidence/freshness certification
-- [ ] Field-level lineage certification
-- [ ] Cross-domain relationship certification
-
-**Current state:** foundation is substantive, but economic semantics, historical evidence lifecycle, and complete relational state are not certified.
+- [ ] Merchant/category/entity relationships
+- [ ] Historical provider observation lifecycle
+- [ ] Field-level evidence lineage and freshness certification
+- [ ] Cross-domain relational state certification
 
 ## 5. Iris Feature Registry
 - [x] Stable feature identity/versioning foundation
-- [x] Prerequisites and required-evidence contract
-- [x] Evidence coverage/readiness evaluator
-- [x] Feature → analysis one-to-many publication mapping
-- [x] Governed intelligence publication boundary
-- [ ] Durable user activation/deactivation persistence and enforcement across all features
-- [ ] Feature permissions/entitlements fully enforced
-- [ ] Feature-level provenance/freshness/lineage certification
-- [ ] Workspace routing certification
-- [ ] Education/interactivity metadata fully surfaced
+- [x] Prerequisite and evidence contracts
+- [x] Evidence readiness evaluation
+- [x] Feature → intelligence publication mapping
+- [x] Governed publication boundary
+- [ ] Durable activation/deactivation enforcement
+- [ ] Entitlement/permission enforcement
+- [ ] Feature provenance/freshness/lineage certification
+- [ ] Workspace routing and interaction certification
+- [ ] Education/interactivity metadata surfaced
 
-**Current state:** authoritative registry/publication foundation exists; user-control and end-to-end enforcement remain incomplete.
+## 6. Iris Intelligence — recursive graph
 
-## 6. Iris Intelligence hierarchy
+Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defined by the authoritative architecture. Beyond that, intelligence branches recursively without a fixed ceiling. The following are capability families and workstreams, not hierarchy levels and not an exhaustive endpoint.
 
-The hierarchy is a **recursive graph**, not a fixed maximum depth. The named families below are capability families; additional evidence-supported branches may continue indefinitely subject to governance, evidence, resource, and usefulness constraints.
-
-### Core intelligence families
-- [ ] Financial-life overview
+### Core financial-life intelligence
+- [ ] Financial-life overview and state synthesis
 - [ ] Money/account intelligence
 - [ ] Cash-flow intelligence
 - [ ] Spending intelligence
@@ -97,85 +77,103 @@ The hierarchy is a **recursive graph**, not a fixed maximum depth. The named fam
 - [ ] Bills/obligations intelligence
 - [ ] Debt intelligence
 - [ ] Net-worth intelligence
+
+### Analytical and relational intelligence
+- [ ] Classification intelligence
+- [ ] Temporal/change intelligence
+- [ ] Statistical intelligence
+- [ ] Adaptive baselines
+- [ ] Pattern intelligence
 - [ ] Behavioral intelligence
-- [ ] Pattern detection
-- [ ] Anomaly detection
-- [ ] Forecasting
+- [ ] Relationship intelligence
+- [ ] Anomaly intelligence
+- [ ] Evidence-grounded causal reasoning
+- [ ] Cross-domain synthesis
+
+### Forward and decision intelligence
+- [ ] Probabilistic forecasting
+- [ ] Uncertainty propagation
 - [ ] Risk intelligence
 - [ ] Opportunity intelligence
 - [ ] Scenario/counterfactual intelligence
+- [ ] Constraint-aware optimization
 - [ ] Decision intelligence
-- [ ] Financial education
+- [ ] Recommendation intelligence
+- [ ] Consequence analysis
 
-### Higher-order intelligence
-- [ ] Statistical baselines and adaptive thresholds
-- [ ] Evidence-grounded causal reasoning without unsupported causal claims
-- [ ] Probabilistic forecasting and uncertainty propagation
-- [ ] Optimization under explicit constraints
-- [ ] Counterfactual state modeling
-- [ ] Continuous intelligence/recomputation
-- [ ] Proactive intelligence
-- [ ] Conversational evidence-grounded Iris reasoning
+### Learning and higher-order intelligence
 - [ ] Outcome measurement
-- [ ] Learning from verified outcomes
-- [ ] Higher-order/emergent intelligence discovery
+- [ ] Verified outcome learning
+- [ ] Continuous recomputation
+- [ ] Proactive intelligence
+- [ ] Conversational evidence-grounded reasoning
+- [ ] Higher-order pattern discovery
+- [ ] Emergent intelligence discovery
+- [ ] Recursive composition of newly derived intelligence where evidence, governance, resources, and usefulness permit
 
-### Runtime status
+### Runtime verticalization
 - [x] Governed aggregate execution boundary
-- [x] Capability planning/dependency ordering foundation
+- [x] Capability planner with persisted-contract enforcement
 - [x] Capability operator registry
-- [x] Temporal operator independently dispatchable through the governed dispatcher
-- [ ] Independent capabilities executed through the full `executeIrisRun` persistence/certification path
-- [ ] Remaining operator families independently dispatchable and verified
-- [ ] Recursive capability graph execution certified
+- [x] Temporal operator dispatch foundation
+- [x] Independent execution persistence/certification foundation
+- [ ] Real temporal end-to-end execution against observed provider evidence
+- [ ] Run-evidence manifest becomes explicit operator input boundary
+- [ ] Temporal source-field/output lineage verified end-to-end
+- [ ] Independent temporal certification verified and queryable
+- [ ] Dependency outputs explicitly consumed by downstream capabilities
+- [ ] Remaining operator families independently executable
+- [ ] Recursive dependency composition certified
 
-## 7. Recursive user experience
+## 7. Recursive Iris experience
 - [x] Iris shell/navigation foundation
 - [x] Source-data exploration foundation
-- [ ] Domain → subdomain navigation
-- [ ] Entity context and detail
+- [ ] Domain → subdomain → entity traversal
 - [ ] Evidence graph traversal
 - [ ] Relationship exploration
 - [ ] Change explanations
-- [ ] Intelligence interpretation surfaces
+- [ ] Intelligence interpretation
 - [ ] Forecast/scenario workspaces
-- [ ] Feature manager with real user controls
-- [ ] Personalized Iris dashboard
+- [ ] Feature controls
+- [ ] Personalized intelligence dashboard
 - [ ] Cross-feature interaction
-- [ ] Conversational Iris with evidence-grounded answers
-- [ ] Education progression and user learning loop
-- [ ] Proactive controls and notifications
+- [ ] Conversational Iris
+- [ ] Financial education progression
+- [ ] Proactive intelligence controls
 
-**Current state:** strong exploration primitives exist; the complete recursive user experience is not certified.
-
-## 8. Verification and release
-- [x] Repository CI workflow foundation
-- [ ] Clean dependency-installed backend test/build verification
-- [ ] Clean frontend test/build verification
-- [ ] Backend/frontend contract synchronization certification
-- [ ] Provider-to-database reconciliation certification
+## 8. Verification and clean release
+- [x] CI foundation
+- [ ] Clean dependency-installed backend tests/build
+- [ ] Clean frontend tests/build
+- [ ] Backend/frontend contract synchronization
+- [ ] Provider → database reconciliation
 - [ ] Evidence lineage verification
 - [ ] RLS/ownership/security verification
-- [ ] Durable sync cursor/update/remove lifecycle tests
-- [ ] Webhook verification and durable processing/retry tests
-- [ ] Round-up eligibility/reconciliation/idempotency certification
+- [ ] Durable sync cursor/update/remove lifecycle verification
+- [ ] Durable webhook verification/retry verification
+- [ ] Round-Up feature certification
 - [ ] Intelligence sufficiency/accuracy regression suite
-- [ ] Render deployment verification for the current certified commit
-- [ ] Supabase live verification against the authoritative migration state
-- [ ] Plaid Sandbox end-to-end certification
-- [ ] End-to-end observable user journey certification
+- [ ] Current Render deployment verification
+- [ ] Current Supabase migration/runtime reconciliation
+- [ ] Plaid Sandbox end-to-end verification
+- [ ] Full observable user-journey certification
 
-## Current blocking principles
+## Build rule
 
-1. Never treat catalog metadata as observed financial evidence.
-2. Never manufacture missing financial facts, values, transactions, balances, or provider observations.
+Do not optimize for a finite artifact count or a percentage-complete backend. Build in **large coherent vertical blocks** that move multiple capabilities through the governing chain at once. Every block must be audited against the clean Iris architecture before it is considered complete.
+
+## Non-negotiables
+
+1. Never manufacture financial facts, values, transactions, balances, or provider observations.
+2. Never convert unavailable evidence into zero or observed state.
 3. Never collapse Plaid source observability into Iris interpretation.
-4. Never mark a capability independently executable merely because an implementation file exists.
-5. Never claim lineage, certification, or deployment verification without actually verifying it.
-6. Never impose an arbitrary intelligence-depth ceiling; continue recursive branching when additional evidence can produce meaningful intelligence.
+4. Never certify a capability because a file/schema/endpoint merely exists.
+5. Never claim lineage, evidence, deployment, or certification without verification.
+6. Never impose an arbitrary intelligence-depth ceiling.
 7. Never make unsupported causal claims.
-8. Do not repair transitional legacy infrastructure blindly; reconcile it against the intended clean Iris architecture first.
+8. Do not blindly repair transitional infrastructure; reconcile it against the intended clean Iris architecture.
+9. Round-Ups are a feature within Iris, not Iris's product boundary or intelligence foundation.
 
 ## Completion definition
 
-The roadmap is complete only when the implemented Iris capabilities satisfy their evidence, lineage, backend, frontend, user-control, explainability, education, deployment, and end-to-end interaction contracts. The hierarchy may continue beyond the currently named capabilities wherever governed evidence supports additional meaningful intelligence.
+Iris is complete only when the implemented system can continuously transform governed provider evidence into an explainable, lineage-preserving, user-controllable, recursively composable financial-life intelligence experience, including education, scenarios, decisions, outcomes, and higher-order intelligence wherever additional evidence supports meaningful reasoning. The graph may continue beyond the currently named capabilities.
