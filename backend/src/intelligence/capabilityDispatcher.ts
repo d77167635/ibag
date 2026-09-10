@@ -7,6 +7,7 @@ import { executeTemporalOperator, executeAnalysisOperator, executeBehavioralOper
 import { executeCausalOperator, executeScenarioOperator, executeDecisionOperator, executeRecommendationOperator } from "./advancedOperators.js";
 import { loadCapabilityExecutionContext, type CapabilityExecutionContext } from "./capabilityExecutionContext.js";
 import { synthesizeCapabilityGraph } from "./supervisorySynthesis.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
 export const GOVERNED_AGGREGATE_OPERATOR = "computeFullIntelligence";
@@ -28,18 +29,11 @@ function composeOperatorResult(result: unknown, context: Awaited<ReturnType<type
   return { ...(result as GovernedResult), dependency_composition: graphSynthesis };
 }
 
-function enforceExecutionTimeBudget(context: CapabilityExecutionContext): void {
-  const budget = context.resourceBudget?.max_execution_time_ms;
-  if (!budget) return;
-  const startedMs = Date.parse(context.executionId ? context.dependencyOutputs["__execution__"]?.value as string ?? "" : "");
-  void startedMs;
-}
-
 async function finish<T>(context: CapabilityExecutionContext, result: T): Promise<T> {
   const budget = context.resourceBudget?.max_execution_time_ms;
   if (budget) {
-    const { data, error } = await supabaseExecutionStart(context);
-    if (error) throw new Error(`CAPABILITY_RESOURCE_USAGE_READ_FAILED:${error}`);
+    const { data, error } = await supabaseAdmin.from("iris_execution_records").select("started_at").eq("id", context.executionId).eq("user_id", context.userId).maybeSingle();
+    if (error) throw new Error(`CAPABILITY_RESOURCE_USAGE_READ_FAILED:${error.message}`);
     const startedAt = data?.started_at;
     if (startedAt) {
       const elapsed = Date.now() - Date.parse(startedAt);
@@ -47,12 +41,6 @@ async function finish<T>(context: CapabilityExecutionContext, result: T): Promis
     }
   }
   return result;
-}
-
-async function supabaseExecutionStart(context: CapabilityExecutionContext): Promise<{ data: { started_at: string } | null; error: string | null }> {
-  const { supabaseAdmin } = await import("../config/supabase.js");
-  const response = await supabaseAdmin.from("iris_execution_records").select("started_at").eq("id", context.executionId).eq("user_id", context.userId).maybeSingle();
-  return { data: response.data as { started_at: string } | null, error: response.error?.message ?? null };
 }
 
 export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY; executionId?: string }): Promise<AggregateDispatch>;
