@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 
-export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v6";
+export const CAPABILITY_PLANNER_VERSION = "iris-capability-planner-v7";
 
 type CapabilityContract = {
   capability_id: string;
@@ -40,11 +40,7 @@ const AGGREGATE_CAPABILITY = "iris.full_intelligence";
 const AGGREGATE_OPERATOR = "computeFullIntelligence";
 const AGGREGATE_OPERATOR_VERSION = "1";
 
-const RESOURCE_LIMITS = {
-  nodes: 10_000,
-  edges: 30_000,
-  compositions: 5_000,
-};
+const RESOURCE_LIMITS = { nodes: 10_000, edges: 30_000, compositions: 5_000 };
 
 function asStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
@@ -73,9 +69,10 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   const missing = requestedIds.filter(id => !registry.has(id));
   const unsupported: string[] = [];
   const ordered: string[] = [];
-  const visited = new Set<string>();
   const activePath = new Set<string>();
+  const visited = new Set<string>();
   let cycleDetected = false;
+  let requiredEvidenceMissing = false;
   const limitations: string[] = [];
 
   const visit = (id: string) => {
@@ -114,15 +111,19 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
 
     const requirements = requirementNames(contract?.evidence_requirements);
     if (requirements.includes("authorized_plaid_evidence") && !(products?.length ?? 0)) {
+      requiredEvidenceMissing = true;
       limitations.push(`Capability ${id} requires authorized Plaid evidence, but no observed Plaid product evidence is available.`);
     }
     if ((requirements.includes("canonical_financial_model") || requirements.includes("canonical_accounts")) && !(accountCount ?? 0)) {
+      requiredEvidenceMissing = true;
       limitations.push(`Capability ${id} requires canonical financial state, but no canonical account observations are available.`);
     }
     if (requirements.includes("canonical_financial_model") && !(transactionCount ?? 0)) {
+      requiredEvidenceMissing = true;
       limitations.push(`Capability ${id} requires canonical financial transactions, but no active canonical transactions are available.`);
     }
     if (requirements.includes("source_field_observations") && !(fieldCount ?? 0)) {
+      requiredEvidenceMissing = true;
       limitations.push(`Capability ${id} requires source-field observations, but none are available.`);
     }
   }
@@ -141,18 +142,15 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   const edges = contractsUsed.reduce((n, c) => n + asStrings(c.dependencies).filter(d => registry.has(d)).length, 0);
   const nodes = ordered.length;
   const compositions = contractsUsed.filter(c => c.recursive || c.cross_domain).length;
+  const resourceExceeded = nodes > RESOURCE_LIMITS.nodes || edges > RESOURCE_LIMITS.edges || compositions > RESOURCE_LIMITS.compositions;
+  if (resourceExceeded) limitations.push(`Capability plan exceeds resource limits: nodes=${nodes}/${RESOURCE_LIMITS.nodes}, edges=${edges}/${RESOURCE_LIMITS.edges}, compositions=${compositions}/${RESOURCE_LIMITS.compositions}.`);
 
-  if (nodes > RESOURCE_LIMITS.nodes || edges > RESOURCE_LIMITS.edges || compositions > RESOURCE_LIMITS.compositions) {
-    limitations.push(`Capability plan exceeds resource limits: nodes=${nodes}/${RESOURCE_LIMITS.nodes}, edges=${edges}/${RESOURCE_LIMITS.edges}, compositions=${compositions}/${RESOURCE_LIMITS.compositions}.`);
-  }
-
-  const status = cycleDetected || missing.length || unsupported.length
+  const infrastructureReadFailed = Boolean(productError || fieldError || accountError || transactionError);
+  const status = cycleDetected || missing.length || unsupported.length || requiredEvidenceMissing || resourceExceeded || infrastructureReadFailed
     ? "BLOCKED"
-    : limitations.some(message => message.includes("requires") || message.includes("exceeds resource limits"))
+    : limitations.length
       ? "LIMITED"
-      : limitations.length
-        ? "LIMITED"
-        : "READY";
+      : "READY";
 
   return {
     planner_version: CAPABILITY_PLANNER_VERSION,
