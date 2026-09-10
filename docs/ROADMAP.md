@@ -118,11 +118,13 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [x] Temporal operator dispatch foundation
 - [x] Independent execution persistence/certification foundation
 - [ ] Real temporal end-to-end execution against observed provider evidence
-- [ ] Run-evidence manifest becomes explicit operator input boundary
-- [ ] Temporal source-field/output lineage verified end-to-end
-- [ ] Independent temporal certification verified and queryable
-- [ ] Dependency outputs explicitly consumed by downstream capabilities
-- [ ] Remaining operator families independently executable
+- [x] Run-evidence records now expand provider observations to exact current raw transaction/balance observation identities
+- [ ] Bind every operator's actual read set to the exact run-evidence manifest
+- [ ] Persist explicit input/output field lineage for each capability execution
+- [x] Persist certified dependency outputs as downstream execution inputs
+- [ ] Verify every persisted execution artifact
+- [ ] Verify independent certification and queryable certified result
+- [ ] Remaining operator families independently executable and semantically composed with the richer Iris engine
 - [ ] Recursive dependency composition certified
 
 ## 7. Recursive Iris experience
@@ -143,7 +145,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 
 ## 8. Verification and clean release
 - [x] CI foundation
-- [ ] Clean dependency-installed backend tests/build
+- [ ] Clean dependency-installed backend tests/build after latest evidence changes
 - [ ] Clean frontend tests/build
 - [ ] Backend/frontend contract synchronization
 - [ ] Provider → database reconciliation
@@ -154,7 +156,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [ ] Round-Up feature certification
 - [ ] Intelligence sufficiency/accuracy regression suite
 - [ ] Current Render deployment verification
-- [ ] Current Supabase migration/runtime reconciliation
+- [x] Supabase runtime migration 075 applied for raw financial run-evidence expansion
 - [ ] Plaid Sandbox end-to-end verification
 - [ ] Full observable user-journey certification
 
