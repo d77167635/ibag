@@ -80,9 +80,64 @@ function has(results: Record<string, CapabilityOperatorResult>, capabilityId: st
   return Boolean(result && (!states || states.includes(result.evidence_state)));
 }
 
+function buildGenericRecursiveFindings(nodes: RecursiveNode[], maxFindings: number): RecursiveSynthesis["higher_order_findings"] {
+  const byId = new Map(nodes.map(node => [node.capability_id, node]));
+  const children = new Map<string, string[]>();
+  for (const node of nodes) {
+    for (const dependency of node.dependencies) {
+      if (!byId.has(dependency)) continue;
+      const list = children.get(node.capability_id) ?? [];
+      list.push(dependency);
+      children.set(node.capability_id, list);
+    }
+  }
+
+  const findings: RecursiveSynthesis["higher_order_findings"] = [];
+  const seenPaths = new Set<string>();
+  const maxPathDepth = Math.min(32, Math.max(2, nodes.length));
+  const visit = (start: string, path: string[]) => {
+    if (findings.length >= maxFindings) return;
+    const next = children.get(path[path.length - 1]) ?? [];
+    for (const child of next.sort()) {
+      if (path.includes(child)) continue;
+      const nextPath = [...path, child];
+      if (nextPath.length >= 2) {
+        const key = nextPath.join("->");
+        if (!seenPaths.has(key)) {
+          seenPaths.add(key);
+          const states = nextPath.map(id => byId.get(id)?.evidence_state ?? "INSUFFICIENT_EVIDENCE");
+          const complete = !states.includes("INSUFFICIENT_EVIDENCE");
+          findings.push({
+            id: `recursive-chain-${hash(nextPath).slice(0, 16)}`,
+            kind: nextPath.length === 2 ? "interaction" : "chain",
+            capabilities: nextPath,
+            statement: complete
+              ? `A recursively composable evidence pathway connects ${nextPath.join(" → ")}; each upstream output is available in the current execution graph.`
+              : `A recursively composable pathway connects ${nextPath.join(" → ")}, but at least one capability in the pathway remains evidence-limited.`,
+            evidence_states: states,
+            limitation: complete
+              ? "Composition describes the governed analytical dependency graph; it does not convert inferred, predicted, or scenario outputs into observed facts."
+              : "Missing evidence prevents a fully evidenced higher-order conclusion; Iris preserves the limitation rather than substituting a value.",
+          });
+        }
+      }
+      if (nextPath.length < maxPathDepth) visit(start, nextPath);
+      if (findings.length >= maxFindings) return;
+    }
+  };
+
+  for (const node of nodes.sort((a, b) => a.capability_id.localeCompare(b.capability_id))) {
+    if (findings.length >= maxFindings) break;
+    visit(node.capability_id, [node.capability_id]);
+  }
+  return findings;
+}
+
 /**
  * Composes already-certified capability outputs into deeper intelligence.
- * This layer creates no provider observations and never invents financial values.
+ * Named high-value relationships are retained, while the dependency graph is
+ * also explored generically so new governed capabilities can participate in
+ * higher-order reasoning without requiring a new hard-coded pair/triple rule.
  * Recursion is bounded by execution resources outside this pure synthesis step,
  * not by a semantic maximum hierarchy depth.
  */
@@ -128,6 +183,17 @@ export function buildRecursiveIntelligenceSynthesis(
     add("multi-capability-synthesis", "interaction", nodes.slice(0, Math.min(nodes.length, 8)).map(node => node.capability_id), "Multiple governed capability outputs are available as a recursively composable evidence graph rather than isolated analytical cards.", "Only capability outputs present in the current run can be composed; missing evidence remains explicit.");
   }
 
+  // Generic graph expansion is the important scalability layer: it discovers
+  // dependency chains from the actual execution graph instead of assuming a
+  // fixed catalog of named relationships. The cap is a materialization budget.
+  const genericFindings = buildGenericRecursiveFindings(nodes, 256);
+  const existingKeys = new Set(findings.map(f => `${f.kind}:${f.capabilities.join("->")}`));
+  for (const finding of genericFindings) {
+    const key = `${finding.kind}:${finding.capabilities.join("->")}`;
+    if (!existingKeys.has(key)) findings.push(finding);
+    if (findings.length >= 320) break;
+  }
+
   const expected = ["temporal", "analysis", "behavioral", "pattern", "relationship", "anomaly", "causal", "predictive", "scenario", "decision", "recommendation", "outcome", "learning"];
   for (const capability of expected) {
     if (!results[capability] || results[capability].evidence_state === "INSUFFICIENT_EVIDENCE") {
@@ -135,7 +201,6 @@ export function buildRecursiveIntelligenceSynthesis(
     }
   }
 
-  const evidenceStateOrder: CapabilityOperatorResult["evidence_state"][] = ["CALCULATED", "INFERRED", "PREDICTED", "SCENARIO", "INSUFFICIENT_EVIDENCE"];
   const maxDepth = nodes.reduce((max, node) => Math.max(max, node.depth), 0);
   return {
     synthesis_version: "IRIS_RECURSIVE_SYNTHESIS_V1",
@@ -143,8 +208,8 @@ export function buildRecursiveIntelligenceSynthesis(
     dependency_count: nodes.length,
     evidence_profile: { ...counts, complete: counts.insufficient_evidence === 0 && nodes.length > 0 },
     recursive_nodes: nodes,
-    higher_order_findings: findings.sort((a, b) => a.id.localeCompare(b.id)).slice(0, 64),
-    unresolved_evidence: [...new Set(findings.filter(f => f.kind === "evidence_gap").map(f => f.statement))].slice(0, 32),
+    higher_order_findings: findings.sort((a, b) => a.id.localeCompare(b.id)).slice(0, 320),
+    unresolved_evidence: [...new Set(findings.filter(f => f.kind === "evidence_gap").map(f => f.statement))].slice(0, 64),
     provenance: {
       source: "certified_capability_outputs",
       provider_observations_created: false,
