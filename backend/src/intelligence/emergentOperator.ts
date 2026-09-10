@@ -77,6 +77,7 @@ export async function executeEmergentOperator(userId: string, context?: Capabili
       .from("iris_emergent_discoveries")
       .upsert(payload, { onConflict: "user_id,discovery_type,discovery_key,evidence_hash", ignoreDuplicates: true });
     if (persistError) throw new Error(`Emergent discovery persistence failed: ${persistError.message}`);
+    persisted_discovery_count = payload.length;
   }
 
   let validated_discovery_count = 0;
@@ -103,7 +104,6 @@ export async function executeEmergentOperator(userId: string, context?: Capabili
     if (validated === true) validated_discovery_count += 1;
   }
 
-  const persisted_discovery_count = discoveries.length;
   const outputPayload = { userId, discoveries, consumed_learning_output_hash, persisted_discovery_count, validated_discovery_count };
   return {
     capability_id: "emergent",
