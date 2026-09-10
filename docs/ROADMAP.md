@@ -40,13 +40,17 @@ A later state never implies an earlier state is certified.
 - [x] Canonical transaction semantics foundation
 - [x] Source-field observation materialization foundation
 - [x] Source-field → intelligence binding foundation
-- [ ] Complete account semantics
+- [x] Transaction-backed account/merchant/domain/subdomain/category/entity ontology foundation
+- [x] First-class transaction-class entities and account-to-class relationships
+- [x] Observation span/activity-density state
+- [x] Economic flow state with explicit unknown/insufficient-evidence semantics
+- [x] Merchant/domain concentration and topology
+- [ ] Complete account semantics across all provider domains
 - [ ] Complete transaction classification/economic semantics
 - [ ] Income and recurring-income state
 - [ ] Obligations, bills, subscriptions
 - [ ] Liabilities/debt
 - [ ] Assets/investments
-- [ ] Merchant/category/entity relationships
 - [ ] Historical provider observation lifecycle
 - [ ] Field-level evidence lineage and freshness certification
 - [ ] Cross-domain relational state certification
@@ -68,42 +72,45 @@ A later state never implies an earlier state is certified.
 Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defined by the authoritative architecture. Beyond that, intelligence branches recursively without a fixed ceiling. The following are capability families and workstreams, not hierarchy levels and not an exhaustive endpoint.
 
 ### Core financial-life intelligence
-- [ ] Financial-life overview and state synthesis
+- [x] Financial-life overview foundation through canonical life-state synthesis
 - [ ] Money/account intelligence
 - [ ] Cash-flow intelligence
-- [ ] Spending intelligence
+- [x] Spending intelligence foundation
 - [ ] Income intelligence
-- [ ] Liquidity intelligence
+- [x] Liquidity intelligence foundation
 - [ ] Bills/obligations intelligence
-- [ ] Debt intelligence
-- [ ] Net-worth intelligence
+- [x] Debt intelligence foundation
+- [x] Net-worth intelligence foundation
 
 ### Analytical and relational intelligence
-- [ ] Classification intelligence
+- [x] Classification intelligence foundation
 - [x] Temporal window aggregation is explicitly clipped to its evidence boundary
 - [x] Robust statistical primitives and user-specific observed activity-day baseline
 - [x] Adaptive historical outflow references with explicit insufficient/limited states
-- [ ] Pattern intelligence
-- [ ] Behavioral intelligence
-- [ ] Relationship intelligence
-- [ ] Anomaly intelligence
-- [ ] Evidence-grounded causal reasoning
-- [ ] Cross-domain synthesis
+- [x] Pattern intelligence operator foundation
+- [x] Behavioral intelligence operator and boundary-aware category drift
+- [x] Relationship intelligence operator foundation
+- [x] Anomaly intelligence operator foundation
+- [x] Evidence-grounded causal reasoning operator without causal assertions
+- [x] Cross-domain synthesis foundation
+- [ ] Full semantic unification with the richer Iris engine
 
 ### Forward and decision intelligence
+- [x] Constrained forward projection foundation
 - [ ] Probabilistic forecasting
-- [ ] Uncertainty propagation
+- [ ] Uncertainty propagation across recursive outputs
 - [ ] Risk intelligence
 - [ ] Opportunity intelligence
-- [ ] Scenario/counterfactual intelligence
-- [ ] Constraint-aware optimization
-- [ ] Decision intelligence
-- [ ] Recommendation intelligence
-- [ ] Consequence analysis
+- [x] Scenario/counterfactual intelligence foundation
+- [x] Constraint-aware optimization foundation
+- [x] Decision intelligence foundation
+- [x] Recommendation intelligence foundation
+- [x] Consequence analysis foundation
+- [ ] Deep cross-domain risk/opportunity/consequence synthesis
 
 ### Learning and higher-order intelligence
-- [ ] Outcome measurement
-- [ ] Verified outcome learning
+- [x] Outcome capability foundation with explicit evidence limits
+- [x] Verified-outcome learning boundary
 - [ ] Continuous recomputation
 - [ ] Proactive intelligence
 - [ ] Conversational evidence-grounded reasoning
@@ -121,7 +128,11 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [ ] Real temporal end-to-end execution against observed provider evidence
 - [x] Run-evidence records now expand provider observations to exact current raw transaction/balance observation identities
 - [x] Canonical temporal calculations clip supplied transaction sets to the explicit evidence boundary
-- [ ] Bind every operator's actual read set to the exact run-evidence manifest
+- [x] Run-bound balance/liquidity/debt state derivation
+- [x] Run-bound cash-flow safety withholding when obligation evidence is insufficient
+- [x] Run-bound provider-domain synthesis fails closed rather than consuming current unscoped provider observations
+- [x] Behavioral category drift and relational reasoning receive exact run context when available
+- [ ] Bind every remaining operator's actual read set to the exact run-evidence manifest
 - [ ] Persist explicit input/output field lineage for each capability execution
 - [x] Persist certified dependency outputs as downstream execution inputs
 - [ ] Verify every persisted execution artifact
@@ -149,6 +160,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [x] CI foundation
 - [x] Clean dependency-installed backend tests/build for the current evidence-bound temporal and adaptive-statistics block
 - [x] Clean frontend build for the current evidence-bound intelligence block
+- [ ] Verification of the newly changed behavioral/relational TypeScript build on the current commit
 - [ ] Backend/frontend contract synchronization
 - [ ] Provider → database reconciliation
 - [ ] Evidence lineage verification
@@ -157,7 +169,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [ ] Durable webhook verification/retry verification
 - [ ] Round-Up feature certification
 - [ ] Intelligence sufficiency/accuracy regression suite
-- [x] Current Render deployment verification for commit `5e55cca208cbe231edcc2d6117353f693ebcf189`
+- [ ] Current Render deployment verification for queued production changes
 - [x] Supabase runtime migration 075 applied for raw financial run-evidence expansion
 - [ ] Plaid Sandbox end-to-end verification
 - [ ] Full observable user-journey certification
