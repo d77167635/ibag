@@ -59,7 +59,7 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   const selectedItemId = (run?.execution_policy as any)?.selected_item_id ?? (execution?.input_manifest as any)?.evidence_scope?.selectedItemId ?? null;
   const runEvidenceRaw = rawIds.length ? (await supabaseAdmin.from("plaid_raw_product_observations").select("id,item_id,product,effective_at,acquired_at,is_current,evidence_state").in("id", rawIds.slice(0, 5000)).eq("user_id", userId)).data ?? [] : [];
   const evidenceItemIds = [...new Set(runEvidenceRaw.map(row => row.item_id).filter((id): id is string => typeof id === "string"))];
-  const evidenceMatchesSelectedItem = !selectedItemId || (evidenceItemIds.length > 0 && evidenceItemIds.every(id => id === selectedItemId));
+  const evidenceMatchesSelectedItem = !selectedItemId || (evidenceItemIds.length > 0 && evidenceItemIds.every((id: string) => id === selectedItemId));
   const evidenceHasRequiredDomains = selectedItemId
     ? REQUIRED_PROVIDER_DOMAINS.every(domain => runEvidenceRaw.some(row => row.item_id === selectedItemId && row.product === domain && row.is_current === true && row.evidence_state === "observed"))
     : completeItems.length > 0;
@@ -75,20 +75,20 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   const graphComplete = graph?.architecture_version === "IRIS_RECURSIVE_CAPABILITY_GRAPH_V1" && graph?.execution_status === "COMPLETED" && ordered.length > 0 && executed.length === ordered.length && !!results;
   check("iris.output.recursive_graph", !!output && output.evidence_state !== "OBSERVED" && graphComplete, "The persisted output is a completed recursive capability graph and is not misclassified as provider observation.", "The persisted output is missing, observed-state, incomplete, or not the governed recursive graph.");
 
-  const missingResults = ordered.filter(id => !results?.[id]);
-  check("iris.output.dependency_closure", missingResults.length === 0 && executed.every(id => results?.[id]?.capability_id === id), "Every planned capability has its corresponding executed result.", missingResults.length ? `Executed graph results are incomplete; missing capability outputs: ${missingResults.join(", ")}.` : "Executed capability identities do not match their persisted results.");
+  const missingResults = ordered.filter((id: string) => !results?.[id]);
+  check("iris.output.dependency_closure", missingResults.length === 0 && executed.every((id: string) => results?.[id]?.capability_id === id), "Every planned capability has its corresponding executed result.", missingResults.length ? `Executed graph results are incomplete; missing capability outputs: ${missingResults.join(", ")}.` : "Executed capability identities do not match their persisted results.");
 
-  const provenanceComplete = ordered.every(id => {
+  const provenanceComplete = ordered.every((id: string) => {
     const value = results?.[id]?.result;
     const provenance = value?.provenance;
     return provenance && provenance.run_id === runId && provenance.evidence_manifest_hash === run?.evidence_manifest_hash && provenance.provider_observations_created === false && provenance.financial_values_created === false && provenance.money_movement_executed === false;
   });
   check("iris.output.provenance", provenanceComplete, "Every executed capability result carries run-bound provenance and explicitly records that it created no financial truth or money movement.", "At least one executed capability result lacks complete run-bound provenance or contains unsafe provenance state.");
 
-  const dependencyClosure = ordered.every(id => {
+  const dependencyClosure = ordered.every((id: string) => {
     const result = results?.[id];
     const dependencies = planDependencies(graph, id);
-    return dependencies.every(dep => !!results?.[dep] && result?.result?.provenance?.dependency_capabilities?.some((entry: any) => entry.capability_id === dep));
+    return dependencies.every((dep: string) => !!results?.[dep] && result?.result?.provenance?.dependency_capabilities?.some((entry: any) => entry.capability_id === dep));
   });
   check("iris.output.lineage_closure", dependencyClosure, "Capability dependency inputs are preserved through downstream provenance.", "At least one dependency edge is not represented in downstream capability provenance.");
 
