@@ -58,29 +58,30 @@ export async function executeBehavioralOperator(userId: string, context?: Capabi
 export async function executePatternOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId, context);
   const executionContext = requireDependencyContext(context, "pattern");
-  requireDependencies(executionContext, "pattern", ["temporal", "behavioral", "anomaly"]);
-  const upstreamTemporal = dependencyResult<any>(executionContext, "temporal");
+  requireDependencies(executionContext, "pattern", ["analysis", "behavioral"]);
+  const upstreamAnalysis = dependencyResult<any>(executionContext, "analysis");
   const upstreamBehavioral = dependencyResult<any>(executionContext, "behavioral");
   const upstreamAnomaly = dependencyResult<any>(executionContext, "anomaly");
   const drift = upstreamBehavioral?.category_drift ?? [];
-  const anomalies = upstreamAnomaly?.anomalies ?? [];
-  const windows = upstreamTemporal?.windows ?? [];
   const significantDrift = drift.filter((row: any) => row.significant);
-  const trajectory = upstreamTemporal?.trajectory ?? assessTrajectory(windows);
+  const analysisTransactions = Number(upstreamAnalysis?.transaction_count ?? 0);
   const patterns = [
     ...(significantDrift.length ? [{ type: "category_drift", count: significantDrift.length }] : []),
-    ...(anomalies.length ? [{ type: "merchant_amount_anomaly", count: anomalies.length }] : []),
-    ...(trajectory.direction !== "insufficient_evidence" ? [{ type: "spending_trajectory", direction: trajectory.direction }] : []),
+    ...(upstreamAnomaly?.anomalies?.length ? [{ type: "merchant_amount_anomaly", count: upstreamAnomaly.anomalies.length }] : []),
+    ...(analysisTransactions > 0 ? [{ type: "transaction_activity", count: analysisTransactions }] : []),
   ];
-  const dependencyInputs = ["temporal", "behavioral", "anomaly"];
-  return { capability_id: "pattern", operator_id: "pattern", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: patterns.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { patterns, supporting_drift: drift, supporting_anomalies: anomalies, supporting_trajectory: trajectory, composed_from: dependencyInputs } };
+  const dependencyInputs = ["analysis", "behavioral"];
+  if (upstreamAnomaly) dependencyInputs.push("anomaly");
+  return { capability_id: "pattern", operator_id: "pattern", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: patterns.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { patterns, supporting_drift: drift, supporting_anomalies: upstreamAnomaly?.anomalies ?? [], transaction_count: analysisTransactions, composed_from: dependencyInputs } };
 }
 
 export async function executeRelationshipOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId, context);
+  const executionContext = requireDependencyContext(context, "relationship");
+  requireDependencies(executionContext, "relationship", ["analysis", "behavioral", "pattern"]);
   const reasoning = await computeFinancialReasoning(userId, asOf);
-  const dependencyInputs = Object.keys(context?.dependencyOutputs ?? {});
-  return { capability_id: "relationship", operator_id: "relationship", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: reasoning.relationalChain.length || reasoning.risks.length || reasoning.opportunities.length ? "INFERRED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { ...reasoning, upstream_intelligence: Object.fromEntries(dependencyInputs.map(id => [id, context!.dependencyOutputs[id].value])) } };
+  const dependencyInputs = ["analysis", "behavioral", "pattern"];
+  return { capability_id: "relationship", operator_id: "relationship", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: reasoning.relationalChain.length || reasoning.risks.length || reasoning.opportunities.length ? "INFERRED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, dependency_inputs: dependencyInputs, result: { ...reasoning, upstream_intelligence: Object.fromEntries(dependencyInputs.map(id => [id, executionContext.dependencyOutputs[id].value])) } };
 }
 
 export async function executeAnomalyOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
@@ -92,12 +93,13 @@ export async function executeAnomalyOperator(userId: string, context?: Capabilit
 export async function executePredictiveOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId, context);
   const executionContext = requireDependencyContext(context, "predictive");
-  requireDependencies(executionContext, "predictive", ["temporal", "analysis", "causal"]);
+  requireDependencies(executionContext, "predictive", ["analysis", "temporal", "behavioral", "pattern", "relationship", "causal"]);
   const upstreamTemporal = dependencyResult<any>(executionContext, "temporal");
   const upstreamAnalysis = dependencyResult<any>(executionContext, "analysis");
   const upstreamCausal = dependencyResult<any>(executionContext, "causal");
+  const upstreamRelationship = dependencyResult<any>(executionContext, "relationship");
   const projection = await computeCanonicalForwardProjection(userId, 30, asOf);
-  const dependencyInputs = ["temporal", "analysis", "causal"];
+  const dependencyInputs = ["analysis", "temporal", "behavioral", "pattern", "relationship", "causal"];
   return {
     capability_id: "predictive", operator_id: "predictive", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION,
     evidence_state: projection.evidence_state === "calculated" ? "PREDICTED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf,
@@ -106,6 +108,7 @@ export async function executePredictiveOperator(userId: string, context?: Capabi
       ...projection,
       upstream_temporal: upstreamTemporal,
       upstream_analysis: upstreamAnalysis,
+      upstream_relationship: upstreamRelationship,
       upstream_causal: upstreamCausal,
       dependency_composition: dependencyInputs,
     },
