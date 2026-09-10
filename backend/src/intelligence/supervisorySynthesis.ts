@@ -29,6 +29,11 @@ export type SupervisorySynthesis = {
  * treating the graph as metadata. It produces graph-wide intelligence about
  * evidence coverage, uncertainty, and lineage without manufacturing a
  * financial fact when a child output is unavailable.
+ *
+ * Evidence state is conservative: the aggregate state cannot be stronger than
+ * the weakest consumed child state. A single insufficient-evidence dependency
+ * therefore prevents the supervisory result from being represented as fully
+ * calculated, inferred, predicted, or scenario-ready.
  */
 export function synthesizeCapabilityGraph(
   dependencyIds: readonly string[],
@@ -36,26 +41,25 @@ export function synthesizeCapabilityGraph(
 ): SupervisorySynthesis {
   const consumed = dependencyIds.filter(id => dependencyOutputs[id] != null);
   const missing = dependencyIds.filter(id => dependencyOutputs[id] == null);
-  const states = consumed.map(id => dependencyOutputs[id].evidence_state ?? "UNKNOWN");
+  const states = consumed.map(id => dependencyOutputs[id].evidence_state ?? "INSUFFICIENT_EVIDENCE");
   const distribution: Record<string, number> = {};
   for (const state of states) distribution[state] = (distribution[state] ?? 0) + 1;
 
   const strongest = consumed
-    .map(id => dependencyOutputs[id].evidence_state ?? null)
-    .filter((state): state is string => Boolean(state))
-    .sort((a, b) => (EVIDENCE_RANK[b] ?? -1) - (EVIDENCE_RANK[a] ?? -1))[0] ?? null;
+    .map(id => dependencyOutputs[id].evidence_state ?? "INSUFFICIENT_EVIDENCE")
+    .sort((a, b) => (EVIDENCE_RANK[b] ?? 0) - (EVIDENCE_RANK[a] ?? 0))[0] ?? null;
+
+  const weakest = consumed.length
+    ? consumed
+      .map(id => dependencyOutputs[id].evidence_state ?? "INSUFFICIENT_EVIDENCE")
+      .sort((a, b) => (EVIDENCE_RANK[a] ?? 0) - (EVIDENCE_RANK[b] ?? 0))[0]
+    : "INSUFFICIENT_EVIDENCE";
 
   const evidenceState = missing.length
     ? "INSUFFICIENT_EVIDENCE"
-    : strongest === "CALCULATED"
-      ? "CALCULATED"
-      : strongest === "INFERRED"
-        ? "INFERRED"
-        : strongest === "PREDICTED"
-          ? "PREDICTED"
-          : strongest === "SCENARIO"
-            ? "SCENARIO"
-            : "INSUFFICIENT_EVIDENCE";
+    : (weakest === "CALCULATED" || weakest === "INFERRED" || weakest === "PREDICTED" || weakest === "SCENARIO"
+      ? weakest
+      : "INSUFFICIENT_EVIDENCE");
 
   return {
     synthesis_version: "1.0.0",
@@ -78,7 +82,7 @@ export function synthesizeCapabilityGraph(
       "Persisted child capability outputs are the primary supervisory inputs.",
       "Dependency output hashes are preserved as lineage identity.",
       "Missing child outputs force an explicitly incomplete supervisory state.",
-      "Evidence state is never upgraded by supervisory composition.",
+      "Aggregate evidence state cannot exceed the weakest consumed child evidence state.",
       "Uncertainty is propagated when present in child outputs.",
     ],
   };
