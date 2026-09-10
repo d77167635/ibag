@@ -43,7 +43,7 @@ test("a genuinely deep 41-node chain executes end-to-end through dependency resu
   };
   const deepPlan = plan({ requested: [ids[count - 1]], ordered_capabilities: ids, contracts, resource_estimate: { nodes: count, edges: count - 1, compositions: count } });
   const result = await executeRecursiveCapabilityPlan("00000000-0000-0000-0000-000000000000", deepPlan, {}, { maxNodes: 100, maxEdges: 100, maxCompositions: 100 }, dispatcher);
-  assert.equal(result.status, "COMPLETED"); assert.equal(result.executed_capabilities.length, count); assert.equal(Object.keys(result.results).length, count); assert.equal(observedDependencies.length, count - 1); assert.equal(observedDependencies[40], "structural_41<-structural_40");
+  assert.equal(result.status, "COMPLETED"); assert.equal(result.executed_capabilities.length, count); assert.equal(Object.keys(result.results).length, count); assert.equal(observedDependencies.length, count - 1); assert.equal(observedDependencies[39], "structural_41<-structural_40");
 });
 
 test("malformed duplicate paths are rejected deterministically", async () => {
