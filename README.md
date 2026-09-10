@@ -1,63 +1,129 @@
-# Iris — Phase 1 (Intelligence & Reporting Only)
+# Iris
 
-No money moves in this codebase. See `iris-architecture.md` (project docs) for
-the full design rationale. This repo contains:
+**Iris is a Relational Financial Intelligence Operating System.**
 
+Iris is not a Plaid dashboard, a finite list of intelligence levels, or a feature checklist. Its internal intelligence hierarchy is recursive and has no artificial semantic depth ceiling. The hierarchy is the reasoning machinery.
+
+**The user products are the reports and analytics that Iris produces from that hierarchy.**
+
+## Product model
+
+```text
+Plaid product universe
+        ↓
+availability / consent / authorization / entitlement / billing
+        ↓
+real provider observations
+        ↓
+canonical financial-life state
+        ↓
+relational + temporal + statistical + behavioral intelligence
+        ↓
+risk / opportunity / causal / predictive / scenario / decision / recommendation
+        ↓
+consequence / outcome / learning / cross-domain / higher-order intelligence
+        ↓
+recursive composition
+        ↓
+Iris report & analytics product catalog
+        ↓
+user activates / deactivates reports
+        ↓
+only evidence-qualified active reports are published
 ```
-backend/    Express + TypeScript API — Plaid Link, webhooks, sync, round-up
-            simulation engine, dashboard read endpoints. Holds all secrets.
-frontend/   React + Vite app — auth (Supabase), Plaid Link UI, dashboard.
-            Never talks to Plaid or Supabase's service role directly.
-supabase/
-  migrations/001_init_schema.sql   Full schema: raw Plaid mirror tables,
-            normalized transactions, domain/subdomain/category hierarchy,
-            round-up simulation ledger, audit log, RLS on every table.
+
+Capability families and intelligence operators are internal composition machinery. They are **not** the products sold or selected by users.
+
+## Iris Report Product Catalog
+
+The report catalog is generated from governed analytical definitions and, as the intelligence system expands, from valid higher-order compositions. A report product has stable identity/versioning, a name, purpose, family, output type, evidence requirements, and publication rules.
+
+Users can:
+
+- browse and search the catalog;
+- activate a report product;
+- deactivate a report product;
+- restore the currently defined report set;
+- receive only evidence-qualified report outputs;
+- inspect limitations, provenance, and evidence behind published reports.
+
+Report activation is a **user publication preference**. It does not activate Plaid products, create observations, manufacture financial values, or constrain the underlying intelligence hierarchy.
+
+Report names and contextual report titles may use only information actually supplied by the runtime. For example, an entity, period, or domain may be added to a title only when that value is present in the real execution context.
+
+## Evidence and anti-fabrication boundary
+
+This repository has a strict no-fabrication rule.
+
+**Never create or present as financial truth:**
+
+- fake AI-generated financial values;
+- mock, seeded, synthetic, copied, or manually invented financial observations;
+- hardcoded balances, transactions, income, debt, spending, or provider records;
+- invented report results;
+- invented confidence or probability values;
+- catalog metadata represented as observed evidence;
+- availability, consent, authorization, entitlement, or product selection represented as observation;
+- missing evidence represented as zero.
+
+A missing or insufficient observation must remain missing, unknown, unavailable, limited, or otherwise explicitly qualified. No empty state is converted into a fabricated financial conclusion.
+
+Technical unit tests may use infrastructure mocks to isolate behavior, but synthetic financial fixtures must never become production evidence or a user's financial state.
+
+## Source boundary
+
+**Plaid Dashboard:** provider/source observability only. It describes provider products, connection state, observed evidence, freshness, and source lineage.
+
+**Iris:** interpretation, synthesis, analysis, reports, education, scenarios, decisions, and higher-order intelligence derived from governed evidence.
+
+Plaid remains the provider evidence source. Iris never alters provider observations and never treats provider catalog metadata as financial evidence.
+
+## Current implementation
+
+The repository currently contains foundations for:
+
+- Plaid product/catalog capability intelligence;
+- provider observation and source-field lineage;
+- canonical financial-life state;
+- evidence-bound temporal analysis;
+- robust statistics and adaptive baselines;
+- governed capability contracts and recursive planning;
+- independently executable intelligence operators;
+- recursive higher-order synthesis;
+- evidence-gated Iris report product catalog;
+- per-user report activation/deactivation persistence;
+- evidence-qualified report publication boundaries;
+- read-only operation with no money movement.
+
+The current connected Supabase project has no `iris_run_evidence` rows. Therefore the system is **not yet end-to-end certified against real provider evidence**, even though substantial runtime/schema foundations are implemented.
+
+## Certification rule
+
+A report is not certified because its UI, schema, endpoint, or operator exists.
+
+Certification requires the complete chain:
+
+`Architecture → Contract → Schema → Runtime → Independent Execution → Evidence → Exact Evidence Boundary → Lineage → Validation → Certification → Active Report Publication → User Interaction → Deployment → End-to-End Verification`
+
+See `docs/ROADMAP.md` for the current certification gap and `docs/MASTER_STATE.md` for authoritative continuity state.
+
+## Repository structure
+
+```text
+backend/    Express + TypeScript API and governed intelligence runtime
+frontend/   React + Vite Iris experience
+supabase/   PostgreSQL migrations and RLS
+
+docs/
+  ARCHITECTURE.md
+  DECISIONS.md
+  MASTER_STATE.md
+  ROADMAP.md
+  SESSION_HANDOFF.md
 ```
 
-## Core rule
+## Development boundary
 
-Every number shown anywhere in the app must trace to a row in a `plaid_raw_*`
-table (an untouched Plaid API response) or a row in `calculation_audit_log`
-(a logged, reproducible calculation on stored data). No seeded data, no
-hardcoded fixtures, no client-side invented numbers — enforced structurally:
-`backend/src/services/sync.ts` is the only code path allowed to write
-transaction/account/balance rows.
+Current scope is read-only financial-life intelligence. No ACH, RTP, FedNow, card movement, withdrawals, trades, deposits, or other money movement is part of the current Iris intelligence product.
 
-## First-time setup
-
-1. **Supabase**: open the SQL editor in your Supabase project and run
-   `supabase/migrations/001_init_schema.sql`.
-2. **Backend**: `cd backend && cp .env.example .env`, fill in your Plaid
-   sandbox credentials and Supabase service-role key, then `npm install && npm run dev`.
-3. **Frontend**: `cd frontend && cp .env.example .env.local`, fill in your
-   Supabase URL/anon key, then `npm install && npm run dev`.
-4. Sign up in the app (Supabase Auth), connect a sandbox card via Plaid
-   Link, and confirm the dashboard populates from real synced data —
-   an empty dashboard before connecting is correct behavior, not a bug.
-
-## Deploying (Render)
-
-- **Backend** → Render Web Service, runtime Node, build `npm install && npm run build`,
-  start `npm start`, pointed at this repo's `backend/` directory, with the
-  same env vars as `.env.example` set in the Render dashboard (never commit `.env`).
-- **Frontend** → Render Static Site, build `npm install && npm run build`,
-  publish path `dist`, pointed at `frontend/`, with `VITE_*` env vars set
-  at build time.
-- Set `PLAID_WEBHOOK_URL` on the backend to `https://<your-backend>.onrender.com/webhooks/plaid`
-  once the backend has a stable Render URL, and register that same URL in
-  the Plaid dashboard.
-
-## What's intentionally not built yet
-
-- `category_mapping` table is seeded empty — the Plaid PFC → subdomain
-  mapping is real taxonomy work for the team, not something to auto-generate.
-- Liabilities/Income/Investments sync and the cross-product intelligence
-  features (interest-cost attribution, safe-to-spend, etc.) — `sync.ts`
-  currently pulls Accounts, Balance, and Transactions; extend it product by
-  product, following the same raw-mirror-then-normalize pattern.
-- Iris inline explanations and the LLM-backed conversational assistant —
-  by design, built last, once the Intelligence Engine has enough surface
-  area for it to answer from (per the build sequence in the architecture doc).
-- Encryption at rest for `plaid_access_token` — currently stored plaintext
-  in Supabase for scaffold simplicity; before any real user data, wrap this
-  in Supabase Vault or app-layer envelope encryption.
+For the complete architectural rules and unbounded intelligence model, read `docs/ARCHITECTURE.md` and `docs/ROADMAP.md` before making implementation changes.
