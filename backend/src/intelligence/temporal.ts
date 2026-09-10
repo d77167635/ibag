@@ -18,8 +18,9 @@ export async function computeMultiWindowFlow(userId: string, windows: readonly W
   const widest = Math.max(...windows);
   const anchor = asOf ? new Date(asOf) : new Date();
   const cutoff = new Date(anchor.getTime() - widest * 86_400_000).toISOString().slice(0, 10);
-  const txs = await getCanonicalTransactions(userId, cutoff, asOf ?? undefined, runId);
-  return computeCanonicalWindowFlows(txs, windows, asOf ?? undefined) as WindowedFlow[];
+  const boundary = asOf ?? undefined;
+  const txs = await getCanonicalTransactions(userId, cutoff, boundary, runId);
+  return computeCanonicalWindowFlows(txs, windows, asOf ?? undefined, runId ?? null, boundary) as WindowedFlow[];
 }
 
 export function assessTrajectory(flows: WindowedFlow[]): { direction: "accelerating" | "decelerating" | "stable" | "insufficient_evidence"; shortWindowDailyRate: number | null; longWindowDailyRate: number | null } {
