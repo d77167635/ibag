@@ -14,12 +14,14 @@ export interface CategoryDrift {
   baselineTransactionCount: number;
 }
 
-/** LAYER 5/6 — spending behavior excludes transfers and other non-economic movements. */
-export async function computeCategoryDrift(userId: string, recentDays = 30, baselineDays = 90): Promise<CategoryDrift[]> {
-  const baselineStart = new Date(Date.now() - baselineDays * 86_400_000).toISOString().slice(0, 10);
-  const recentStart = new Date(Date.now() - recentDays * 86_400_000).toISOString().slice(0, 10);
+/** Spending behavior is anchored to the supplied evidence boundary when available. */
+export async function computeCategoryDrift(userId: string, recentDays = 30, baselineDays = 90, asOf?: string | Date | null): Promise<CategoryDrift[]> {
+  const anchor = asOf ? new Date(asOf) : new Date();
+  const anchorDate = anchor.toISOString().slice(0, 10);
+  const baselineStart = new Date(anchor.getTime() - baselineDays * 86_400_000).toISOString().slice(0, 10);
+  const recentStart = new Date(anchor.getTime() - recentDays * 86_400_000).toISOString().slice(0, 10);
   const txs = await getCanonicalTransactions(userId, baselineStart);
-  const rows = txs.filter(isEconomicOutflow);
+  const rows = txs.filter(isEconomicOutflow).filter(tx => tx.posted_date <= anchorDate);
   if (!rows.length) return [];
 
   const bySubdomain = new Map<string, typeof rows>();
