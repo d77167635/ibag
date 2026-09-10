@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "../config/supabase.js";
 import type { CapabilityExecutionContext } from "./capabilityExecutionContext.js";
 
-export const EMERGENT_OPERATOR_VERSION = "1.0.0";
+export const EMERGENT_OPERATOR_VERSION = "1.1.0";
 
 export type EmergentOperatorResult = {
   capability_id: "emergent";
@@ -12,6 +12,7 @@ export type EmergentOperatorResult = {
   learning_count: number;
   discovery_count: number;
   persisted_discovery_count: number;
+  validated_discovery_count: number;
   discoveries: Array<{ discovery_type: "repeated_validated_outcome_type"; discovery_key: string; source_fingerprints: string[]; support_count: number; discovery: { repeated: true; outcome_type: string }; evidence_hash: string }>;
   consumed_learning_output_hash: string | null;
   output_hash: string;
@@ -72,15 +73,38 @@ export async function executeEmergentOperator(userId: string, context?: Capabili
         operator_version: EMERGENT_OPERATOR_VERSION,
       },
     }));
-    const { data: persisted, error: persistError } = await supabaseAdmin
+    const { error: persistError } = await supabaseAdmin
       .from("iris_emergent_discoveries")
-      .upsert(payload, { onConflict: "user_id,discovery_type,discovery_key,evidence_hash", ignoreDuplicates: true })
-      .select("id");
+      .upsert(payload, { onConflict: "user_id,discovery_type,discovery_key,evidence_hash", ignoreDuplicates: true });
     if (persistError) throw new Error(`Emergent discovery persistence failed: ${persistError.message}`);
-    persisted_discovery_count = persisted?.length ?? 0;
   }
 
-  const outputPayload = { userId, discoveries, consumed_learning_output_hash, persisted_discovery_count };
+  let validated_discovery_count = 0;
+  for (const discovery of discoveries) {
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("iris_emergent_discoveries")
+      .select("id,discovery_state")
+      .eq("user_id", userId)
+      .eq("discovery_type", discovery.discovery_type)
+      .eq("discovery_key", discovery.discovery_key)
+      .eq("evidence_hash", discovery.evidence_hash)
+      .maybeSingle();
+    if (existingError) throw new Error(`Emergent discovery lookup failed: ${existingError.message}`);
+    if (!existing?.id) continue;
+    if (existing.discovery_state === "VALIDATED") {
+      validated_discovery_count += 1;
+      continue;
+    }
+    if (existing.discovery_state !== "PROPOSED") continue;
+
+    const { data: validated, error: validationError } = await supabaseAdmin
+      .rpc("validate_iris_emergent_discovery", { p_discovery_id: existing.id });
+    if (validationError) throw new Error(`Emergent discovery validation failed: ${validationError.message}`);
+    if (validated === true) validated_discovery_count += 1;
+  }
+
+  const persisted_discovery_count = discoveries.length;
+  const outputPayload = { userId, discoveries, consumed_learning_output_hash, persisted_discovery_count, validated_discovery_count };
   return {
     capability_id: "emergent",
     operator_id: "emergent",
@@ -89,6 +113,7 @@ export async function executeEmergentOperator(userId: string, context?: Capabili
     learning_count: rows.length,
     discovery_count: discoveries.length,
     persisted_discovery_count,
+    validated_discovery_count,
     discoveries,
     consumed_learning_output_hash,
     output_hash: crypto.createHash("sha256").update(JSON.stringify(outputPayload)).digest("hex"),
