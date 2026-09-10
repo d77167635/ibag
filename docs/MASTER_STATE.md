@@ -6,7 +6,8 @@
 - Product: Iris
 - Repository: `d77167635/ibag` (repository identifier only; not the product identity)
 - Default branch: `main`
-- Latest implementation checkpoint: `4674ff1444eba4b1807c2d9ebd7be7bb9389400c`
+- Latest implementation change: `723c7aea10627eadf68669017ef3a56d4c04f176`
+- Latest continuity commit observed before this update: `ad9913c5ae759870e48f3c3a927451e7a8f29834`
 - Repository status: active, public, non-archived
 
 ## Connected infrastructure boundary
@@ -46,17 +47,21 @@ The intelligence hierarchy is recursive and branching. The named capability fami
 - `irisPublicationContext.ts` provides shared publication context for Iris intelligence surfaces.
 - Source-field observation materialization and source-field → intelligence binding foundations exist.
 - Capability planning resolves persisted contracts, dependency order, cycle detection, observed provider-product evidence, and resource estimates.
-- Capability operator registry exists and now binds the `temporal` capability to a real runtime operator.
-- `capabilityDispatcher.ts` now executes implemented non-aggregate operators rather than silently falling back to the aggregate operator.
-- The temporal operator is independently dispatchable through the governed dispatcher and returns evidence-qualified multi-window canonical flow/trajectory results without creating provider observations or financial facts.
-- The aggregate `iris.full_intelligence` execution boundary remains the existing end-to-end persistence/certification path.
+- Capability operator registry exists and binds the `temporal` capability to a real runtime operator.
+- `capabilityDispatcher.ts` executes implemented non-aggregate operators without silently falling back to the aggregate operator and accepts a governed execution context.
+- The temporal operator consumes a single explicit `asOf`/evidence boundary and returns evidence-qualified multi-window canonical flow/trajectory results without creating provider observations or financial facts.
+- `independentCapabilityExecution.ts` now persists a run, materializes current observed provider evidence once per run, executes the planner's transitive dependency order, passes the governed execution boundary into operators, persists execution inputs/outputs, evaluates the persisted capability contract, and routes eligible certification through the independent atomic database gate.
+- `073_atomic_independent_capability_certification.sql` is present in the repository and has been applied to the remote Supabase project. The function is executable only by `service_role`.
+- The aggregate `iris.full_intelligence` execution boundary remains the separate existing end-to-end persistence/certification path.
 
 ## Current verified gap
-The critical runtime gap is now narrower and explicit:
+The independent-capability bridge is now implemented through persistence and atomic certification, and the deployment is live, but it has **not yet been certified by a real end-to-end independent-capability execution against observed provider evidence**. No financial facts were fabricated for this verification.
 
-`capability contract → planner → operator registry → dispatcher` is present for the first independently executable capability, but `executeIrisRun` still treats `iris.full_intelligence` as its persisted execution capability. Independent capability results therefore require a governed bridge into the run/execution/output/validation/certification persistence path before they can be considered end-to-end executable.
+The next certification boundary is therefore:
 
-This is the next runtime architecture boundary; do not declare independent capability execution complete until that bridge is implemented and verified.
+`requested capability → persisted contract → dependency plan → executable operator → governed asOf/evidence boundary → run evidence → execution input/output → contract-driven validation → atomic independent certification → independently queryable certified result`
+
+The first vertical slice remains `temporal`. Its operator is implemented; deeper capability families remain truthful `planned` operators until distinct runtime implementations and verification exist.
 
 ## Plaid capability contract
 For every supported product/domain, maintain:
@@ -90,8 +95,8 @@ Every feature requires:
 Feature activation must never manufacture missing evidence.
 
 ## Current implementation priorities
-1. Complete the independent-capability execution bridge from requested capability → operator → persisted execution/output → validation → certification.
-2. Make the capability contract include the complete executable contract: operator identity/version, evidence requirements, validation rules, output contract, lineage requirements, recursion/cross-domain behavior, resource limits, and user-control semantics.
+1. Perform a real end-to-end temporal independent-capability execution using only existing observed evidence, then verify every persisted run/execution/input/output/validation/certification/lineage boundary without fabricating data.
+2. Make `iris_capability_contracts` the complete governing contract: operator identity/version, evidence requirements, validation rules, output contract, lineage requirements, recursion/cross-domain behavior, resource limits, and user-control semantics; executable code must not silently weaken persisted policy.
 3. Complete authoritative Plaid Dashboard rendering and certify provider/source separation.
 4. Make the Iris Feature Registry authoritative for durable user activation/deactivation and entitlements.
 5. Complete the canonical financial-life state, historical provider observation lifecycle, economic semantics, and field/evidence lineage.
@@ -100,13 +105,14 @@ Feature activation must never manufacture missing evidence.
 8. Verify clean builds/tests, RLS/security, Supabase migration/runtime reconciliation, Render deployment, Plaid Sandbox lifecycle, and end-to-end observable user journeys.
 
 ## Verification status
-- Current GitHub main was verified at the time of this reconciliation.
-- The temporal operator change initially exposed TypeScript compatibility errors at the aggregate execution boundary; the result type was corrected in commit `4674ff1444eba4b1807c2d9ebd7be7bb9389400c`.
-- Render automatic deployment for `4674ff1444eba4b1807c2d9ebd7be7bb9389400c` was still `build_in_progress` at the last check and must be rechecked before being marked verified.
-- Earlier Render deployment failures were traced to the dispatcher result type and are not treated as a passing build.
-- GitHub combined commit status returned no status records; this is not equivalent to a passing CI certification.
-- Clean dependency-installed backend/frontend build certification remains outstanding.
-- Remote Supabase schema/runtime reconciliation remains a required certification gate.
+- Render deployment for implementation commit `723c7aea10627eadf68669017ef3a56d4c04f176` reached `live`.
+- Render build logs for that deployment show `113` tests passed and `0` failed, followed by a successful TypeScript build.
+- Render runtime logs show the Iris backend listening successfully in production with Plaid environment `sandbox`; the service reached the Render `live` state.
+- The previous startup ciphertext failure is resolved by the token migration guard that skips structurally encrypted legacy ciphertext instead of attempting decryption with the current key during startup.
+- Remote Supabase now contains migration `073_atomic_independent_capability_certification` and the independent certification function; `anon` and `authenticated` do not have execute privilege, while `service_role` does.
+- Remote Supabase currently contains observed transitional evidence (including provider observations, source-field observations, canonical transactions, and lineage). These observations remain transitional and are not to be treated as the future clean Iris production dataset.
+- GitHub combined commit status for the continuity commit returned no status records; this is not equivalent to a passing GitHub CI certification.
+- A real end-to-end independent-capability certification run remains outstanding.
 
 ## Session protocol
 1. Read this file.
