@@ -32,7 +32,7 @@ const temporalOperator: CapabilityOperator = {
 };
 
 const emergentOperator: CapabilityOperator = {
-  capability_id: "emergent", operator_id: "emergent", version: "1.2.0", status: "implemented", execution_stage: "recursive_higher_order_synthesis", evidence_state: "INFERRED",
+  capability_id: "emergent", operator_id: "emergent", version: "1.1.0", status: "implemented", execution_stage: "recursive_higher_order_synthesis", evidence_state: "INFERRED",
   execute: async (userId, context) => {
     const dependencyResults = context?.dependencyResults ?? {};
     const synthesis = buildRecursiveIntelligenceSynthesis(dependencyResults, context);
@@ -45,7 +45,7 @@ const emergentOperator: CapabilityOperator = {
     return {
       capability_id: "emergent",
       operator_id: "emergent",
-      operator_version: "1.2.0",
+      operator_version: "1.1.0",
       evidence_state: state,
       result: {
         ...synthesis,
