@@ -44,9 +44,10 @@ export async function executeBehavioralOperator(userId: string, context?: Capabi
 
 export async function executePatternOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId, context);
-  const upstreamTemporal = dependencyResult<any>(context ?? { userId, capabilityId: "pattern", evidenceBoundary: asOf, dependencyOutputs: {}, dependencyIds: [], resourceBudget: null, recursionDepth: 0 }, "temporal");
-  const upstreamBehavioral = dependencyResult<any>(context ?? { userId, capabilityId: "pattern", evidenceBoundary: asOf, dependencyOutputs: {}, dependencyIds: [], resourceBudget: null, recursionDepth: 0 }, "behavioral");
-  const upstreamAnomaly = dependencyResult<any>(context ?? { userId, capabilityId: "pattern", evidenceBoundary: asOf, dependencyOutputs: {}, dependencyIds: [], resourceBudget: null, recursionDepth: 0 }, "anomaly");
+  const fallbackContext = { dependencyOutputs: {} };
+  const upstreamTemporal = dependencyResult<any>(context ?? fallbackContext, "temporal");
+  const upstreamBehavioral = dependencyResult<any>(context ?? fallbackContext, "behavioral");
+  const upstreamAnomaly = dependencyResult<any>(context ?? fallbackContext, "anomaly");
   const [drift, anomalies, windows] = await Promise.all([
     upstreamBehavioral?.category_drift ?? computeCategoryDrift(userId, 30, 90, asOf),
     upstreamAnomaly?.anomalies ?? computeCanonicalAnomalies(userId, 30, asOf),
@@ -78,9 +79,10 @@ export async function executeAnomalyOperator(userId: string, context?: Capabilit
 
 export async function executePredictiveOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId, context);
-  const upstreamTemporal = dependencyResult<any>(context ?? { userId, capabilityId: "predictive", evidenceBoundary: asOf, dependencyOutputs: {}, dependencyIds: [], resourceBudget: null, recursionDepth: 0 }, "temporal");
-  const upstreamAnalysis = dependencyResult<any>(context ?? { userId, capabilityId: "predictive", evidenceBoundary: asOf, dependencyOutputs: {}, dependencyIds: [], resourceBudget: null, recursionDepth: 0 }, "analysis");
-  const upstreamCausal = dependencyResult<any>(context ?? { userId, capabilityId: "predictive", evidenceBoundary: asOf, dependencyOutputs: {}, dependencyIds: [], resourceBudget: null, recursionDepth: 0 }, "causal");
+  const fallbackContext = { dependencyOutputs: {} };
+  const upstreamTemporal = dependencyResult<any>(context ?? fallbackContext, "temporal");
+  const upstreamAnalysis = dependencyResult<any>(context ?? fallbackContext, "analysis");
+  const upstreamCausal = dependencyResult<any>(context ?? fallbackContext, "causal");
   const projection = await computeCanonicalForwardProjection(userId, 30, asOf);
   const dependencyInputs = ["temporal", "analysis", "causal"].filter(id => Boolean(context?.dependencyOutputs[id]));
   return {
