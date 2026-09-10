@@ -12,12 +12,15 @@
 - Wired all currently registered recursive capability surfaces to executable operators and preserved explicit evidence-state/provenance semantics without fabricating financial values.
 - Added runtime dependency-result propagation to independent capability execution: declared upstream outputs are passed into downstream operators, persisted as execution inputs with upstream execution references and hashes, and included in downstream execution manifests.
 - Extended recursive operators so scenario, decision, recommendation, outcome, learning, and emergent reasoning can consume available upstream capability results while retaining explicit insufficient-evidence states where validated outcomes are absent.
+- Added governed recursive higher-order synthesis that reconstructs the dependency graph from persisted capability outputs, preserves output hashes/evidence states, identifies supported cross-capability chains and interactions, and exposes missing-evidence gaps without creating provider observations or financial values.
+- Routed the governed emergent capability through the recursive higher-order synthesis layer instead of treating the earlier isolated emergent calculation as the endpoint of recursion.
 - Bound canonical temporal window calculations to the explicit evidence boundary so supplied transaction sets cannot leak later observations into a historical run.
 - Added exact-run financial-state derivation for balance, liquidity-history, debt-history, and run-bound forward projection paths while withholding safe-to-spend when recurrence evidence is not sufficient to establish contractual/essential obligations.
 - Added user-specific observed activity-day outflow baselines to maximum intelligence, with median/MAD dispersion, adaptive references, explicit limited/insufficient states, and no conversion of missing days into zero observations.
 - Added reusable robust statistical/adaptive-baseline primitives and regression tests.
 - Added regression coverage proving evidence-bound temporal aggregation excludes transactions outside the explicit boundary.
 - Hardened backend test imports so production-required secrets are not required merely to load pure intelligence tests in the CI test environment; production configuration remains fail-fast when required variables are absent.
+- Verified the recursive synthesis deployment reached `live` on Render after the current test/build pipeline completed; the exact deployed commit remains tracked by Render rather than inferred from documentation commits.
 - Verified Render commit `5e55cca208cbe231edcc2d6117353f693ebcf189` reached `live` after a successful backend test/build deployment.
 
 ## 2026-09-09
