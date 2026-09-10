@@ -18,12 +18,12 @@ type AggregateDispatch = {
   result: Awaited<ReturnType<typeof computeFullIntelligence>>;
 };
 
-type DispatchRequest = { userId: string; capabilityId: string; executionId: string };
+type DispatchRequest = { userId: string; capabilityId: string; executionId?: string };
 
-export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY; executionId: string }): Promise<AggregateDispatch>;
+export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY; executionId?: string }): Promise<AggregateDispatch>;
 export function dispatchGovernedCapability(request: DispatchRequest): Promise<{ capability_id: string; operator_id: string; operator_version: string; result: unknown }>;
 
-/** Single runtime dispatcher. Every governed operator receives the exact durable execution context for its execution record. */
+/** Single runtime dispatcher. Every governed operator receives durable dependency context for its execution record. */
 export async function dispatchGovernedCapability({ userId, capabilityId, executionId }: DispatchRequest) {
   const context = await loadCapabilityExecutionContext(userId, capabilityId, executionId);
 
