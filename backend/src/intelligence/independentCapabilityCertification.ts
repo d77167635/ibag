@@ -6,6 +6,10 @@ type CapabilityContract = {
   evidence_requirements: unknown;
   validation_rules: unknown;
   output_type: string;
+  output_contract: unknown;
+  lineage_requirements: unknown;
+  resource_limits: unknown;
+  user_control: unknown;
   recursive: boolean;
   cross_domain: boolean;
 };
@@ -21,6 +25,10 @@ export type IndependentCertification = {
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 export async function evaluateIndependentCapabilityCertification(input: {
@@ -48,7 +56,7 @@ export async function evaluateIndependentCapabilityCertification(input: {
       .maybeSingle(),
     supabaseAdmin
       .from("iris_execution_records")
-      .select("run_id,user_id,execution_state,input_hash,output_hash,resource_usage")
+      .select("run_id,user_id,as_of,input_hash,output_hash,execution_state,resource_usage")
       .eq("id", executionId)
       .eq("run_id", runId)
       .eq("user_id", userId)
@@ -60,7 +68,7 @@ export async function evaluateIndependentCapabilityCertification(input: {
       .eq("user_id", userId),
     supabaseAdmin
       .from("iris_execution_outputs")
-      .select("hash,value,evidence_state")
+      .select("hash,value,evidence_state,output_type")
       .eq("execution_id", executionId),
   ]);
 
@@ -75,6 +83,12 @@ export async function evaluateIndependentCapabilityCertification(input: {
     !!run?.as_of && !!run?.evidence_boundary && !!run?.evidence_manifest_hash,
     "Evidence boundary and manifest hash are persisted.",
     "Evidence boundary or manifest hash is incomplete.",
+  );
+  check(
+    "contract.governance",
+    !!contract.operator_id && !!contract.operator_version && !!contract.version && !!contract.capability_id,
+    "Operator identity and capability contract identity are present.",
+    "Capability contract identity is incomplete.",
   );
 
   const providerEvidencePresent =
@@ -110,6 +124,35 @@ export async function evaluateIndependentCapabilityCertification(input: {
 
   const requirements = stringList(contract.evidence_requirements);
   const validationRules = stringList(contract.validation_rules);
+  const lineageRequirements = stringList(contract.lineage_requirements);
+  const outputContract = objectValue(contract.output_contract);
+  const resourceLimits = objectValue(contract.resource_limits);
+  const userControl = objectValue(contract.user_control);
+
+  check(
+    "contract.output_contract",
+    Object.keys(outputContract).length > 0 && outputContract.type === contract.output_type,
+    "Persisted output contract declares the same output type used by the execution record.",
+    "Persisted output contract is missing or does not match the declared output type.",
+  );
+  check(
+    "contract.lineage_requirements",
+    lineageRequirements.length > 0,
+    "Persisted contract declares explicit lineage requirements.",
+    "Persisted contract does not declare lineage requirements.",
+  );
+  check(
+    "contract.resource_limits",
+    Object.keys(resourceLimits).length > 0,
+    "Persisted contract declares execution resource limits.",
+    "Persisted contract does not declare execution resource limits.",
+  );
+  check(
+    "contract.user_control",
+    Object.keys(userControl).length > 0,
+    "Persisted contract declares user-control semantics.",
+    "Persisted contract does not declare user-control semantics.",
+  );
 
   if (canonicalError) {
     check("contract.canonical_financial_model", false, "Canonical financial model is readable.", `Canonical financial model could not be verified: ${canonicalError.message}`);
@@ -140,40 +183,52 @@ export async function evaluateIndependentCapabilityCertification(input: {
     );
   }
 
-  if (validationRules.includes("lineage_present")) {
+  if (validationRules.includes("lineage_present") || lineageRequirements.includes("source_lineage")) {
     check(
       "contract.lineage_present",
       (lineage?.length ?? 0) > 0 && lineage!.every((entry) => entry.user_id === userId),
       "Provider evidence has user-owned lineage.",
-      "Persisted capability contract requires lineage, but no user-owned provider lineage is attached to this execution.",
+      "The persisted contract requires source lineage, but no user-owned provider lineage is attached to this execution.",
     );
   }
 
-  if (validationRules.includes("evidence_state_valid")) {
-    const output = outputs?.find((entry) => entry.hash === outputHash);
+  if (lineageRequirements.includes("run_evidence")) {
     check(
-      "contract.evidence_state_valid",
-      providerEvidencePresent && !!output && output.value != null && output.evidence_state !== "OBSERVED",
-      "Provider inputs remain observed evidence while derived output remains non-observed.",
-      "Evidence-state semantics do not satisfy the persisted capability contract.",
+      "contract.run_evidence",
+      providerEvidencePresent,
+      "The persisted lineage contract is backed by dated run evidence.",
+      "The persisted lineage contract requires run evidence, but the run evidence boundary is empty or incomplete.",
     );
   }
 
   const output = outputs?.find((entry) => entry.hash === outputHash);
+  const allowedEvidenceStates = stringList(outputContract.evidence_state_policy);
+  const outputStateAllowed = allowedEvidenceStates.length === 0 || !!output && allowedEvidenceStates.includes(output.evidence_state);
+  const observedOutputForbidden = outputContract.observed_output_forbidden !== false;
+
+  if (validationRules.includes("evidence_state_valid")) {
+    check(
+      "contract.evidence_state_valid",
+      providerEvidencePresent && !!output && output.value != null && outputStateAllowed && (!observedOutputForbidden || output.evidence_state !== "OBSERVED"),
+      "Provider inputs remain observed evidence while derived output follows the persisted evidence-state policy.",
+      "Evidence-state semantics do not satisfy the persisted capability contract.",
+    );
+  }
+
   check(
     "output.integrity",
-    !!output && output.value != null && output.evidence_state !== "OBSERVED",
-    "Derived capability output is persisted with the expected hash and semantic state.",
-    "Capability output is missing, hash-mismatched, or marked as observed evidence.",
+    !!output && output.value != null && output.hash === outputHash && (!observedOutputForbidden || output.evidence_state !== "OBSERVED") && outputStateAllowed,
+    "Derived capability output is persisted with the expected hash, type, and semantic state.",
+    "Capability output is missing, hash-mismatched, type-incompatible, or violates the persisted evidence-state policy.",
   );
 
   const usage = execution?.resource_usage as { duration_ms?: number } | null | undefined;
-  const budget = run?.resource_budget as { max_execution_time_ms?: number } | null | undefined;
+  const maxExecutionTime = typeof resourceLimits.max_execution_time_ms === "number" ? resourceLimits.max_execution_time_ms : null;
   check(
     "resource_budget",
-    !!usage && (!budget?.max_execution_time_ms || (usage.duration_ms ?? Number.MAX_SAFE_INTEGER) <= budget.max_execution_time_ms),
-    "Execution is within the configured resource budget.",
-    "Execution resource usage is missing or exceeds its configured budget.",
+    !!usage && (!maxExecutionTime || (usage.duration_ms ?? Number.MAX_SAFE_INTEGER) <= maxExecutionTime),
+    "Execution is within the persisted capability resource budget.",
+    "Execution resource usage is missing or exceeds the persisted capability resource budget.",
   );
 
   return {
@@ -197,6 +252,10 @@ export async function evaluateIndependentCapabilityCertification(input: {
       contract_version: contract.version,
       evidence_requirements: contract.evidence_requirements,
       validation_rules: contract.validation_rules,
+      output_contract: contract.output_contract,
+      lineage_requirements: contract.lineage_requirements,
+      resource_limits: contract.resource_limits,
+      user_control: contract.user_control,
       recursive: contract.recursive,
       cross_domain: contract.cross_domain,
     },
