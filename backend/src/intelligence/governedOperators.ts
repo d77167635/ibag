@@ -1,3 +1,4 @@
+import { computeBalanceMetrics, computeCashFlowSafety, computeDebtTrend } from "../services/intelligence.js";
 import { computeCanonicalAnomalies, IRIS_ANOMALY_INTELLIGENCE_V2 } from "./anomalies.js";
 import { computeCategoryDrift } from "./behavioral.js";
 import { computeFinancialReasoning } from "./relational.js";
@@ -29,9 +30,7 @@ function requireDependencyContext(context: CapabilityExecutionContext | undefine
 
 function requireDependencies(context: CapabilityExecutionContext, capabilityId: string, dependencyIds: readonly string[]): void {
   for (const dependencyId of dependencyIds) {
-    if (!context.dependencyOutputs[dependencyId]) {
-      throw new Error(`CAPABILITY_DEPENDENCY_OUTPUT_REQUIRED:${capabilityId}->${dependencyId}`);
-    }
+    if (!context.dependencyOutputs[dependencyId]) throw new Error(`CAPABILITY_DEPENDENCY_OUTPUT_REQUIRED:${capabilityId}->${dependencyId}`);
   }
 }
 
@@ -44,9 +43,24 @@ export async function executeTemporalOperator(userId: string, context?: Capabili
 export async function executeAnalysisOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId, context);
   const transactions = await getCanonicalTransactions(userId, asOf ? new Date(new Date(asOf).getTime() - 90 * 86_400_000).toISOString().slice(0, 10) : undefined);
-  const cashFlow = computeEconomicCashFlow(transactions.filter(tx => !asOf || tx.posted_date <= asOf.slice(0, 10)));
-  const spending = computeCanonicalSpendingHierarchy(transactions, 30, asOf);
-  return { capability_id: "analysis", operator_id: "analysis", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: transactions.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, result: { transaction_count: transactions.length, economic_cash_flow: cashFlow, spending_hierarchy: spending, calculation_basis: "canonical_certified_transactions" } };
+  const boundedTransactions = transactions.filter(tx => !asOf || tx.posted_date <= asOf.slice(0, 10));
+  const [balances, cashFlowSafety, debtTrend] = await Promise.all([computeBalanceMetrics(userId), computeCashFlowSafety(userId), computeDebtTrend(userId)]);
+  const cashFlow = computeEconomicCashFlow(boundedTransactions);
+  const spending = computeCanonicalSpendingHierarchy(boundedTransactions, 30, asOf);
+  const evidenceState = boundedTransactions.length || balances.liquidAssets != null ? "CALCULATED" : "INSUFFICIENT_EVIDENCE";
+  return {
+    capability_id: "analysis", operator_id: "analysis", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION,
+    evidence_state: evidenceState, evidence_boundary: asOf,
+    result: {
+      transaction_count: boundedTransactions.length,
+      economic_cash_flow: cashFlow,
+      spending_hierarchy: spending,
+      net_worth: { liquid_assets: balances.liquidAssets, as_of: balances.asOf },
+      cash_flow_safety: cashFlowSafety,
+      debt_health: { revolving_debt: balances.revolvingDebt, credit_utilization: balances.creditUtilization, change_pct_30d: debtTrend.changePct, as_of: balances.asOf },
+      calculation_basis: "canonical_certified_transactions_and_authoritative_balance_state",
+    },
+  };
 }
 
 export async function executeBehavioralOperator(userId: string, context?: CapabilityExecutionContext): Promise<OperatorEnvelope<unknown>> {
