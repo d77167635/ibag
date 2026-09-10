@@ -1,6 +1,5 @@
 import { assessTrajectory } from "./temporal.js";
 import { getCanonicalTransactions, computeCanonicalWindowFlows } from "./transactionSemantics.js";
-import type { CapabilityExecutionContext, CapabilityOperatorResult, GovernedCapabilityResult } from "./capabilityOperators.js";
 import { executeAnalysis, executeBehavioral, executePattern, executeRelationship, executeAnomaly, executeCausal, executePredictive, executeScenario, executeDecision, executeRecommendation, executeOutcome, executeLearning, executeEmergent } from "./recursiveOperators.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
