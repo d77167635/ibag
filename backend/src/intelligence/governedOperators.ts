@@ -35,13 +35,13 @@ export async function executeAnalysisOperator(userId: string): Promise<OperatorE
 
 export async function executeBehavioralOperator(userId: string): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId);
-  const drift = await computeCategoryDrift(userId);
+  const drift = await computeCategoryDrift(userId, 30, 90, asOf);
   return { capability_id: "behavioral", operator_id: "behavioral", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: drift.some(row => row.evidence === "calculated") ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, result: { category_drift: drift } };
 }
 
 export async function executePatternOperator(userId: string): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId);
-  const [drift, anomalies, windows] = await Promise.all([computeCategoryDrift(userId), computeCanonicalAnomalies(userId), computeMultiWindowFlow(userId, undefined, asOf)]);
+  const [drift, anomalies, windows] = await Promise.all([computeCategoryDrift(userId, 30, 90, asOf), computeCanonicalAnomalies(userId, 30, asOf), computeMultiWindowFlow(userId, undefined, asOf)]);
   const significantDrift = drift.filter(row => row.significant);
   const trajectory = assessTrajectory(windows);
   const patterns = [
@@ -60,7 +60,7 @@ export async function executeRelationshipOperator(userId: string): Promise<Opera
 
 export async function executeAnomalyOperator(userId: string): Promise<OperatorEnvelope<unknown>> {
   const asOf = await boundary(userId);
-  const anomalies = await computeCanonicalAnomalies(userId, 30);
+  const anomalies = await computeCanonicalAnomalies(userId, 30, asOf);
   return { capability_id: "anomaly", operator_id: "anomaly", version: GOVERNED_ANALYTICAL_OPERATOR_VERSION, evidence_state: anomalies.length ? "CALCULATED" : "INSUFFICIENT_EVIDENCE", evidence_boundary: asOf, result: { anomalies, algorithm_version: "IRIS_ANOMALY_INTELLIGENCE_V1" } };
 }
 
