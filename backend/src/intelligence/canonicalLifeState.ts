@@ -123,7 +123,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
       direction,
       economic_role: economicRole,
       transaction_class: tx.transaction_class,
-      classification_evidence: tx.classification_evidence,
+      classification_evidence: tx.classification_evidence as Evidence,
     });
 
     const classEntry = classTotals.get(tx.transaction_class) ?? { count: 0, inflow: 0, outflow: 0, absolute: 0 };
@@ -135,8 +135,8 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     const accountEntry = accountTotals.get(tx.account_id) ?? { amount: 0, count: 0 };
     accountEntry.amount += amount; accountEntry.count++; accountTotals.set(tx.account_id, accountEntry);
     if (merchant) { const entry = merchantTotals.get(merchant) ?? { label: tx.merchant_name ?? tx.merchant_id!, amount: 0, count: 0 }; entry.amount += amount; entry.count++; merchantTotals.set(merchant, entry); }
-    if (domain) { const entry = domainTotals.get(domain) ?? { label: tx.domain!.label, amount: 0, count: 0 }; entry.amount += amount; entry.count++; domainTotals.set(domain, entry); }
-    if (category) { const entry = categoryTotals.get(category) ?? { label: categoryValue!, amount: 0, count: 0 }; entry.amount += amount; entry.count++; categoryTotals.set(category, entry); }
+    if (domain) { const entry = domainTotals.get(domain) ?? { label: tx.domain!.label, amount: 0, count: 0 }; entry.amount += amount; domainTotals.set(domain, entry); }
+    if (category) { const entry = categoryTotals.get(category) ?? { label: categoryValue!, amount: 0, count: 0 }; entry.amount += amount; categoryTotals.set(category, entry); }
 
     const connect = (from: string, to: string, kind: Relationship["kind"], basis: string) => {
       const key = relationKey(kind, from, to);
