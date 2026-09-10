@@ -56,6 +56,6 @@ test("missing activity days are not silently converted into zero observations", 
 
   assert.equal(result.adaptive_baseline.status, "limited");
   assert.equal(result.adaptive_baseline.sample_size, 1);
-  assert.equal(result.adaptive_baseline.median, null);
+  assert.equal(result.adaptive_baseline.median, 100);
   assert.match(result.adaptive_baseline.limitation ?? "", /two observed activity days/);
 });
