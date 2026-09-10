@@ -65,11 +65,12 @@ export async function executeLearningOperator(userId: string, context?: Capabili
         operator_version: LEARNING_OPERATOR_VERSION,
       },
     }));
-    const { error: persistError } = await supabaseAdmin
+    const { data: persistedRows, error: persistError } = await supabaseAdmin
       .from("iris_learning_experiences")
-      .upsert(payload, { onConflict: "user_id,rule_type,rule_key,input_fingerprint,evidence_hash", ignoreDuplicates: true });
+      .upsert(payload, { onConflict: "user_id,rule_type,rule_key,input_fingerprint,evidence_hash", ignoreDuplicates: true })
+      .select("id");
     if (persistError) throw new Error(`Learning experience persistence failed: ${persistError.message}`);
-    persisted_experience_count = payload.length;
+    persisted_experience_count = persistedRows?.length ?? 0;
   }
 
   let validated_experience_count = 0;
