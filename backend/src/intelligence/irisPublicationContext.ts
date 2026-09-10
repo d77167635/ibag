@@ -1,8 +1,8 @@
 import { IRIS_FEATURE_REGISTRY } from "../contracts/irisFeatureRegistry.js";
 import type { IrisFeatureActivation } from "../contracts/irisFeatureRegistry.js";
-import { IRIS_STANDARD_CAPABILITY_IDS } from "./irisCatalog.js";
 import { buildIrisFeatureRuntime } from "./irisFeatureRuntime.js";
 import { buildIrisIntelligenceOutputRuntime } from "./irisIntelligenceOutputRuntime.js";
+import { IRIS_DEFAULT_ACTIVE_REPORT_IDS, IRIS_REPORT_CATALOG, IRIS_REPORT_CATALOG_VERSION } from "./irisReportCatalog.js";
 
 type AtlasDefinitionInput = {
   id: string;
@@ -16,24 +16,18 @@ type AtlasDefinitionInput = {
 
 export function buildIrisPublicationRuntime(
   atlasDefinitions: AtlasDefinitionInput[],
-  selectedCapabilityIds: string[],
+  activeReportIds: string[],
 ) {
+  // User report activation is a publication preference. It does not disable
+  // the underlying intelligence hierarchy or its internal capability graph.
   const activations: Record<string, IrisFeatureActivation> = Object.fromEntries(
-    IRIS_FEATURE_REGISTRY.map((feature) => [
-      feature.featureId,
-      selectedCapabilityIds.includes(feature.capabilityId) ? "enabled" : "disabled",
-    ]),
+    IRIS_FEATURE_REGISTRY.map((feature) => [feature.featureId, "enabled"]),
   ) as Record<string, IrisFeatureActivation>;
 
   const readyAtlasIds = new Set(
     atlasDefinitions.filter((definition) => definition.evidence_ready === true).map((definition) => definition.id),
   );
 
-  /**
-   * Atlas readiness is analytical readiness, so it must be evaluated against
-   * the feature's explicit analysis mapping. requiredEvidence contains
-   * semantic evidence requirements and must never be compared to analysis IDs.
-   */
   const evidenceCoverage: Record<string, number> = Object.fromEntries(
     IRIS_FEATURE_REGISTRY.map((feature) => {
       const requiredAnalyses = feature.requiredAnalysisIds;
@@ -45,53 +39,50 @@ export function buildIrisPublicationRuntime(
 
   const featureRuntime = buildIrisFeatureRuntime({ activations, evidenceCoverage });
   const intelligenceOutputRuntime = buildIrisIntelligenceOutputRuntime(
-    {
-      definitions: atlasDefinitions.map((definition) => ({
-        id: definition.id,
-        family: definition.family ?? "unknown",
-        name: definition.name ?? definition.id,
-        purpose: definition.purpose ?? "",
-        output: definition.output ?? "",
-        evidence_ready: definition.evidence_ready === true,
-        missing_inputs: definition.missing_inputs ?? [],
-      })),
-    },
+    { definitions: atlasDefinitions.map((definition) => ({
+      id: definition.id,
+      family: definition.family ?? "unknown",
+      name: definition.name ?? definition.id,
+      purpose: definition.purpose ?? "",
+      output: definition.output ?? "",
+      evidence_ready: definition.evidence_ready === true,
+      missing_inputs: definition.missing_inputs ?? [],
+    })) },
     featureRuntime,
+    activeReportIds,
   );
 
   return {
-    selected_capability_ids: selectedCapabilityIds,
+    catalog_version: IRIS_REPORT_CATALOG_VERSION,
+    selected_report_ids: activeReportIds,
+    report_catalog: IRIS_REPORT_CATALOG,
     feature_runtime: featureRuntime,
     intelligence_output_runtime: intelligenceOutputRuntime,
     publication_boundary: {
-      atlas_readiness_is_not_raw_provider_observation: true,
+      intelligence_hierarchy_is_not_a_user_product_catalog: true,
+      report_products_are_user_controllable: true,
+      report_activation_does_not_activate_provider_products: true,
+      report_activation_does_not_create_evidence: true,
       catalog_metadata_is_not_evidence: true,
-      feature_activation_does_not_activate_provider_products: true,
       limited_outputs_require_explicit_qualification: true,
       suppressed_outputs_are_not_normal_intelligence_claims: true,
-      feature_evidence_coverage_uses_analysis_mapping: true,
     },
   };
 }
 
-/**
- * Builds the single publication context shared by Iris intelligence surfaces.
- * Atlas readiness is analytical evidence, not a raw provider-observation claim.
- * The provider-backed dependency is loaded lazily so the pure publication
- * runtime remains executable in environments without production secrets.
- */
 export async function buildIrisPublicationContext(userId: string, atlasDefinitions: AtlasDefinitionInput[]) {
   const { supabaseAdmin } = await import("../config/supabase.js");
   const { data: preference, error } = await supabaseAdmin
-    .from("iris_user_intelligence_preferences")
-    .select("selected_capability_ids")
+    .from("iris_user_report_preferences")
+    .select("selected_report_ids, activation_mode")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
 
-  const selectedCapabilityIds = preference && Array.isArray(preference.selected_capability_ids)
-    ? preference.selected_capability_ids.filter((id: unknown): id is string => typeof id === "string")
-    : [...IRIS_STANDARD_CAPABILITY_IDS];
+  const activeReportIds = preference
+    ? [...new Set((Array.isArray(preference.selected_report_ids) ? preference.selected_report_ids : [])
+      .filter((id: unknown): id is string => typeof id === "string" && IRIS_REPORT_CATALOG.some((report) => report.reportId === id)))]
+    : [...IRIS_DEFAULT_ACTIVE_REPORT_IDS];
 
-  return buildIrisPublicationRuntime(atlasDefinitions, selectedCapabilityIds);
+  return buildIrisPublicationRuntime(atlasDefinitions, activeReportIds);
 }
