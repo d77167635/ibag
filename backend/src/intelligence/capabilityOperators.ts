@@ -21,7 +21,7 @@ const temporalOperator: CapabilityOperator = {
     } };
   },
 };
-function op(capability_id: string, execute: CapabilityOperator["execute"], evidence_state: CapabilityOperatorResult["evidence_state"], execution_stage: string): CapabilityOperator { return { capability_id, operator_id: capability_id, version: "1.0.0", status: "implemented", execution_stage, evidence_state, execute }; }
+function op(capability_id: string, execute: CapabilityOperator["execute"], evidence_state: CapabilityOperatorResult["evidence_state"], execution_stage: string, version = "1.0.0"): CapabilityOperator { return { capability_id, operator_id: capability_id, version, status: "implemented", execution_stage, evidence_state, execute }; }
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   temporalOperator,
   op("analysis", executeAnalysis, "CALCULATED", "canonical_semantic_analysis"),
@@ -35,7 +35,7 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   op("decision", executeDecision, "INFERRED", "decision_intelligence"),
   op("recommendation", executeRecommendation, "INFERRED", "review_recommendations"),
   op("outcome", executeOutcome, "CALCULATED", "durable_outcome_loop"),
-  op("learning", executeLearning, "INFERRED", "validated_outcome_learning"),
-  op("emergent", executeEmergent, "INFERRED", "higher_order_discovery"),
+  op("learning", executeLearning, "INFERRED", "validated_outcome_learning", "1.1.0"),
+  op("emergent", executeEmergent, "INFERRED", "higher_order_discovery", "1.1.0"),
 ];
 export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null { return EXECUTABLE_CAPABILITY_OPERATORS.find((operator) => operator.capability_id === capabilityId) ?? null; }
