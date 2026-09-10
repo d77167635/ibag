@@ -138,9 +138,10 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
   const observationStart = sortedDates[0] ?? null;
   const observationEnd = sortedDates.at(-1) ?? null;
   const observationSpanDays = observationStart && observationEnd ? Math.max(1, Math.round((new Date(observationEnd).getTime() - new Date(observationStart).getTime()) / 86_400_000) + 1) : null;
+  const hasEconomicFlow = economicTransactionCount > 0;
 
   return {
-    architecture_version: "IRIS_CANONICAL_LIFE_STATE_V3",
+    architecture_version: "IRIS_CANONICAL_LIFE_STATE_V4",
     evidence_state: transactions.length ? "calculated" as const : "insufficient_evidence" as const,
     evidence_boundary: evidenceBoundary,
     transaction_count: transactions.length,
@@ -156,11 +157,11 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
       evidence: transactions.length ? "calculated" as const : "insufficient_evidence" as const,
     },
     flow: {
-      inflow: round(inflow),
-      outflow: round(outflow),
-      net: round(inflow - outflow),
-      evidence: economicTransactionCount ? "calculated" as const : "insufficient_evidence" as const,
-      basis: economicTransactionCount ? "Observed canonical transactions classified as income/refund inflows and purchase/debt_payment/fee outflows." : null,
+      inflow: hasEconomicFlow ? round(inflow) : null,
+      outflow: hasEconomicFlow ? round(outflow) : null,
+      net: hasEconomicFlow ? round(inflow - outflow) : null,
+      evidence: hasEconomicFlow ? "calculated" as const : "insufficient_evidence" as const,
+      basis: hasEconomicFlow ? "Observed canonical transactions classified as income/refund inflows and purchase/debt_payment/fee outflows." : null,
     },
     transaction_class_distribution: [...classTotals.entries()].map(([transaction_class, value]) => ({
       transaction_class,
@@ -173,7 +174,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     })).sort((a, b) => b.absolute_amount - a.absolute_amount),
     account_activity: [...accountTotals.entries()].map(([account_id, value]) => ({ account_id, transaction_count: value.count, absolute_amount: round(value.amount), share_of_activity: totalAbsolute > 0 ? round(value.amount / totalAbsolute) : null, evidence: "calculated" as const })).sort((a, b) => b.absolute_amount - a.absolute_amount),
     merchant_concentration: {
-      total_absolute_activity: round([...merchantTotals.values()].reduce((sum, entry) => sum + entry.amount, 0)),
+      total_absolute_activity: merchantTotals.size ? round([...merchantTotals.values()].reduce((sum, entry) => sum + entry.amount, 0)) : null,
       merchants_observed: merchantTotals.size,
       top: orderedMerchants.slice(0, 20).map(([id, value]) => ({ id, label: value.label, transaction_count: value.count, absolute_amount: round(value.amount), share_of_merchant_activity: totalAbsolute > 0 ? round(value.amount / totalAbsolute) : null, evidence: "calculated" as const })),
       evidence: merchantTotals.size ? "calculated" as const : "insufficient_evidence" as const,
