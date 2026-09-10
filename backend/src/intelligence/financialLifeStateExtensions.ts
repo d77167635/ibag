@@ -76,7 +76,8 @@ export function buildIncomeIntelligence(transactions: CanonicalTransaction[]): I
     const amount = Math.abs(tx.amount);
     total += amount;
     dates.add(tx.posted_date);
-    const key = tx.merchant_id ?? tx.merchant_name ?? "unresolved_income_source";
+    const identifiableSource = tx.merchant_id ?? tx.merchant_name;
+    const key = identifiableSource ?? `unresolved_income_source:${tx.id}`;
     const current = sourceMap.get(key) ?? { label: tx.merchant_name ?? "Unresolved income source", count: 0, total: 0 };
     current.count += 1;
     current.total += amount;
@@ -107,7 +108,8 @@ export function buildRecurrenceIntelligence(transactions: CanonicalTransaction[]
   const candidatesByKey = new Map<string, CanonicalTransaction[]>();
   for (const tx of transactions) {
     if (!Number.isFinite(tx.amount) || !tx.posted_date || !["purchase", "debt_payment", "income"].includes(tx.transaction_class)) continue;
-    const merchantKey = tx.merchant_id ?? tx.merchant_name ?? "unresolved_entity";
+    const merchantKey = tx.merchant_id ?? tx.merchant_name;
+    if (!merchantKey) continue;
     const key = `${tx.transaction_class}:${merchantKey}`;
     const list = candidatesByKey.get(key) ?? [];
     list.push(tx);
@@ -126,7 +128,7 @@ export function buildRecurrenceIntelligence(transactions: CanonicalTransaction[]
     const amountMad = mad(amounts, medianAmount) ?? 0;
     if (medianGap === null || medianGap < 7 || medianGap > 62) continue;
 
-    const gapDeviation = gapMad === null ? Infinity : gapMad;
+    const gapDeviation = gapMad ?? Infinity;
     const regularity = gapDeviation <= 3 ? "high" : gapDeviation <= 7 ? "moderate" : "limited";
     candidates.push({
       key,
@@ -148,6 +150,6 @@ export function buildRecurrenceIntelligence(transactions: CanonicalTransaction[]
     evidence_state: candidates.length ? "calculated" : "insufficient_evidence",
     candidate_count: candidates.length,
     candidates: candidates.slice(0, 100),
-    limitation: candidates.length ? null : "At least three repeated observations with a plausible recurring interval are required to identify a recurrence candidate.",
+    limitation: candidates.length ? null : "At least three repeated observations with an identifiable entity and plausible recurring interval are required to identify a recurrence candidate.",
   };
 }
