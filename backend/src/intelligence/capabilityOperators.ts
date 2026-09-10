@@ -1,20 +1,24 @@
-/**
- * Governed capability/operator registry.
- *
- * A persisted capability contract describes the governed graph, but a capability
- * is not executable until this registry binds it to an actual runtime operator.
- * Planned entries remain visible and truthful without being dispatchable.
- */
 import { computeMultiWindowFlow, assessTrajectory } from "./temporal.js";
+import {
+  executeAnalysis,
+  executeBehavioral,
+  executePattern,
+  executeRelationship,
+  executeAnomaly,
+  executeCausal,
+  executePredictive,
+  executeScenario,
+  executeDecision,
+  executeRecommendation,
+  executeOutcome,
+  executeLearning,
+  executeEmergent,
+} from "./recursiveOperators.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
 
 export type GovernedCapabilityResult = {
-  layer_metrics?: {
-    provider_domains?: {
-      selected_item_id?: string | null;
-    };
-  };
+  layer_metrics?: { provider_domains?: { selected_item_id?: string | null } };
   uncertainty?: unknown;
   evidence_boundary?: string | null;
   [key: string]: unknown;
@@ -23,6 +27,7 @@ export type GovernedCapabilityResult = {
 export type CapabilityExecutionContext = {
   asOf?: string | null;
   evidenceBoundary?: string | null;
+  dependencyResults?: Record<string, CapabilityOperatorResult>;
 };
 
 export type CapabilityOperatorResult = {
@@ -63,37 +68,32 @@ const temporalOperator: CapabilityOperator = {
         windows,
         trajectory,
         evidence_boundary: context?.evidenceBoundary ?? context?.asOf ?? null,
-        evidence: {
-          state: hasEvidence ? "observed" : "insufficient_evidence",
-          source: "canonical_financial_transactions",
-          provider_observations_created: false,
-          financial_values_created: false,
-          money_movement_executed: false,
-        },
+        evidence: { state: hasEvidence ? "calculated" : "insufficient_evidence", source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false },
+        provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false },
       },
     };
   },
 };
 
-/**
- * These entries describe governed implementation surfaces. They are deliberately
- * not marked implemented until a distinct runtime operator exists and is tested.
- */
+function op(capability_id: string, execute: CapabilityOperator["execute"], evidence_state: CapabilityOperatorResult["evidence_state"], execution_stage: string): CapabilityOperator {
+  return { capability_id, operator_id: capability_id, version: "1.0.0", status: "implemented", execution_stage, evidence_state, execute };
+}
+
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   temporalOperator,
-  { capability_id: "analysis", operator_id: "analysis", version: "1.0.0", status: "planned", execution_stage: "canonical_semantic_analysis", evidence_state: "CALCULATED" },
-  { capability_id: "behavioral", operator_id: "behavioral", version: "1.0.0", status: "planned", execution_stage: "category_behavior", evidence_state: "CALCULATED" },
-  { capability_id: "pattern", operator_id: "pattern", version: "1.0.0", status: "planned", execution_stage: "pattern_composition", evidence_state: "CALCULATED" },
-  { capability_id: "relationship", operator_id: "relationship", version: "1.0.0", status: "planned", execution_stage: "financial_reasoning", evidence_state: "INFERRED" },
-  { capability_id: "anomaly", operator_id: "anomaly", version: "1.0.0", status: "planned", execution_stage: "canonical_anomalies", evidence_state: "CALCULATED" },
-  { capability_id: "causal", operator_id: "causal", version: "1.0.0", status: "planned", execution_stage: "causal_analysis", evidence_state: "INFERRED" },
-  { capability_id: "predictive", operator_id: "predictive", version: "1.0.0", status: "planned", execution_stage: "forward_projection", evidence_state: "PREDICTED" },
-  { capability_id: "scenario", operator_id: "scenario", version: "1.0.0", status: "planned", execution_stage: "counterfactual_analysis", evidence_state: "SCENARIO" },
-  { capability_id: "decision", operator_id: "decision", version: "1.0.0", status: "planned", execution_stage: "decision_intelligence", evidence_state: "INFERRED" },
-  { capability_id: "recommendation", operator_id: "recommendation", version: "1.0.0", status: "planned", execution_stage: "optimization_and_goals", evidence_state: "INFERRED" },
-  { capability_id: "outcome", operator_id: "outcome", version: "1.0.0", status: "planned", execution_stage: "durable_outcome_loop", evidence_state: "CALCULATED" },
-  { capability_id: "learning", operator_id: "learning", version: "1.0.0", status: "planned", execution_stage: "validated_outcome_learning", evidence_state: "INFERRED" },
-  { capability_id: "emergent", operator_id: "emergent", version: "1.0.0", status: "planned", execution_stage: "higher_order_discovery", evidence_state: "INFERRED" },
+  op("analysis", executeAnalysis, "CALCULATED", "canonical_semantic_analysis"),
+  op("behavioral", executeBehavioral, "CALCULATED", "category_behavior"),
+  op("pattern", executePattern, "CALCULATED", "pattern_composition"),
+  op("relationship", executeRelationship, "INFERRED", "financial_relationship_analysis"),
+  op("anomaly", executeAnomaly, "CALCULATED", "canonical_anomaly_detection"),
+  op("causal", executeCausal, "INFERRED", "observational_candidate_analysis"),
+  op("predictive", executePredictive, "PREDICTED", "constrained_forward_projection"),
+  op("scenario", executeScenario, "SCENARIO", "counterfactual_spending_analysis"),
+  op("decision", executeDecision, "INFERRED", "decision_intelligence"),
+  op("recommendation", executeRecommendation, "INFERRED", "review_recommendations"),
+  op("outcome", executeOutcome, "CALCULATED", "durable_outcome_loop"),
+  op("learning", executeLearning, "INFERRED", "validated_outcome_learning"),
+  op("emergent", executeEmergent, "INFERRED", "higher_order_discovery"),
 ];
 
 export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null {
