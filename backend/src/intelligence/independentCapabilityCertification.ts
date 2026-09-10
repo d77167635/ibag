@@ -3,6 +3,8 @@ import { supabaseAdmin } from "../config/supabase.js";
 type CapabilityContract = {
   capability_id: string;
   version: string;
+  operator_id: string;
+  operator_version: string;
   evidence_requirements: unknown;
   validation_rules: unknown;
   output_type: string;
@@ -56,7 +58,7 @@ export async function evaluateIndependentCapabilityCertification(input: {
       .maybeSingle(),
     supabaseAdmin
       .from("iris_execution_records")
-      .select("run_id,user_id,as_of,input_hash,output_hash,execution_state,resource_usage")
+      .select("run_id,user_id,input_hash,output_hash,execution_state,resource_usage")
       .eq("id", executionId)
       .eq("run_id", runId)
       .eq("user_id", userId)
@@ -132,7 +134,7 @@ export async function evaluateIndependentCapabilityCertification(input: {
   check(
     "contract.output_contract",
     Object.keys(outputContract).length > 0 && outputContract.type === contract.output_type,
-    "Persisted output contract declares the same output type used by the execution record.",
+    "Persisted output contract declares the same output type used by the capability contract.",
     "Persisted output contract is missing or does not match the declared output type.",
   );
   check(
@@ -203,21 +205,22 @@ export async function evaluateIndependentCapabilityCertification(input: {
 
   const output = outputs?.find((entry) => entry.hash === outputHash);
   const allowedEvidenceStates = stringList(outputContract.evidence_state_policy);
-  const outputStateAllowed = allowedEvidenceStates.length === 0 || !!output && allowedEvidenceStates.includes(output.evidence_state);
+  const outputStateAllowed = allowedEvidenceStates.length === 0 || (!!output && allowedEvidenceStates.includes(output.evidence_state));
   const observedOutputForbidden = outputContract.observed_output_forbidden !== false;
+  const outputTypeMatches = !!output && output.output_type === contract.output_type;
 
   if (validationRules.includes("evidence_state_valid")) {
     check(
       "contract.evidence_state_valid",
-      providerEvidencePresent && !!output && output.value != null && outputStateAllowed && (!observedOutputForbidden || output.evidence_state !== "OBSERVED"),
-      "Provider inputs remain observed evidence while derived output follows the persisted evidence-state policy.",
-      "Evidence-state semantics do not satisfy the persisted capability contract.",
+      providerEvidencePresent && !!output && output.value != null && outputStateAllowed && outputTypeMatches && (!observedOutputForbidden || output.evidence_state !== "OBSERVED"),
+      "Provider inputs remain observed evidence while derived output follows the persisted evidence-state and type policy.",
+      "Evidence-state or output-type semantics do not satisfy the persisted capability contract.",
     );
   }
 
   check(
     "output.integrity",
-    !!output && output.value != null && output.hash === outputHash && (!observedOutputForbidden || output.evidence_state !== "OBSERVED") && outputStateAllowed,
+    !!output && output.value != null && output.hash === outputHash && outputTypeMatches && (!observedOutputForbidden || output.evidence_state !== "OBSERVED") && outputStateAllowed,
     "Derived capability output is persisted with the expected hash, type, and semantic state.",
     "Capability output is missing, hash-mismatched, type-incompatible, or violates the persisted evidence-state policy.",
   );
