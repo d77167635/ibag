@@ -3,7 +3,7 @@ import type { Evidence } from "./types.js";
 
 type Entity = {
   id: string;
-  kind: "account" | "merchant" | "domain" | "subdomain" | "category";
+  kind: "account" | "merchant" | "domain" | "subdomain" | "category" | "transaction_class";
   label: string;
   transaction_count: number;
   observed_amount: number;
@@ -16,7 +16,7 @@ type Relationship = {
   id: string;
   from: string;
   to: string;
-  kind: "account_merchant" | "merchant_domain" | "domain_subdomain" | "transaction_class";
+  kind: "account_merchant" | "merchant_domain" | "domain_subdomain" | "account_transaction_class";
   transaction_count: number;
   observed_amount: number;
   share_of_from_amount: number | null;
@@ -34,7 +34,6 @@ function add(map: Map<string, Entity>, entity: Entity) {
 }
 
 function relationKey(kind: Relationship["kind"], from: string, to: string) { return `${kind}:${from}:${to}`; }
-
 function round(value: number) { return Number(value.toFixed(6)); }
 
 /**
@@ -76,13 +75,13 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     const subdomain = tx.subdomain?.key ? `subdomain:${tx.subdomain.key}` : null;
     const categoryValue = tx.plaid_category_detailed ?? tx.plaid_category_primary;
     const category = categoryValue ? `category:${categoryValue}` : null;
-    const classEntity = `class:${tx.transaction_class}`;
+    const classEntity = `transaction_class:${tx.transaction_class}`;
 
     if (merchant) add(entities, { id: merchant, kind: "merchant", label: tx.merchant_name ?? tx.merchant_id!, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
     if (domain) add(entities, { id: domain, kind: "domain", label: tx.domain!.label, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
     if (subdomain) add(entities, { id: subdomain, kind: "subdomain", label: tx.subdomain!.label, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
     if (category) add(entities, { id: category, kind: "category", label: categoryValue!, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
-    add(entities, { id: classEntity, kind: "category", label: tx.transaction_class, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
+    add(entities, { id: classEntity, kind: "transaction_class", label: tx.transaction_class, transaction_count: 1, observed_amount: amount, first_observed_date: tx.posted_date, last_observed_date: tx.posted_date, evidence: "calculated" });
 
     const touch = (id: string) => { totals.set(id, (totals.get(id) ?? 0) + amount); const oldFirst = firstSeen.get(id); const oldLast = lastSeen.get(id); if (!oldFirst || tx.posted_date < oldFirst) firstSeen.set(id, tx.posted_date); if (!oldLast || tx.posted_date > oldLast) lastSeen.set(id, tx.posted_date); };
     touch(account); touch(classEntity); if (merchant) touch(merchant); if (domain) touch(domain); if (subdomain) touch(subdomain); if (category) touch(category);
@@ -100,14 +99,12 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     accountTotals.set(tx.account_id, accountEntry);
 
     if (merchant) {
-      const key = merchant;
-      const entry = merchantTotals.get(key) ?? { label: tx.merchant_name ?? tx.merchant_id!, amount: 0, count: 0 };
-      entry.amount += amount; entry.count++; merchantTotals.set(key, entry);
+      const entry = merchantTotals.get(merchant) ?? { label: tx.merchant_name ?? tx.merchant_id!, amount: 0, count: 0 };
+      entry.amount += amount; entry.count++; merchantTotals.set(merchant, entry);
     }
     if (domain) {
-      const key = domain;
-      const entry = domainTotals.get(key) ?? { label: tx.domain!.label, amount: 0, count: 0 };
-      entry.amount += amount; entry.count++; domainTotals.set(key, entry);
+      const entry = domainTotals.get(domain) ?? { label: tx.domain!.label, amount: 0, count: 0 };
+      entry.amount += amount; entry.count++; domainTotals.set(domain, entry);
     }
 
     const connect = (from: string, to: string, kind: Relationship["kind"]) => {
@@ -119,7 +116,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     if (merchant) connect(account, merchant, "account_merchant");
     if (merchant && domain) connect(merchant, domain, "merchant_domain");
     if (domain && subdomain) connect(domain, subdomain, "domain_subdomain");
-    connect(account, classEntity, "transaction_class");
+    connect(account, classEntity, "account_transaction_class");
   }
 
   for (const relationship of relationships.values()) {
@@ -132,6 +129,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
   const accountEntities = entityList.filter(entity => entity.kind === "account");
   const merchantEntities = entityList.filter(entity => entity.kind === "merchant");
   const domainEntities = entityList.filter(entity => entity.kind === "domain");
+  const classEntities = entityList.filter(entity => entity.kind === "transaction_class");
   const orderedMerchants = [...merchantTotals.entries()].sort((a, b) => b[1].amount - a[1].amount);
   const orderedDomains = [...domainTotals.entries()].sort((a, b) => b[1].amount - a[1].amount);
   const totalAbsolute = [...classTotals.values()].reduce((sum, entry) => sum + entry.absolute, 0);
@@ -142,7 +140,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
   const observationSpanDays = observationStart && observationEnd ? Math.max(1, Math.round((new Date(observationEnd).getTime() - new Date(observationStart).getTime()) / 86_400_000) + 1) : null;
 
   return {
-    architecture_version: "IRIS_CANONICAL_LIFE_STATE_V2",
+    architecture_version: "IRIS_CANONICAL_LIFE_STATE_V3",
     evidence_state: transactions.length ? "calculated" as const : "insufficient_evidence" as const,
     evidence_boundary: evidenceBoundary,
     transaction_count: transactions.length,
@@ -191,6 +189,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
       accounts: accountEntities.length,
       merchants: merchantEntities.length,
       domains: domainEntities.length,
+      transaction_classes: classEntities.length,
       connected_accounts: new Set(relationshipList.filter(r => r.kind === "account_merchant").map(r => r.from)).size,
       connected_merchants: new Set(relationshipList.filter(r => r.kind === "merchant_domain").map(r => r.from)).size,
     },
