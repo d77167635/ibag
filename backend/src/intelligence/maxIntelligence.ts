@@ -41,6 +41,18 @@ export interface MaximumIntelligence {
     reference_method: "median_mad" | "insufficient_evidence";
     interpretation: string;
   };
+  adaptive_baseline: {
+    metric: "observed_activity_day_outflow";
+    sample_size: number;
+    median: number | null;
+    mad: number | null;
+    lower_reference: number | null;
+    upper_reference: number | null;
+    current_observed_rate: number | null;
+    deviation_from_median: number | null;
+    status: "established" | "limited" | "insufficient_evidence";
+    limitation: string | null;
+  };
   pressure_points: Array<{ key: string; severity: string; statement: string; evidence: Evidence }>;
   opportunities: Array<{ key: string; statement: string; evidence: Evidence }>;
   counterfactuals: Array<{
@@ -90,7 +102,7 @@ function robustStatistics(rates: number[]) {
     sampleSize: 0, mean: null, median: null, mad: null, standardDeviation: null, coefficientOfVariation: null,
     q1: null, q3: null, lower: null, upper: null, adaptiveThreshold: null,
     method: "insufficient_evidence" as const,
-    interpretation: "There is not enough observed-window evidence to establish a robust daily outflow reference."
+    interpretation: "There is not enough observed activity-day evidence to establish a robust outflow reference."
   };
   const mean = rates.reduce((sum, value) => sum + value, 0) / rates.length;
   const variance = rates.length > 1 ? rates.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (rates.length - 1) : null;
@@ -98,17 +110,15 @@ function robustStatistics(rates: number[]) {
   const mad = median(rates.map(rate => Math.abs(rate - med)));
   const q1 = quantile(rates, 0.25);
   const q3 = quantile(rates, 0.75);
-  if (mad === null || q1 === null || q3 === null) return {
+  if (mad === null || q1 === null || q3 === null || rates.length < 2) return {
     sampleSize: rates.length, mean: round(mean), median: round(med), mad: null,
     standardDeviation: standardDeviation === null ? null : round(standardDeviation),
     coefficientOfVariation: mean !== 0 && standardDeviation !== null ? round(standardDeviation / Math.abs(mean)) : null,
     q1: q1 === null ? null : round(q1), q3: q3 === null ? null : round(q3), lower: null, upper: null, adaptiveThreshold: null,
     method: "insufficient_evidence" as const,
-    interpretation: "A central reference exists, but dispersion cannot be established robustly from the available windows."
+    interpretation: "A central reference exists, but at least two observed activity days are required to establish robust dispersion."
   };
   const scale = mad === 0 ? Math.max(Math.abs(med) * 0.1, 0.01) : mad;
-  // The threshold is adaptive to observed dispersion. It is a descriptive
-  // screening rule, not a probability cutoff or a claim about future behavior.
   const adaptiveThreshold = 3 * scale;
   return {
     sampleSize: rates.length,
@@ -117,7 +127,7 @@ function robustStatistics(rates: number[]) {
     coefficientOfVariation: mean !== 0 && standardDeviation !== null ? round(standardDeviation / Math.abs(mean)) : null,
     q1: round(q1), q3: round(q3), lower: round(Math.max(0, med - adaptiveThreshold)), upper: round(med + adaptiveThreshold),
     adaptiveThreshold: round(adaptiveThreshold), method: "median_mad" as const,
-    interpretation: "Reference and screening thresholds adapt to the observed median absolute deviation; they describe the user's observed history and are not forecasts or probability intervals."
+    interpretation: "Reference and screening thresholds adapt to the observed activity-day median absolute deviation; they describe observed history and are not forecasts or probability intervals."
   };
 }
 
@@ -130,11 +140,14 @@ export function buildMaximumIntelligence(input: {
   cashFlowWindowDays: number;
   currentLiquidAssets: number | null;
   forwardProjectionBasis: string | null;
+  dailyOutflowRates?: number[];
 }): MaximumIntelligence {
   const populated = input.flows.filter((f) => f.txCount > 0).sort((a, b) => a.windowDays - b.windowDays);
   const observedWindows = input.flows.map((f) => f.windowDays);
   const strongest = populated.length ? populated[populated.length - 1] : null;
-  const rates = populated.map(flow => flow.outflow / flow.windowDays).filter(Number.isFinite);
+  const windowRates = populated.map(flow => flow.outflow / flow.windowDays).filter(Number.isFinite);
+  const dailyRates = (input.dailyOutflowRates ?? []).filter(Number.isFinite).filter(rate => rate >= 0);
+  const rates = dailyRates.length >= 2 ? dailyRates : windowRates;
   const statistics = robustStatistics(rates);
 
   const dimensions = [
@@ -150,6 +163,7 @@ export function buildMaximumIntelligence(input: {
   if (populated.length < 2) limitations.push("Multiple observed transaction windows are not available, so trajectory confidence is limited.");
   if (input.safeToSpend === null) limitations.push("Safe-to-spend cannot be established from the available account and obligation evidence.");
   if (!input.forwardProjectionBasis) limitations.push("No forward-model basis was returned, so future-state projections remain unavailable.");
+  if (dailyRates.length < 2) limitations.push("Fewer than two observed activity days are available for an adaptive outflow baseline.");
 
   let analyticalReadiness = coverageScore;
   if (input.reasoning.unresolvedQuestions.length > 2) analyticalReadiness = Math.max(0, analyticalReadiness - 0.15);
@@ -170,6 +184,11 @@ export function buildMaximumIntelligence(input: {
         ? "Recent daily outflow is not materially different from the available longer baseline."
         : "There is not enough multi-window evidence to distinguish a short-term change from a durable trend.";
 
+  const baselineMedian = statistics.median;
+  const baselineMad = statistics.mad;
+  const currentObservedRate = dailyRates.length ? dailyRates[dailyRates.length - 1] : (shortRate ?? null);
+  const baselineStatus: MaximumIntelligence["adaptive_baseline"]["status"] = dailyRates.length >= 2 && baselineMedian !== null && baselineMad !== null ? "established" : dailyRates.length === 1 ? "limited" : "insufficient_evidence";
+  const deviationFromMedian = currentObservedRate !== null && baselineMedian !== null ? round(currentObservedRate - baselineMedian) : null;
   const horizon = Math.max(1, input.cashFlowWindowDays);
   const baselineNet = input.cashFlowNet;
   const counterfactuals = baselineNet === null
@@ -193,6 +212,7 @@ export function buildMaximumIntelligence(input: {
   if (populated.length < 3) nextBestQuestions.push("Do I have enough historical transaction coverage to establish a durable baseline?");
   if (input.safeToSpend === null) nextBestQuestions.push("Which connected accounts or upcoming obligations are missing from the current safety calculation?");
   if (input.currentLiquidAssets === null) nextBestQuestions.push("Which connected balance observations are required before liquidity can be stated?");
+  if (dailyRates.length < 2) nextBestQuestions.push("What additional observed activity history is needed to establish an adaptive outflow baseline?");
   if (input.reasoning.risks.length > 0) nextBestQuestions.push("Which underlying observed transactions support the highest-severity finding?");
   if (nextBestQuestions.length === 0) nextBestQuestions.push("Which observed change is most important to inspect next?");
 
@@ -235,6 +255,18 @@ export function buildMaximumIntelligence(input: {
       reference_method: statistics.method,
       interpretation: statistics.interpretation,
     },
+    adaptive_baseline: {
+      metric: "observed_activity_day_outflow",
+      sample_size: dailyRates.length,
+      median: baselineMedian,
+      mad: baselineMad,
+      lower_reference: dailyRates.length >= 2 ? statistics.lower : null,
+      upper_reference: dailyRates.length >= 2 ? statistics.upper : null,
+      current_observed_rate: currentObservedRate === null ? null : round(currentObservedRate),
+      deviation_from_median: deviationFromMedian,
+      status: baselineStatus,
+      limitation: baselineStatus === "established" ? null : "At least two observed activity days are required to establish an adaptive historical reference; missing days are not treated as zero activity.",
+    },
     pressure_points: pressurePoints,
     opportunities,
     counterfactuals,
@@ -244,7 +276,8 @@ export function buildMaximumIntelligence(input: {
       { output: "liquidity", basis: "Connected account balance observations", evidence: input.currentLiquidAssets === null ? "insufficient_evidence" : "observed" },
       { output: "cash_flow", basis: `${input.cashFlowWindowDays}-day classified transaction window`, evidence: input.cashFlowNet === null ? "insufficient_evidence" : "calculated" },
       { output: "trajectory", basis: "Cross-window daily outflow comparison", evidence: populated.length >= 2 ? "calculated" : "insufficient_evidence" },
-      { output: "statistics", basis: "Adaptive median/MAD reference with quartiles and dispersion over observed daily outflow rates", evidence: rates.length >= 2 ? "calculated" : "insufficient_evidence" },
+      { output: "statistics", basis: "Adaptive median/MAD reference with quartiles and dispersion over observed activity-day outflow rates", evidence: rates.length >= 2 ? "calculated" : "insufficient_evidence" },
+      { output: "adaptive_baseline", basis: "User-specific observed activity-day outflow history; missing days are excluded rather than converted to zero", evidence: dailyRates.length >= 2 ? "calculated" : "insufficient_evidence" },
       { output: "reasoning", basis: "Relational synthesis of calculated and observed findings", evidence: input.reasoning.risks.length || input.reasoning.opportunities.length ? "inferred" : "insufficient_evidence" },
     ],
   };
