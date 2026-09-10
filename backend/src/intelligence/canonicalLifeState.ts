@@ -1,5 +1,6 @@
 import type { CanonicalTransaction } from "./transactionSemantics.js";
 import type { Evidence } from "./types.js";
+import { buildIncomeIntelligence, buildRecurrenceIntelligence } from "./financialLifeStateExtensions.js";
 
 type Entity = {
   id: string;
@@ -52,10 +53,10 @@ function round(value: number) { return Number(value.toFixed(6)); }
 /**
  * Builds the canonical financial-life ontology from already canonicalized,
  * evidence-gated transactions. Transaction nodes, temporal nodes, semantic
- * classifications, and edges are explicit so higher-order intelligence can
- * reason over individual observed events as well as aggregates. This module
- * creates no provider observations, financial values, or actions; every
- * numeric value is calculated from the supplied canonical evidence.
+ * classifications, recurrence, income structure, and edges are explicit so
+ * higher-order intelligence can reason over individual observed events as
+ * well as aggregates. This module creates no provider observations, financial
+ * values, or actions; every numeric value is calculated from supplied evidence.
  */
 export function buildCanonicalLifeState(transactions: CanonicalTransaction[], evidenceBoundary: string | null = null) {
   const entities = new Map<string, Entity>();
@@ -115,16 +116,7 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     const touch = (id: string) => totals.set(id, (totals.get(id) ?? 0) + amount);
     touch(transaction); touch(account); touch(classEntity); touch(temporal); if (merchant) touch(merchant); if (domain) touch(domain); if (subdomain) touch(subdomain); if (category) touch(category);
 
-    transactionSemantics.push({
-      transaction_id: tx.id,
-      account_id: tx.account_id,
-      posted_date: tx.posted_date,
-      amount: round(amount),
-      direction,
-      economic_role: economicRole,
-      transaction_class: tx.transaction_class,
-      classification_evidence: tx.classification_evidence as Evidence,
-    });
+    transactionSemantics.push({ transaction_id: tx.id, account_id: tx.account_id, posted_date: tx.posted_date, amount: round(amount), direction, economic_role: economicRole, transaction_class: tx.transaction_class, classification_evidence: tx.classification_evidence as Evidence });
 
     const classEntry = classTotals.get(tx.transaction_class) ?? { count: 0, inflow: 0, outflow: 0, absolute: 0 };
     classEntry.count++; classEntry.absolute += amount;
@@ -180,9 +172,11 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
   const observationEnd = sortedDates.at(-1) ?? null;
   const observationSpanDays = observationStart && observationEnd ? Math.max(1, Math.round((new Date(observationEnd).getTime() - new Date(observationStart).getTime()) / 86_400_000) + 1) : null;
   const hasEconomicFlow = economicTransactionCount > 0;
+  const incomeIntelligence = buildIncomeIntelligence(transactions);
+  const recurrenceIntelligence = buildRecurrenceIntelligence(transactions);
 
   return {
-    architecture_version: "IRIS_CANONICAL_LIFE_STATE_V6",
+    architecture_version: "IRIS_CANONICAL_LIFE_STATE_V7",
     evidence_state: transactions.length ? "calculated" as const : "insufficient_evidence" as const,
     evidence_boundary: evidenceBoundary,
     transaction_count: transactions.length,
@@ -191,6 +185,8 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
     relationship_count: relationshipList.length,
     observation: { start_date: observationStart, end_date: observationEnd, span_days: observationSpanDays, active_day_count: activeDayCount, activity_density: observationSpanDays ? round(activeDayCount / observationSpanDays) : null, evidence: transactions.length ? "calculated" as const : "insufficient_evidence" as const },
     flow: { inflow: hasEconomicFlow ? round(inflow) : null, outflow: hasEconomicFlow ? round(outflow) : null, net: hasEconomicFlow ? round(inflow - outflow) : null, evidence: hasEconomicFlow ? "calculated" as const : "insufficient_evidence" as const, basis: hasEconomicFlow ? "Observed canonical transactions classified as income/refund inflows and purchase/debt_payment/fee outflows." : null },
+    income_intelligence: incomeIntelligence,
+    recurrence_intelligence: recurrenceIntelligence,
     transaction_semantics: transactionSemantics,
     transaction_class_distribution: [...classTotals.entries()].map(([transaction_class, value]) => ({ transaction_class, transaction_count: value.count, absolute_amount: round(value.absolute), inflow: round(value.inflow), outflow: round(value.outflow), share_of_absolute_activity: totalAbsolute > 0 ? round(value.absolute / totalAbsolute) : null, evidence: "calculated" as const })).sort((a, b) => b.absolute_amount - a.absolute_amount),
     account_activity: [...accountTotals.entries()].map(([account_id, value]) => ({ account_id, transaction_count: value.count, absolute_amount: round(value.amount), share_of_activity: totalAbsolute > 0 ? round(value.amount / totalAbsolute) : null, evidence: "calculated" as const })).sort((a, b) => b.absolute_amount - a.absolute_amount),
@@ -207,6 +203,8 @@ export function buildCanonicalLifeState(transactions: CanonicalTransaction[], ev
       "Concentration metrics use absolute observed transaction amounts and describe activity concentration, not financial health by themselves.",
       "Transaction-level temporal edges represent posted-date association only; they do not establish temporal causality.",
       "Transaction semantics describe the classification applied to supplied canonical evidence; they do not independently prove the economic intent of an unknown or disputed transaction.",
+      "Income intelligence is derived from canonical income-classified observations and does not establish employment, permanence, sufficiency, or future income.",
+      "Recurrence intelligence identifies repeated observed patterns only; recurrence does not establish a contractual obligation, essential status, intent, or guaranteed future occurrence.",
     ] : ["No canonical transaction evidence is available, so the financial-life ontology cannot be constructed."]
   };
 }
