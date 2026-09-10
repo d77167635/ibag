@@ -4,7 +4,7 @@ import { getCertifiedEvidenceBoundary } from "./certifiedEvidenceBoundary.js";
 import { computeCanonicalAnomalies } from "./anomalies.js";
 import { computeDebtCostIntelligence } from "./liabilities.js";
 import { computeFinancialReasoning } from "./relational.js";
-import { computeMultiWindowFlow, assessTrajectory, computeEconomicCashFlow, getCanonicalTransactions } from "./transactionSemantics.js";
+import { computeEconomicCashFlow, computeCanonicalWindowFlows, getCanonicalTransactions } from "./transactionSemantics.js";
 import { buildEvidenceGraph } from "./evidenceGraph.js";
 import { assessUncertainty } from "./uncertainty.js";
 import { buildFinancialStateModel } from "./financialState.js";
@@ -27,21 +27,30 @@ type Envelope<T> = {
   result: T;
 };
 
+type WindowFlow = {
+  windowDays: number;
+  inflow: number;
+  outflow: number;
+  net: number;
+  purchaseTotal: number;
+  debtPaymentTotal: number;
+  txCount: number;
+  economicTxCount: number;
+};
+
 async function foundation(userId: string, asOf: string | null) {
-  const [balances, safety, debtTrend, anomalies, debtCost, windows, reasoning] = await Promise.all([
+  const [balances, safety, debtTrend, anomalies, debtCost, transactions, reasoning] = await Promise.all([
     computeBalanceMetrics(userId),
     computeCashFlowSafety(userId),
     computeDebtTrend(userId),
     computeCanonicalAnomalies(userId, 30, asOf),
     computeDebtCostIntelligence(userId),
-    computeMultiWindowFlow(userId, undefined, asOf),
+    getCanonicalTransactions(userId),
     computeFinancialReasoning(userId, asOf),
   ]);
+  const windows = computeCanonicalWindowFlows(transactions, [30, 60, 90], asOf) as WindowFlow[];
   const trajectory = assessTrajectory(windows);
-  const cashFlow = {
-    ...computeEconomicCashFlow(await getCanonicalTransactions(userId, asOf ? new Date(new Date(asOf).getTime() - 90 * 86_400_000).toISOString().slice(0, 10) : undefined)),
-    evidence_boundary: asOf,
-  };
+  const cashFlow = { ...computeEconomicCashFlow(transactions), evidence_boundary: asOf };
   const graph = buildEvidenceGraph({
     layer_metrics: {
       net_worth: { liquid_assets: balances.liquidAssets, as_of: balances.asOf },
@@ -57,6 +66,21 @@ async function foundation(userId: string, asOf: string | null) {
   const uncertainty = assessUncertainty(graph);
   const state = buildFinancialStateModel(graph, uncertainty);
   return { balances, safety, debtTrend, anomalies, debtCost, windows, trajectory, reasoning, graph, state };
+}
+
+function assessTrajectory(windows: readonly WindowFlow[]) {
+  if (windows.length < 2) return { status: "insufficient_evidence", direction: null, changePct: null, basisWindows: windows.map(w => w.windowDays) };
+  const shortest = windows[0];
+  const widest = windows[windows.length - 1];
+  const shorterRate = shortest.net / Math.max(1, shortest.windowDays);
+  const widerRate = widest.net / Math.max(1, widest.windowDays);
+  const delta = shorterRate - widerRate;
+  return {
+    status: "calculated",
+    direction: delta > 0 ? "improving" : delta < 0 ? "deteriorating" : "stable",
+    changePct: widerRate !== 0 ? (delta / Math.abs(widerRate)) * 100 : null,
+    basisWindows: windows.map(w => w.windowDays),
+  };
 }
 
 async function boundary(userId: string) { return getCertifiedEvidenceBoundary(userId); }
@@ -83,7 +107,7 @@ export async function executeRecommendationOperator(userId: string): Promise<Env
   const causal = buildCausalAnalysis(base.reasoning, base.state);
   const graph = buildDecisionGraph(base.reasoning, base.state, causal, base.graph.nodes);
   const decision = buildDecisionIntelligence(base.reasoning, base.state, causal, graph);
-  const widest = base.windows.length ? base.windows.reduce((a, b) => b.windowDays > a.windowDays ? b : a) : null;
+  const widest = base.windows.length ? base.windows.reduce((a: WindowFlow, b: WindowFlow) => b.windowDays > a.windowDays ? b : a) : null;
   const consequences = buildConsequenceModel(decision, base.state, base.reasoning, base.safety.safeToSpend, widest?.outflow ?? null, widest?.windowDays ?? 30);
   const goalsResult = await supabaseAdmin.from("iris_user_goals").select("id, objective, title, description, priority, horizon_days, target_amount_cents, target_date, active, constraints, preferences").eq("user_id", userId).eq("active", true).order("priority", { ascending: true });
   const goals = (goalsResult.data ?? []) as DeclaredIrisGoal[];
@@ -97,7 +121,7 @@ export async function executeScenarioOperator(userId: string): Promise<Envelope<
   const causal = buildCausalAnalysis(base.reasoning, base.state);
   const graph = buildDecisionGraph(base.reasoning, base.state, causal, base.graph.nodes);
   const decision = buildDecisionIntelligence(base.reasoning, base.state, causal, graph);
-  const widest = base.windows.length ? base.windows.reduce((a, b) => b.windowDays > a.windowDays ? b : a) : null;
+  const widest = base.windows.length ? base.windows.reduce((a: WindowFlow, b: WindowFlow) => b.windowDays > a.windowDays ? b : a) : null;
   const consequences = buildConsequenceModel(decision, base.state, base.reasoning, base.safety.safeToSpend, widest?.outflow ?? null, widest?.windowDays ?? 30);
   const optimization = buildOptimizationIntelligence(decision, consequences, base.state, []);
   const result = buildCounterfactualIntelligence({ decision, optimization, safeToSpend: base.safety.safeToSpend, cashFlowNet: widest?.net ?? null, revolvingDebt: base.balances.revolvingDebt });
