@@ -32,6 +32,21 @@ test("income intelligence is derived only from observed canonical income inflows
   assert.equal(state.active_income_days, 2);
   assert.equal(state.income_sources[0]?.label, "Observed Income Source");
   assert.equal(state.income_sources[0]?.share_of_observed_income, 1);
+  assert.equal(state.cadence.observation_count, 2);
+  assert.equal(state.cadence.median_gap_days, 14);
+  assert.equal(state.cadence.regularity, "high");
+  assert.equal(state.cadence.modeled_next_date, "2026-01-29");
+});
+
+test("income cadence stays limited when only one income date is observed", () => {
+  const state = buildIncomeIntelligence([
+    tx({ id: "income-1", amount: -1200, transaction_class: "income", posted_date: "2026-01-01" }),
+  ]);
+
+  assert.equal(state.cadence.observation_count, 1);
+  assert.equal(state.cadence.regularity, "limited");
+  assert.equal(state.cadence.median_gap_days, null);
+  assert.equal(state.cadence.modeled_next_date, null);
 });
 
 test("recurrence intelligence identifies repeated intervals without calling them obligations", () => {
