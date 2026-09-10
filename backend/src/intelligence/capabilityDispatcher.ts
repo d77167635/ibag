@@ -21,8 +21,19 @@ type AggregateDispatch = {
 
 type DispatchRequest = { userId: string; capabilityId: string; executionId?: string };
 
+type GovernedResult = Record<string, unknown>;
+
 export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY; executionId?: string }): Promise<AggregateDispatch>;
 export function dispatchGovernedCapability(request: DispatchRequest): Promise<{ capability_id: string; operator_id: string; operator_version: string; result: unknown }>;
+
+function composeOperatorResult(result: unknown, context: Awaited<ReturnType<typeof loadCapabilityExecutionContext>>): unknown {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
+  const graphSynthesis = synthesizeCapabilityGraph(context.dependencyIds, context.dependencyOutputs);
+  return {
+    ...(result as GovernedResult),
+    dependency_composition: graphSynthesis,
+  };
+}
 
 /** Single runtime dispatcher. Every governed operator receives durable dependency context for its execution record. */
 export async function dispatchGovernedCapability({ userId, capabilityId, executionId }: DispatchRequest) {
@@ -55,20 +66,20 @@ export async function dispatchGovernedCapability({ userId, capabilityId, executi
   if (operator.status !== "implemented") throw new Error(`CAPABILITY_NOT_RUNTIME_WIRED: ${capabilityId}`);
 
   switch (capabilityId) {
-    case "temporal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeTemporalOperator(userId, context) };
-    case "analysis": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeAnalysisOperator(userId, context) };
-    case "behavioral": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeBehavioralOperator(userId, context) };
-    case "pattern": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executePatternOperator(userId, context) };
-    case "relationship": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeRelationshipOperator(userId, context) };
-    case "anomaly": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeAnomalyOperator(userId, context) };
-    case "causal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeCausalOperator(userId, context) };
-    case "predictive": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executePredictiveOperator(userId, context) };
-    case "scenario": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeScenarioOperator(userId, context) };
-    case "decision": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeDecisionOperator(userId, context) };
-    case "recommendation": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeRecommendationOperator(userId, context) };
-    case "outcome": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeOutcomeOperator(userId, context) };
-    case "learning": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeLearningOperator(userId, context) };
-    case "emergent": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await executeEmergentOperator(userId, context) };
+    case "temporal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeTemporalOperator(userId, context), context) };
+    case "analysis": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeAnalysisOperator(userId, context), context) };
+    case "behavioral": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeBehavioralOperator(userId, context), context) };
+    case "pattern": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executePatternOperator(userId, context), context) };
+    case "relationship": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeRelationshipOperator(userId, context), context) };
+    case "anomaly": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeAnomalyOperator(userId, context), context) };
+    case "causal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeCausalOperator(userId, context), context) };
+    case "predictive": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executePredictiveOperator(userId, context), context) };
+    case "scenario": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeScenarioOperator(userId, context), context) };
+    case "decision": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeDecisionOperator(userId, context), context) };
+    case "recommendation": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeRecommendationOperator(userId, context), context) };
+    case "outcome": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeOutcomeOperator(userId, context), context) };
+    case "learning": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeLearningOperator(userId, context), context) };
+    case "emergent": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: composeOperatorResult(await executeEmergentOperator(userId, context), context) };
     default: throw new Error(`CAPABILITY_DISPATCH_UNIMPLEMENTED: ${capabilityId}`);
   }
 }
