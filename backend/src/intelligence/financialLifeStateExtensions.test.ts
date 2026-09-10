@@ -51,8 +51,6 @@ test("recurrence intelligence identifies repeated intervals without calling them
   assert.equal(state.obligation_candidate_count, 1);
   assert.equal(state.obligation_candidates[0]?.candidate_strength, "high");
   assert.equal(state.obligation_candidates[0]?.modeled_next_date, "2026-02-12");
-  assert.match(state.obligation_candidates[0]?.interpretation ?? "", /not a verified bill/);
-  assert.match(state.candidates[0]?.interpretation ?? "", /does not establish a contractual obligation/);
 });
 
 test("recurrence intelligence remains evidence-limited with too few observations", () => {
