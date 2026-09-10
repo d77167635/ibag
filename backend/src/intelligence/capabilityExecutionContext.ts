@@ -25,11 +25,11 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-/** Load the durable execution context for the current capability. Prefer an exact execution id; the legacy fallback is only used by callers that have not yet supplied it. */
+/** Load the durable execution context for the current capability and fail closed when its execution graph exceeds the run budget. */
 export async function loadCapabilityExecutionContext(userId: string, capabilityId: string, executionId?: string): Promise<CapabilityExecutionContext> {
   const query = supabaseAdmin
     .from("iris_execution_records")
-    .select("id,run_id,capability_id,input_manifest,execution_state")
+    .select("id,run_id,capability_id,input_manifest,execution_state,started_at")
     .eq("user_id", userId)
     .eq("capability_id", capabilityId)
     .eq("execution_state", "EXECUTING");
@@ -41,7 +41,7 @@ export async function loadCapabilityExecutionContext(userId: string, capabilityI
   if (!records?.length) throw new Error(`CAPABILITY_CONTEXT_MISSING: ${capabilityId}${executionId ? `:${executionId}` : ""}`);
   if (!executionId && records.length > 1) throw new Error(`CAPABILITY_CONTEXT_AMBIGUOUS: ${capabilityId}`);
 
-  const record = records[0] as { id: string; run_id: string; capability_id: string; input_manifest: Record<string, unknown>; execution_state: string };
+  const record = records[0] as { id: string; run_id: string; capability_id: string; input_manifest: Record<string, unknown>; execution_state: string; started_at: string };
   const manifest = record.input_manifest ?? {};
   const dependencyIds = asStringArray(manifest.dependencies);
   const dependencyRefs = manifest.dependency_outputs && typeof manifest.dependency_outputs === "object"
@@ -92,7 +92,23 @@ export async function loadCapabilityExecutionContext(userId: string, capabilityI
     .eq("user_id", userId);
   if (graphError) throw new Error(`CAPABILITY_CONTEXT_GRAPH_READ_FAILED: ${graphError.message}`);
 
-  const manifestByCapability = new Map((runExecutions ?? []).map(row => [row.capability_id, row.input_manifest ?? {}]));
+  const executions = runExecutions ?? [];
+  const manifestByCapability = new Map(executions.map(row => [row.capability_id, row.input_manifest ?? {}]));
+  const graphNodes = executions.length;
+  const graphEdges = executions.reduce((sum, row) => sum + asStringArray((row.input_manifest ?? {}).dependencies).length, 0);
+  const compositions = executions.filter(row => asStringArray((row.input_manifest ?? {}).dependencies).length > 1).length;
+  const investigations = executions.filter(row => row.capability_id.includes("investigation")).length;
+  if (resourceBudget) {
+    if (graphNodes > resourceBudget.max_graph_nodes) throw new Error(`CAPABILITY_RESOURCE_BUDGET_EXCEEDED:graph_nodes:${graphNodes}>${resourceBudget.max_graph_nodes}`);
+    if (graphEdges > resourceBudget.max_graph_edges) throw new Error(`CAPABILITY_RESOURCE_BUDGET_EXCEEDED:graph_edges:${graphEdges}>${resourceBudget.max_graph_edges}`);
+    if (compositions > resourceBudget.max_compositions) throw new Error(`CAPABILITY_RESOURCE_BUDGET_EXCEEDED:compositions:${compositions}>${resourceBudget.max_compositions}`);
+    if (investigations > resourceBudget.max_investigations) throw new Error(`CAPABILITY_RESOURCE_BUDGET_EXCEEDED:investigations:${investigations}>${resourceBudget.max_investigations}`);
+    const startedMs = Date.parse(record.started_at);
+    if (Number.isFinite(startedMs) && Date.now() - startedMs > resourceBudget.max_execution_time_ms) {
+      throw new Error(`CAPABILITY_RESOURCE_BUDGET_EXCEEDED:execution_time_ms:${Date.now() - startedMs}>${resourceBudget.max_execution_time_ms}`);
+    }
+  }
+
   const depthMemo = new Map<string, number>();
   const active = new Set<string>();
   const depthOf = (id: string): number => {
