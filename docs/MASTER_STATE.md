@@ -1,153 +1,126 @@
 # Iris Master Project State
 
-> Authoritative continuity document. Iris is the product. The repository name is only a technical repository identifier.
+> Authoritative continuity document. Iris is the product. The repository name is a technical identifier. The intelligence hierarchy is internal reasoning machinery; the user products are evidence-grounded reports and analytics produced from it.
 
-## Current state
+## Current verified state
+
 - Product: **Iris**
+- Repository: `d77167635/iris`
 - Branch: `main`
-- Last verified application deployment: `dep-dahagci01d6s739gk76g` is the last Render deployment explicitly observed as `live`; newer production commits are queued and must not be called live until Render verifies them.
-- Architecture: recursive financial-life intelligence with no artificial intelligence-depth ceiling
-- Data posture: evidence-gated; no fabricated/mock/seeded financial truth
-- Current operating scope: read-only intelligence; no money movement
+- Current verified GitHub commit after this continuity block: the latest commit on `main` containing the report-product catalog, report activation persistence, publication gating, README, architecture, and roadmap reconciliation.
+- Current Render backend/frontend deployment must be verified from Render after the resulting commits finish deploying; prior verified current commit was `d6474f0ea16d7f9065ec2e628f080efaf38c50c3`.
+- Connected Supabase project: `uhcrdehjwaghqvydaqnn`
+- Current scope: read-only intelligence; no money movement.
+- Data posture: evidence-gated; no fabricated/mock/seeded financial truth.
+- Supabase currently has zero `iris_run_evidence` rows, so real provider-evidence end-to-end certification is not claimed.
 
 ## Authoritative architecture
-`Plaid Product Universe → Product Catalog/Capability Matrix → Availability/Consent/Authorization/Billing/Entitlement/Commercial Policy → Provider Observations → Canonical Financial Life State → Relational Ontology → Iris Intelligence Engine → Recursive Intelligence Graph → Iris Feature Registry → Authoritative Read Model → Iris Dashboard/Workspaces → Interactive Iris → Evidence/Explanation → Scenario/Decision → Outcome/Learning → Higher-order intelligence`
 
-### Surface boundary
+`Plaid Product Universe → Provider Capability/Commercial Control Plane → Real Provider Observations → Canonical Financial Life State → Relational Ontology → Iris Intelligence Hierarchy → Recursive Composition → Analytical Outputs → Iris Report Product Catalog → User Activation/Deactivation → Evidence-Qualified Reports → Evidence/Explanation → Scenario/Decision → Outcome/Learning → Higher-Order Intelligence`
+
+### Product boundary
+
+- **Iris intelligence hierarchy:** internal recursive reasoning/composition system. Capability families/operators are not user products and are not hierarchy levels.
+- **Iris Report Product Catalog:** user-facing products. Reports and analytics are the outputs of the intelligence hierarchy.
+- **User control:** users activate/deactivate report products. This controls publication, not the underlying intelligence hierarchy and not Plaid products.
 - **Plaid Dashboard:** provider/source observability only.
-- **Iris Dashboard:** synthesized, evidence-grounded intelligence.
-- **Iris Features:** independently controllable intelligence capabilities; a feature may consume multiple provider products.
+- **Iris Dashboard/Workspaces:** surface active, evidence-qualified reports and their supporting intelligence.
 
-## Verified implementation state
-- Plaid capability/catalog and selection foundations exist.
-- Provider observation and source-field lineage foundations exist.
-- Canonical transaction semantics restrict analytical transactions to certified core evidence and can additionally bind transaction reads to exact run-evidence raw transaction identities.
-- Canonical temporal window aggregation explicitly clips supplied transaction sets to the requested evidence boundary, preventing later observations from entering a historical window calculation.
-- Iris feature/catalog and governed publication foundations exist.
-- Persisted capability contracts include output, lineage, resource, and user-control dimensions.
-- Capability planning validates persisted contracts, dependencies, implemented operators, and resource estimates.
-- Independent execution persists runs, run evidence, execution inputs/outputs, validation, and routes eligible certification through the atomic certification boundary.
-- Provider-observation run evidence expands to exact current raw transaction and balance observation identities for the same authorized Item, bounded by the run evidence boundary.
-- A run-bound state adapter derives balance/liquidity history and debt history from exact run evidence; safe-to-spend remains withheld when recurrence evidence does not establish contractual/essential obligations.
-- The governed aggregate dispatcher receives execution context, and aggregate canonical transaction reads can consume the run ID and evidence boundary.
-- A real runtime operator exists for every currently named governed capability: temporal, analysis, behavioral, pattern, relationship, anomaly, causal, predictive, scenario, decision, recommendation, outcome, learning, and emergent.
-- The recursive operator engine is evidence-grounded in canonical financial transactions, emits explicit evidence state/provenance, and refuses to fabricate missing outcome/learning evidence.
-- Causal runtime behavior is explicitly observational candidate analysis and does not assert causation.
-- Dependency-result propagation from persisted upstream execution outputs into downstream operator context is implemented; downstream capabilities record upstream execution identity/hash as inputs.
-- Maximum intelligence consumes observed activity-day outflow history to establish a user-specific adaptive historical baseline using robust median/MAD dispersion; missing activity days are excluded rather than converted to zero observations.
-- Reusable robust statistical and adaptive-baseline primitives have regression coverage.
-- A governed recursive higher-order synthesis layer consumes persisted capability dependency outputs, reconstructs their dependency graph, preserves output hashes and evidence states, identifies supported cross-capability chains/interactions, and exposes explicit evidence gaps without creating provider observations or financial values.
-- The emergent governed operator is routed through that recursive synthesis layer and now also constructs a canonical financial-life ontology from the exact evidence-gated transaction set.
-- The canonical financial-life state now includes first-class account, merchant, domain, subdomain, category, and transaction-class entities; calculated relationships; observation span/activity density; economic flow state; transaction-class distribution; account activity; merchant/domain concentration; topology; and explicit limitations.
-- Unknown transaction classifications remain ontology facts but do not become economic flow merely because a numeric amount exists.
-- Run-bound aggregate intelligence now withholds provider-domain synthesis when a run ID is present because the current provider-domain reader is not yet constrained to the exact run evidence manifest; this prevents current provider observations from contaminating historical/run-bound intelligence.
-- The compact recursive operator layer is not treated as the semantic ceiling; richer orchestration, composition, financial-state, decision, counterfactual, higher-order, and meta-intelligence modules remain part of the authoritative implementation surface and must be unified rather than duplicated.
-- Supabase schema inspection confirms the exact raw-balance/run-evidence fields required by the run-bound state path exist in the connected project.
-- The connected project currently has no `iris_run_evidence` rows, so real provider-evidence end-to-end certification remains pending rather than being inferred from empty state.
-- CI and current deployment status must always be re-verified from the current commit rather than inferred from an older checkpoint.
+## Verified implementation foundations
 
-## Current large-block build program
+- Plaid product/capability catalogs and availability/consent/authorization/billing/entitlement dimensions exist.
+- Provider observation/source-field lineage foundations exist.
+- Canonical financial-life state and transaction-backed relational ontology foundations exist.
+- Evidence-bound temporal aggregation and run-bound state derivation exist.
+- Persisted capability contracts, governed planning, recursive dependency execution, validation, and certification foundations exist.
+- Runtime operators exist for the currently named governed capability universe.
+- Recursive higher-order synthesis and emergent composition foundations exist.
+- The intelligence output runtime explicitly prevents provider observations, financial values, and fake/mock/seeded data from being created by the publication layer.
+- The new report product catalog is derived from `analysisAtlas`, giving analytical definitions stable user-product identities rather than exposing capability families as products.
+- User report activation is persisted in `iris_user_report_preferences` and is independent from provider-product selection.
+- Deactivated reports are withheld from normal publication.
+- Evidence-insufficient reports remain withheld or explicitly qualified.
+- Report contextual naming uses only actual runtime context.
 
-### Block A — Intelligence execution integrity
-- [x] Persist complete capability contract dimensions
-- [x] Planner consumes persisted contract
-- [x] Certification consumes persisted contract
-- [x] Independent execution persistence path
-- [x] Persist exact raw transaction/balance identities as run-evidence records
-- [x] Pass governed execution context into aggregate intelligence
-- [x] Allow canonical transaction reads to resolve exact run-evidence transaction identities
-- [x] Clip canonical temporal calculations to the explicit evidence boundary
-- [x] Add run-bound state derivation for balances/history/debt
-- [ ] Persist explicit input/output field lineage for each capability execution
-- [ ] Verify every persisted execution artifact against the complete run manifest
-- [ ] Verify independent certification and queryable certified result
-- [ ] Constrain provider-domain synthesis to the exact run evidence manifest
+## Report product model
 
-### Block B — Canonical financial-life state
-- [x] Canonical transaction-backed entity/relationship ontology foundation
-- [x] Transaction-class entities and account-to-class relationships
-- [x] Observation/activity-density state
-- [x] Economic flow state with explicit unknown handling
-- [x] Merchant/domain concentration and topology
-- [ ] Complete account/entity semantics across all provider domains
-- [ ] Income and recurring income
-- [ ] Obligations/bills/subscriptions
-- [ ] Liabilities/debt
-- [ ] Assets/investments
-- [ ] Historical provider observation lifecycle
-- [ ] Field-level evidence lineage/freshness
-- [ ] Cross-domain relationship graph beyond transaction-backed relationships
+The catalog is intentionally separate from the hierarchy:
 
-### Block C — Recursive intelligence engine
-- [x] Runtime operator surfaces for the current governed capability universe
-- [x] Evidence-state/provenance boundary on operator outputs
-- [x] Deterministic temporal analysis
-- [x] Semantic spending/flow analysis
-- [x] Behavioral merchant/category analysis
-- [x] Pattern candidate analysis
-- [x] Relationship association analysis without causal claims
-- [x] Robust category-conditioned anomaly detection
-- [x] Evidence-grounded causal candidate analysis without causal assertions
-- [x] Constrained forward projection
-- [x] Deterministic scenario construction
-- [x] Decision candidate generation
-- [x] Evidence-based review recommendations
-- [x] Honest insufficient-evidence outcome/learning states
-- [x] Higher-order descriptive synthesis
-- [x] Governed recursive dependency-output synthesis
-- [x] Robust statistical primitives
-- [x] User-specific adaptive activity-day outflow baseline
-- [x] Canonical financial-life ontology enters emergent intelligence
-- [ ] Unify named operator surfaces with the richer Iris intelligence engine
-- [ ] Statistical intelligence across additional financial-life metrics
-- [ ] Adaptive baselines and thresholds across additional entities/domains
-- [ ] Risk/opportunity synthesis
-- [ ] Consequence analysis
-- [ ] Continuous/proactive recomputation
-- [ ] Recursive composition certification across real provider evidence
+`Internal intelligence → analytical output → report product definition → user activation → evidence-qualified publication`
 
-### Block D — Intelligence experience
-- [ ] Authoritative Iris read model
-- [ ] Domain/subdomain/entity exploration
-- [ ] Evidence/lineage traversal
-- [ ] Relationship exploration
-- [ ] Explanation/change narratives
-- [ ] Forecast/scenario workspaces
-- [ ] Feature controls/entitlements
-- [ ] Personalized dashboard
-- [ ] Conversational Iris
-- [ ] Education progression
-- [ ] Proactive controls
+The catalog can become extremely large as recursive intelligence expands. New products must be derived from real analytical definitions or governed recursive compositions. The system must never manufacture report results, entities, amounts, dates, probabilities, confidence values, or outcomes merely to populate the catalog.
 
-### Block E — Production certification
-- [x] Clean backend build/test after current recursive/evidence/statistical integration
-- [x] Clean frontend build
-- [ ] Provider/database reconciliation
-- [ ] RLS/security certification
-- [ ] Sync/webhook durability certification
-- [ ] Plaid Sandbox lifecycle certification
-- [ ] Intelligence regression/sufficiency suite
-- [ ] Current Render commit verification for queued production changes
-- [x] Supabase migration 075 applied for raw financial run-evidence expansion
-- [ ] Current Supabase migration/runtime reconciliation with repository history
-- [ ] Full user journey certification
+## Certification gap
 
-## Build policy
-Work in **large coherent blocks**, not tiny sequential status messages. Do not stop after every subtask to report a micro-update. Continue through the largest safe dependency-complete block available, while verifying rather than guessing. Stop only when a genuine external decision, missing credential/authorization, or destructive action requiring user approval is unavoidable.
+A capability/report is uncertified until all of the following are independently demonstrated:
 
-## Hard boundaries
-- No fabricated financial data.
-- No fake observations or placeholder financial values.
-- No treating catalog/authorization/consent as observed data.
-- No unsupported causal claims.
-- No money movement in the current scope.
-- No artificial maximum intelligence depth.
-- Round-Ups are one Iris feature, not the product foundation.
-- Transitional infrastructure/data may be inspected for reconciliation but is not future production truth.
+1. Required real provider evidence exists and is persisted for the authorized user/Item.
+2. The execution is bounded to the exact run evidence manifest.
+3. Material input/output lineage is complete and queryable.
+4. The actual operator executes under its persisted contract.
+5. Execution artifacts and hashes validate against the run manifest.
+6. The atomic certification boundary accepts the result and a certified result is queryable.
+7. The corresponding report product is active, entitled, evidence-qualified, and correctly published.
+8. User activation/deactivation is enforced without bypassing evidence controls.
+9. Frontend/backend contracts agree with the deployed commit.
+10. The complete user journey succeeds against real provider evidence.
 
-## Session protocol
+Current blocker: the connected Supabase project has **zero `iris_run_evidence` rows**. Therefore no real provider-evidence report can yet be end-to-end certified.
+
+## Current remaining work
+
+### Intelligence
+- Complete richer-engine unification.
+- Bind every remaining operator read set to exact run evidence.
+- Complete field-level lineage.
+- Expand adaptive/statistical intelligence across additional entities/domains.
+- Deepen cross-domain risk/opportunity/consequence intelligence.
+- Complete higher-order pattern/emergent discovery and recursive composition certification.
+
+### Reports/products
+- Generate report products from governed higher-order compositions.
+- Generate contextual report instances from actual user evidence/entities/periods/relationships.
+- Deduplicate equivalent compositions.
+- Add materiality/usefulness ranking based on evidence.
+- Complete catalog search/filter/sort and report workspaces.
+- Add report entitlement/commercial policy enforcement.
+- Certify report provenance/freshness/lineage.
+
+### Production certification
+- Real provider/database reconciliation.
+- Real provider-evidence execution.
+- Exact-run evidence certification.
+- Complete lineage verification.
+- Persisted execution-artifact verification.
+- Independent certification and queryable certified results.
+- RLS/ownership/security certification.
+- Durable sync/webhook lifecycle certification.
+- Plaid Sandbox lifecycle certification.
+- Intelligence sufficiency/regression certification.
+- Full observable user-journey certification.
+
+## Absolute anti-fabrication rule
+
+Never create or present as financial truth:
+
+- fake AI-generated financial values;
+- mock, seeded, synthetic, copied, or manually invented financial observations;
+- hardcoded balances, transactions, income, debt, spending, or provider records;
+- invented report results;
+- invented confidence/probability values;
+- catalog metadata represented as observed evidence;
+- availability/consent/authorization/entitlement represented as observation;
+- missing evidence converted into zero;
+- suppressed or insufficient-evidence claims presented as complete.
+
+Technical unit-test mocks may isolate infrastructure behavior but can never become production evidence or a user's financial state.
+
+## Continuity protocol
+
 1. Inspect current `main` before changes.
-2. Cross-check authoritative architecture and roadmap.
-3. Build the largest dependency-complete block.
-4. Run/inspect verification before claiming completion.
-5. Update this state and roadmap with the actual verified state.
+2. Cross-check `MASTER_STATE.md`, `ARCHITECTURE.md`, `ROADMAP.md`, and `DECISIONS.md`.
+3. Cross-check GitHub, Render, and Supabase rather than trusting stale chat state.
+4. Build large dependency-complete blocks.
+5. Verify before claiming completion.
+6. Update continuity documents after material changes.
+7. Never claim evidence, lineage, deployment, or certification without direct verification.
