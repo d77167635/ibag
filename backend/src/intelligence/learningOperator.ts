@@ -69,6 +69,7 @@ export async function executeLearningOperator(userId: string, context?: Capabili
       .from("iris_learning_experiences")
       .upsert(payload, { onConflict: "user_id,rule_type,rule_key,input_fingerprint,evidence_hash", ignoreDuplicates: true });
     if (persistError) throw new Error(`Learning experience persistence failed: ${persistError.message}`);
+    persisted_experience_count = payload.length;
   }
 
   let validated_experience_count = 0;
@@ -96,7 +97,6 @@ export async function executeLearningOperator(userId: string, context?: Capabili
     if (validated === true) validated_experience_count += 1;
   }
 
-  const persisted_experience_count = experiences.length;
   const outputPayload = { userId, experiences, consumed_outcome_output_hash, persisted_experience_count, validated_experience_count };
   return {
     capability_id: "learning",
