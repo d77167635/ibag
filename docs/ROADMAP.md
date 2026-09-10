@@ -42,13 +42,17 @@ A later state never implies an earlier state is certified.
 - [x] Source-field → intelligence binding foundation
 - [x] Transaction-backed account/merchant/domain/subdomain/category/entity ontology foundation
 - [x] First-class transaction-class entities and account-to-class relationships
+- [x] First-class temporal entities and transaction-to-time relationships
+- [x] Explicit transaction direction/economic-role semantics
 - [x] Observation span/activity-density state
 - [x] Economic flow state with explicit unknown/insufficient-evidence semantics
 - [x] Merchant/domain concentration and topology
+- [x] Evidence-gated observed income and income-source intelligence foundation
+- [x] Evidence-gated recurring-transaction intelligence
+- [x] Evidence-gated obligation candidates that remain distinct from verified obligations
 - [ ] Complete account semantics across all provider domains
 - [ ] Complete transaction classification/economic semantics
-- [ ] Income and recurring-income state
-- [ ] Obligations, bills, subscriptions
+- [ ] Bills and verified obligations
 - [ ] Liabilities/debt
 - [ ] Assets/investments
 - [ ] Historical provider observation lifecycle
@@ -76,9 +80,10 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [ ] Money/account intelligence
 - [ ] Cash-flow intelligence
 - [x] Spending intelligence foundation
-- [ ] Income intelligence
+- [x] Income intelligence foundation
+- [x] Recurring-income/recurrence intelligence foundation
 - [x] Liquidity intelligence foundation
-- [ ] Bills/obligations intelligence
+- [x] Obligation-candidate intelligence foundation
 - [x] Debt intelligence foundation
 - [x] Net-worth intelligence foundation
 
@@ -115,6 +120,7 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [ ] Proactive intelligence
 - [ ] Conversational evidence-grounded reasoning
 - [x] Governed recursive higher-order synthesis consumes persisted dependency outputs without creating financial evidence
+- [x] Generic recursive dependency-path discovery beyond hard-coded pair/triple relationships
 - [ ] Higher-order pattern discovery
 - [ ] Emergent intelligence discovery
 - [ ] Recursive composition of newly derived intelligence where evidence, governance, resources, and usefulness permit
@@ -158,9 +164,9 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 
 ## 8. Verification and clean release
 - [x] CI foundation
-- [x] Clean dependency-installed backend tests/build for the current evidence-bound temporal and adaptive-statistics block
+- [x] Clean backend build/test for the current recursive/evidence/statistical/financial-life block
 - [x] Clean frontend build for the current evidence-bound intelligence block
-- [ ] Verification of the newly changed higher-order TypeScript/test build on the current commit
+- [x] Current Render deployment verification for the current backend candidate
 - [ ] Backend/frontend contract synchronization
 - [ ] Provider → database reconciliation
 - [ ] Evidence lineage verification
@@ -169,8 +175,8 @@ Level 1 is **Iris**. Level 2 contains the eight core financial-life domains defi
 - [ ] Durable webhook verification/retry verification
 - [ ] Round-Up feature certification
 - [ ] Intelligence sufficiency/accuracy regression suite
-- [ ] Current Render deployment verification for queued production changes
 - [x] Supabase runtime migration 075 applied for raw financial run-evidence expansion
+- [ ] Current Supabase migration/runtime reconciliation with repository history
 - [ ] Plaid Sandbox end-to-end verification
 - [ ] Full observable user-journey certification
 
