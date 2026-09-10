@@ -67,6 +67,7 @@ export async function executeIrisRun(request: RunRequest) {
     capability_plan: plan,
     evidence_scope: evidenceScope,
     as_of: asOf,
+    evidence_boundary: evidenceObservationBoundary,
     planner_version: PLANNER_VERSION,
     orchestrator_version: ORCHESTRATOR_VERSION,
     certification_policy_version: CERTIFICATION_POLICY_VERSION,
@@ -80,7 +81,7 @@ export async function executeIrisRun(request: RunRequest) {
     requested_capabilities: requestedCapabilities,
     status: "PLANNED",
     as_of: asOf,
-    evidence_boundary: asOf,
+    evidence_boundary: evidenceObservationBoundary,
     evidence_version: "provider-observation-boundary-v2",
     resource_budget: RESOURCE_BUDGET,
     execution_policy: {
@@ -221,7 +222,7 @@ export async function executeIrisRun(request: RunRequest) {
     }
 
     const finishedAt = new Date().toISOString();
-    const evidenceBoundary = aggregateResult?.evidence_boundary || asOf;
+    const evidenceBoundary = aggregateResult?.evidence_boundary ?? evidenceObservationBoundary ?? null;
     await supabaseAdmin.from("iris_runs").update({ status: "EXECUTED", evidence_boundary: evidenceBoundary, evidence_version: "provider-observation-boundary-v2", completed_at: finishedAt, updated_at: finishedAt }).eq("id", run.id).eq("user_id", userId);
 
     const gate = await evaluateCertificationGate({ runId: run.id, executionId: aggregateExecution.id, userId, inputHash: aggregateInputHash, outputHash: aggregateOutputHash });
