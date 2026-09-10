@@ -7,7 +7,7 @@ import { evaluateCertificationGate } from "./certificationGate.js";
 import { resolveCanonicalProviderItem, IRIS_CANONICAL_PROVIDER_DOMAINS, type IrisEvidenceScope } from "./evidenceScope.js";
 import { getEvidenceObservationBoundary } from "./transactionSemantics.js";
 
-const PLANNER_VERSION = "iris-planner-v7";
+const PLANNER_VERSION = "iris-planner-v8";
 const ORCHESTRATOR_VERSION = "iris-orchestrator-v1";
 const CERTIFICATION_POLICY_VERSION = "iris-certification-v2";
 const DEFAULT_REQUESTED_CAPABILITIES = [GOVERNED_AGGREGATE_CAPABILITY];
@@ -156,7 +156,7 @@ export async function executeIrisRun(request: RunRequest) {
       });
       if (inputError) throw new Error(`EXECUTION_INPUT_PERSIST_FAILED:${capabilityId}: ${inputError.message}`);
 
-      const dispatched = await dispatchGovernedCapability({ userId, capabilityId }) as DispatchResult;
+      const dispatched = await dispatchGovernedCapability({ userId, capabilityId, executionId: execution.id }) as DispatchResult;
       const result = dispatched.result;
       const providerSelectedItemId = result?.layer_metrics?.provider_domains?.selected_item_id ?? null;
       if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY && selectedItemId && providerSelectedItemId !== selectedItemId) {
