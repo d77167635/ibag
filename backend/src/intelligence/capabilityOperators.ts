@@ -1,6 +1,7 @@
 import { assessTrajectory } from "./temporal.js";
 import { getCanonicalTransactions, computeCanonicalWindowFlows } from "./transactionSemantics.js";
-import { executeAnalysis, executeBehavioral, executePattern, executeRelationship, executeAnomaly, executeCausal, executePredictive, executeScenario, executeDecision, executeRecommendation, executeOutcome, executeLearning, executeEmergent } from "./recursiveOperators.js";
+import { executeAnalysis, executeBehavioral, executePattern, executeRelationship, executeAnomaly, executeCausal, executePredictive, executeScenario, executeDecision, executeRecommendation, executeOutcome, executeLearning } from "./recursiveOperators.js";
+import { buildRecursiveIntelligenceSynthesis } from "./recursiveIntelligenceSynthesis.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
 export type GovernedCapabilityResult = { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } }; uncertainty?: unknown; evidence_boundary?: string | null; [key: string]: unknown };
@@ -28,7 +29,28 @@ const temporalOperator: CapabilityOperator = {
     } };
   },
 };
+
+const emergentOperator: CapabilityOperator = {
+  capability_id: "emergent", operator_id: "emergent", version: "1.1.0", status: "implemented", execution_stage: "recursive_higher_order_synthesis", evidence_state: "INFERRED",
+  execute: async (_userId, context) => {
+    const dependencyResults = context?.dependencyResults ?? {};
+    const synthesis = buildRecursiveIntelligenceSynthesis(dependencyResults, context);
+    const state = synthesis.dependency_count > 0 ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
+    return {
+      capability_id: "emergent",
+      operator_id: "emergent",
+      operator_version: "1.1.0",
+      evidence_state: state,
+      result: {
+        ...synthesis,
+        evidence: { state: state === "INFERRED" ? "inferred" : "insufficient_evidence", source: "certified_capability_outputs", dependency_count: synthesis.dependency_count },
+      },
+    };
+  },
+};
+
 function op(capability_id: string, execute: CapabilityOperator["execute"], evidence_state: CapabilityOperatorResult["evidence_state"], execution_stage: string, version = "1.0.0"): CapabilityOperator { return { capability_id, operator_id: capability_id, version, status: "implemented", execution_stage, evidence_state, execute }; }
+
 export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   temporalOperator,
   op("analysis", executeAnalysis, "CALCULATED", "canonical_semantic_analysis"),
@@ -43,6 +65,6 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   op("recommendation", executeRecommendation, "INFERRED", "review_recommendations"),
   op("outcome", executeOutcome, "CALCULATED", "durable_outcome_loop"),
   op("learning", executeLearning, "INFERRED", "validated_outcome_learning", "1.1.0"),
-  op("emergent", executeEmergent, "INFERRED", "higher_order_discovery", "1.1.0"),
+  emergentOperator,
 ];
 export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null { return EXECUTABLE_CAPABILITY_OPERATORS.find((operator) => operator.capability_id === capabilityId) ?? null; }
