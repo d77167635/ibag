@@ -56,3 +56,22 @@ test("recursive synthesis keeps missing evidence explicit", () => {
   assert.equal(synthesis.evidence_profile.complete, false);
   assert.ok(synthesis.higher_order_findings.some(f => f.kind === "evidence_gap" && f.capabilities[0] === "predictive"));
 });
+
+test("recursive synthesis exposes foundational life-state and higher-order risk chains", () => {
+  const synthesis = buildRecursiveIntelligenceSynthesis({
+    financial_life_state: result("financial_life_state", "CALCULATED"),
+    relational_ontology: result("relational_ontology", "CALCULATED", ["financial_life_state"]),
+    analysis: result("analysis", "CALCULATED"),
+    behavioral: result("behavioral", "CALCULATED", ["analysis"]),
+    anomaly: result("anomaly", "CALCULATED", ["analysis", "behavioral"]),
+    predictive: result("predictive", "PREDICTED", ["analysis"]),
+    risk: result("risk", "INFERRED", ["analysis", "behavioral", "anomaly", "predictive"]),
+    opportunity: result("opportunity", "INFERRED", ["analysis", "behavioral"]),
+    consequence: result("consequence", "INFERRED", ["risk", "opportunity"]),
+  });
+
+  assert.ok(synthesis.higher_order_findings.some(f => f.id === "life-state-ontology-foundation"));
+  assert.ok(synthesis.higher_order_findings.some(f => f.id === "risk-opportunity-interaction"));
+  assert.ok(synthesis.higher_order_findings.some(f => f.id === "risk-opportunity-consequence-chain"));
+  assert.ok(synthesis.higher_order_findings.some(f => f.capabilities.includes("consequence") && f.kind === "chain"));
+});
