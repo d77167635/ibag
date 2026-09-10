@@ -94,7 +94,11 @@ function buildGenericRecursiveFindings(nodes: RecursiveNode[], maxFindings: numb
 
   const findings: RecursiveSynthesis["higher_order_findings"] = [];
   const seenPaths = new Set<string>();
-  const maxPathDepth = Math.min(32, Math.max(2, nodes.length));
+  // The execution graph itself is the finite boundary for this pure synthesis
+  // call. There is deliberately no hard-coded semantic depth ceiling here.
+  // Runtime resource budgets may limit how many nodes/compositions are executed;
+  // they must not redefine Iris's intelligence hierarchy.
+  const maxPathDepth = Math.max(2, nodes.length);
   const visit = (path: string[]) => {
     if (findings.length >= maxFindings) return;
     const next = children.get(path[path.length - 1]) ?? [];
