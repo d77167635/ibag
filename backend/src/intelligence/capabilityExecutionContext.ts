@@ -121,6 +121,6 @@ export async function loadCapabilityExecutionContext(userId: string, capabilityI
   };
 }
 
-export function dependencyResult<T = unknown>(context: CapabilityExecutionContext, capabilityId: string): T | null {
+export function dependencyResult<T = unknown>(context: Pick<CapabilityExecutionContext, "dependencyOutputs">, capabilityId: string): T | null {
   return (context.dependencyOutputs[capabilityId]?.value as T | undefined) ?? null;
 }
