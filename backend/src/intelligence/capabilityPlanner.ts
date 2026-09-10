@@ -24,13 +24,7 @@ export type CapabilityPlan = {
   missing_capabilities: string[];
   unsupported_capabilities: string[];
   cycle_detected: boolean;
-  evidence: {
-    observed_products: string[];
-    observed_product_count: number;
-    source_field_observation_count: number;
-    canonical_account_count: number;
-    canonical_transaction_count: number;
-  };
+  evidence: { observed_products: string[]; observed_product_count: number; source_field_observation_count: number; canonical_account_count: number; canonical_transaction_count: number };
   resource_estimate: { nodes: number; edges: number; compositions: number };
   status: "READY" | "LIMITED" | "BLOCKED";
   limitations: string[];
@@ -41,10 +35,7 @@ const AGGREGATE_OPERATOR = "computeFullIntelligence";
 const AGGREGATE_OPERATOR_VERSION = "1";
 const RESOURCE_LIMITS = { nodes: 10_000, edges: 30_000, compositions: 5_000 };
 
-function asStrings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
-}
-
+function asStrings(value: unknown): string[] { return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []; }
 function requirementNames(value: unknown): string[] {
   if (Array.isArray(value)) return asStrings(value);
   if (value && typeof value === "object") return Object.entries(value).filter(([, enabled]) => enabled === true).map(([key]) => key);
@@ -65,7 +56,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   if (contractError) throw new Error(`CAPABILITY_REGISTRY_READ_FAILED: ${contractError.message}`);
 
   const registry = new Map<string, CapabilityContract>((contracts ?? []).map(row => [row.capability_id, row as CapabilityContract]));
-  const missing = requestedIds.filter(id => !registry.has(id));
+  const missing = new Set<string>(requestedIds.filter(id => !registry.has(id)));
   const unsupported: string[] = [];
   const contractMismatches: string[] = [];
   const ordered: string[] = [];
@@ -83,7 +74,11 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     }
     if (visited.has(id)) return;
     const contract = registry.get(id);
-    if (!contract) return;
+    if (!contract) {
+      missing.add(id);
+      limitations.push(`Capability dependency contract is missing: ${id}.`);
+      return;
+    }
     activePath.add(id);
     for (const dep of asStrings(contract.dependencies)) visit(dep);
     activePath.delete(id);
@@ -95,9 +90,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
 
   for (const id of ordered) {
     const contract = registry.get(id);
-    const operator = id === AGGREGATE_CAPABILITY
-      ? { status: "implemented", operator_id: AGGREGATE_OPERATOR, version: AGGREGATE_OPERATOR_VERSION }
-      : getCapabilityOperator(id);
+    const operator = id === AGGREGATE_CAPABILITY ? { status: "implemented", operator_id: AGGREGATE_OPERATOR, version: AGGREGATE_OPERATOR_VERSION } : getCapabilityOperator(id);
 
     if (!operator || operator.status !== "implemented") {
       unsupported.push(id);
@@ -130,7 +123,8 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     }
   }
 
-  if (missing.length) limitations.push(`Missing governed capability contracts: ${missing.join(", ")}.`);
+  const missingCapabilities = [...missing].sort();
+  if (missingCapabilities.length) limitations.push(`Missing governed capability contracts: ${missingCapabilities.join(", ")}.`);
   if (unsupported.length) limitations.push(`No implemented executable operator exists for: ${unsupported.join(", ")}.`);
   if (contractMismatches.length) limitations.push(`Persisted capability contracts do not match executable operators: ${contractMismatches.join(", ")}.`);
   if (productError) limitations.push(`Provider product observation could not be read: ${productError.message}.`);
@@ -149,7 +143,7 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
   if (resourceExceeded) limitations.push(`Capability plan exceeds resource limits: nodes=${nodes}/${RESOURCE_LIMITS.nodes}, edges=${edges}/${RESOURCE_LIMITS.edges}, compositions=${compositions}/${RESOURCE_LIMITS.compositions}.`);
 
   const infrastructureReadFailed = Boolean(productError || fieldError || accountError || transactionError);
-  const status = cycleDetected || missing.length || unsupported.length || contractMismatches.length || requiredEvidenceMissing || resourceExceeded || infrastructureReadFailed
+  const status = cycleDetected || missingCapabilities.length || unsupported.length || contractMismatches.length || requiredEvidenceMissing || resourceExceeded || infrastructureReadFailed
     ? "BLOCKED"
     : limitations.length
       ? "LIMITED"
@@ -160,16 +154,10 @@ export async function planCapabilities(userId: string, requested: string[]): Pro
     requested: requestedIds,
     ordered_capabilities: ordered,
     contracts: contractsUsed,
-    missing_capabilities: missing,
+    missing_capabilities: missingCapabilities,
     unsupported_capabilities: unsupported,
     cycle_detected: cycleDetected,
-    evidence: {
-      observed_products: observedProducts,
-      observed_product_count: observedProducts.length,
-      source_field_observation_count: fieldCount ?? 0,
-      canonical_account_count: accountCount ?? 0,
-      canonical_transaction_count: transactionCount ?? 0,
-    },
+    evidence: { observed_products: observedProducts, observed_product_count: observedProducts.length, source_field_observation_count: fieldCount ?? 0, canonical_account_count: accountCount ?? 0, canonical_transaction_count: transactionCount ?? 0 },
     resource_estimate: { nodes, edges, compositions },
     status,
     limitations,
