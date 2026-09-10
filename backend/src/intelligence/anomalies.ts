@@ -14,10 +14,12 @@ export interface IrisAnomaly {
 }
 
 /** Merchant-relative anomaly detection over the canonical active transaction population. */
-export async function computeCanonicalAnomalies(userId: string, windowDays = 30): Promise<IrisAnomaly[]> {
-  const windowStart = new Date(Date.now() - windowDays * 86_400_000).toISOString().slice(0, 10);
+export async function computeCanonicalAnomalies(userId: string, windowDays = 30, asOf?: string | Date | null): Promise<IrisAnomaly[]> {
+  const anchor = asOf ? new Date(asOf) : new Date();
+  const anchorDate = anchor.toISOString().slice(0, 10);
+  const windowStart = new Date(anchor.getTime() - windowDays * 86_400_000).toISOString().slice(0, 10);
   const txs = await getCanonicalTransactions(userId);
-  const economic = txs.filter(isEconomicOutflow);
+  const economic = txs.filter(isEconomicOutflow).filter(tx => tx.posted_date <= anchorDate);
   const recent = economic.filter(tx => tx.posted_date >= windowStart && tx.merchant_id);
   if (!recent.length) return [];
 
@@ -36,16 +38,7 @@ export async function computeCanonicalAnomalies(userId: string, windowDays = 30)
     const typicalAmount = baseline.reduce((sum, h) => sum + h.amount, 0) / baseline.length;
     if (!Number.isFinite(tx.amount) || !Number.isFinite(typicalAmount) || typicalAmount <= 0) continue;
     if (tx.amount < typicalAmount * 1.5) continue;
-    anomalies.push({
-      merchant: tx.merchant_name ?? "Unknown",
-      amount: tx.amount,
-      typicalAmount,
-      date: tx.posted_date,
-      pctAboveTypical: ((tx.amount - typicalAmount) / typicalAmount) * 100,
-      evidence_state: "calculated",
-      rule: "merchant_relative_50_percent_above_historical_average",
-      history_count: baseline.length,
-    });
+    anomalies.push({ merchant: tx.merchant_name ?? "Unknown", amount: tx.amount, typicalAmount, date: tx.posted_date, pctAboveTypical: ((tx.amount - typicalAmount) / typicalAmount) * 100, evidence_state: "calculated", rule: "merchant_relative_50_percent_above_historical_average", history_count: baseline.length });
   }
   return anomalies.sort((a, b) => b.date.localeCompare(a.date));
 }
