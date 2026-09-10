@@ -15,7 +15,7 @@ test("derives flows, activity density, concentration and relationships from cano
     tx({ id: "tx-2", amount: -100, posted_date: "2026-08-02", transaction_class: "income" }),
     tx({ id: "tx-3", amount: 15, posted_date: "2026-08-04", merchant_id: "m-2", merchant_name: "Second Merchant" }),
   ], "2026-09-10T00:00:00Z");
-  assert.equal(state.architecture_version, "IRIS_CANONICAL_LIFE_STATE_V5");
+  assert.equal(state.architecture_version, "IRIS_CANONICAL_LIFE_STATE_V6");
   assert.equal(state.flow.inflow, 100);
   assert.equal(state.flow.outflow, 40);
   assert.equal(state.flow.net, 60);
@@ -35,6 +35,11 @@ test("derives flows, activity density, concentration and relationships from cano
   assert.ok(state.entities.some((e) => e.kind === "transaction" && e.id === "transaction:tx-1"));
   assert.ok(state.entities.some((e) => e.kind === "transaction_class" && e.id === "transaction_class:purchase"));
   assert.ok(state.entities.some((e) => e.kind === "transaction_class" && e.id === "transaction_class:income"));
+  assert.ok(state.entities.some((e) => e.kind === "temporal" && e.id === "date:2026-08-01"));
+  assert.equal(state.topology.temporal_nodes, 3);
+  assert.equal(state.transaction_semantics.find((item) => item.transaction_id === "tx-1")?.direction, "outflow");
+  assert.equal(state.transaction_semantics.find((item) => item.transaction_id === "tx-2")?.economic_role, "economic_inflow");
+  assert.equal(state.transaction_semantics.find((item) => item.transaction_id === "tx-3")?.transaction_class, "purchase");
   assert.ok(state.category_activity.some((e) => e.id === "category:FOOD_AND_DRINK_RESTAURANT"));
   assert.ok(state.relationships.every((r) => r.evidence === "calculated"));
 });
@@ -52,6 +57,7 @@ test("does not convert absent evidence into observed zero", () => {
   assert.equal(state.merchant_concentration.total_absolute_activity, null);
   assert.deepEqual(state.entities, []);
   assert.deepEqual(state.relationships, []);
+  assert.deepEqual(state.transaction_semantics, []);
 });
 
 test("preserves unknown transaction classification as an ontology fact without treating it as economic flow", () => {
@@ -66,5 +72,7 @@ test("preserves unknown transaction classification as an ontology fact without t
   assert.equal(state.flow.net, null);
   assert.ok(state.entities.some((e) => e.kind === "transaction" && e.id === "transaction:tx-1"));
   assert.ok(state.entities.some((e) => e.kind === "transaction_class" && e.id === "transaction_class:unknown"));
+  assert.equal(state.transaction_semantics[0]?.direction, "non_economic");
+  assert.equal(state.transaction_semantics[0]?.economic_role, "non_economic_or_unclassified");
   assert.ok(state.transaction_class_distribution.some((e) => e.transaction_class === "unknown"));
 });
