@@ -28,13 +28,16 @@ export async function dispatchGovernedCapability({ userId, capabilityId }: Dispa
   const context = await loadCapabilityExecutionContext(userId, capabilityId);
 
   if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
-    const dependencyOutputs = context.dependencyOutputs;
-    const result = await computeFullIntelligence(userId, {
-      evidenceBoundary: context.evidenceBoundary,
-      dependencyOutputs,
-      recursionDepth: context.recursionDepth,
-    });
-    return { capability_id: GOVERNED_AGGREGATE_CAPABILITY, operator_id: GOVERNED_AGGREGATE_OPERATOR, operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION, result };
+    const result = await computeFullIntelligence(userId);
+    const composedResult = {
+      ...result,
+      supervisory_composition: {
+        dependency_capabilities: context.dependencyIds,
+        dependency_output_hashes: Object.fromEntries(Object.entries(context.dependencyOutputs).map(([id, output]) => [id, output.output_hash])),
+        recursion_depth: context.recursionDepth,
+      },
+    } as Awaited<ReturnType<typeof computeFullIntelligence>>;
+    return { capability_id: GOVERNED_AGGREGATE_CAPABILITY, operator_id: GOVERNED_AGGREGATE_OPERATOR, operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION, result: composedResult };
   }
 
   const operator = getCapabilityOperator(capabilityId);
