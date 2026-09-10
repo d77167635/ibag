@@ -23,12 +23,6 @@ export type SupervisorySynthesis = {
   synthesis_basis: string[];
 };
 
-/**
- * Supervisory composition is value-driven: it consumes the durable child
- * outputs already produced by the execution graph rather than treating the
- * graph as metadata. It never invents a financial value when a child output
- * is absent.
- */
 export function synthesizeCapabilityGraph(
   dependencyIds: readonly string[],
   dependencyOutputs: Readonly<Record<string, CapabilityDependencyOutput>>,
@@ -81,12 +75,7 @@ function childResult(outputs: Readonly<Record<string, CapabilityDependencyOutput
   return value && typeof value === "object" ? value.result ?? value : null;
 }
 
-/**
- * Builds the aggregate Iris result exclusively from persisted child capability
- * outputs. This is intentionally a projection/synthesis operation: it performs
- * no fresh financial queries, no fallback calculations, and no invented
- * narrative or scenario values.
- */
+/** Builds the aggregate exclusively from persisted child outputs. It performs no fresh financial queries or fallback calculations. */
 export function buildSupervisoryAggregate(
   dependencyIds: readonly string[],
   dependencyOutputs: Readonly<Record<string, CapabilityDependencyOutput>>,
@@ -107,13 +96,7 @@ export function buildSupervisoryAggregate(
   const outcome = childResult(dependencyOutputs, "outcome");
   const learning = childResult(dependencyOutputs, "learning");
   const emergent = childResult(dependencyOutputs, "emergent");
-
   const analysisState = analysis ?? {};
-  const analysisNetWorth = analysisState.net_worth ?? null;
-  const analysisDebt = analysisState.debt_health ?? null;
-  const analysisCashFlow = analysisState.economic_cash_flow ?? null;
-  const analysisSafety = analysisState.cash_flow_safety ?? null;
-  const analysisSpending = analysisState.spending_hierarchy ?? null;
 
   return {
     evidence_state: graphSynthesis.evidence_state,
@@ -123,14 +106,14 @@ export function buildSupervisoryAggregate(
     feature_flags: null,
     integrity: { status: graphSynthesis.graph_complete ? "GRAPH_COMPLETE" : "INSUFFICIENT_EVIDENCE" },
     layer_metrics: {
-      net_worth: analysisNetWorth,
-      debt_health: analysisDebt,
-      cash_flow_safety: analysisSafety,
-      cash_flow: analysisCashFlow,
-      spending_hierarchy: analysisSpending,
+      net_worth: analysisState.net_worth ?? null,
+      debt_health: analysisState.debt_health ?? null,
+      cash_flow_safety: analysisState.cash_flow_safety ?? null,
+      cash_flow: analysisState.economic_cash_flow ?? null,
+      spending_hierarchy: analysisState.spending_hierarchy ?? null,
       balance_history: null,
       roundup_projection: null,
-      forward_projection: predictive ?? null,
+      forward_projection: predictive,
       anomalies: anomaly?.anomalies ?? null,
       provider_domains: selectedItemId ? { selected_item_id: selectedItemId } : null,
     },
@@ -147,19 +130,19 @@ export function buildSupervisoryAggregate(
     intelligence_graph: null,
     investigations: null,
     uncertainty: { present: graphSynthesis.uncertainty_present },
-    financial_state: analysisNetWorth,
+    financial_state: null,
     causal_analysis: causal,
-    decision_graph: decision,
+    decision_graph: null,
     decision_intelligence: decision,
-    consequence_model: scenario,
-    optimization_intelligence: recommendation,
+    consequence_model: null,
+    optimization_intelligence: null,
     goal_intelligence: null,
     intelligence_atlas: null,
     intelligence_composition: null,
     layer_composition: null,
     higher_order_synthesis: null,
     adversarial_reasoning: null,
-    counterfactual_intelligence: scenario,
+    counterfactual_intelligence: null,
     meta_intelligence: null,
     capability_outputs: Object.fromEntries(dependencyIds.map(id => [id, {
       evidence_state: dependencyOutputs[id]?.evidence_state ?? "INSUFFICIENT_EVIDENCE",
@@ -170,6 +153,9 @@ export function buildSupervisoryAggregate(
     outcome_intelligence: outcome,
     learning_intelligence: learning,
     emergent_intelligence: emergent,
+    scenario_intelligence: scenario,
+    recommendation_intelligence: recommendation,
+    predictive_intelligence: predictive,
     supervisory_composition: {
       dependency_capabilities: dependencyIds,
       dependency_output_hashes: graphSynthesis.output_hashes,
