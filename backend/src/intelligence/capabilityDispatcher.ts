@@ -20,20 +20,16 @@ type AggregateDispatch = {
 };
 
 type DispatchRequest = { userId: string; capabilityId: string; executionId?: string };
-
 type GovernedResult = Record<string, unknown>;
-
-export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY; executionId?: string }): Promise<AggregateDispatch>;
-export function dispatchGovernedCapability(request: DispatchRequest): Promise<{ capability_id: string; operator_id: string; operator_version: string; result: unknown }>;
 
 function composeOperatorResult(result: unknown, context: Awaited<ReturnType<typeof loadCapabilityExecutionContext>>): unknown {
   if (!result || typeof result !== "object" || Array.isArray(result)) return result;
   const graphSynthesis = synthesizeCapabilityGraph(context.dependencyIds, context.dependencyOutputs);
-  return {
-    ...(result as GovernedResult),
-    dependency_composition: graphSynthesis,
-  };
+  return { ...(result as GovernedResult), dependency_composition: graphSynthesis };
 }
+
+export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY; executionId?: string }): Promise<AggregateDispatch>;
+export function dispatchGovernedCapability(request: DispatchRequest): Promise<{ capability_id: string; operator_id: string; operator_version: string; result: unknown }>;
 
 /** Single runtime dispatcher. Every governed operator receives durable dependency context for its execution record. */
 export async function dispatchGovernedCapability({ userId, capabilityId, executionId }: DispatchRequest) {
