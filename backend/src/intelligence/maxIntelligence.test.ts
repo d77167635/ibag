@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildMaximumIntelligence } from "./maxIntelligence.js";
 import type { FinancialReasoning } from "./relational.js";
+import type { WindowDays } from "./types.js";
 
 const reasoning: FinancialReasoning = {
   risks: [],
@@ -12,7 +13,7 @@ const reasoning: FinancialReasoning = {
   generatedAt: "2026-08-31T00:00:00.000Z",
 };
 
-const flow = (windowDays: number, outflow: number) => ({
+const flow = (windowDays: WindowDays, outflow: number) => ({
   windowDays,
   inflow: 0,
   outflow,
