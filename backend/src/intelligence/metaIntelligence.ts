@@ -23,9 +23,9 @@ function label(score: number): MetaIntelligence["quality"]["label"] { if (score 
 
 /**
  * Meta-intelligence evaluates the quality of the intelligence pipeline without
- * treating analytical readiness as equivalent to evidence quality. Coverage,
- * temporal coverage, lineage/integrity and uncertainty are deliberately kept
- * as separate dimensions so one signal cannot masquerade as another.
+ * manufacturing financial values. Quality is conservative: the aggregate quality
+ * cannot exceed the weakest available quality dimension. No arbitrary dimension
+ * weights or synthetic readiness defaults are used.
  */
 export function buildMetaIntelligence(input: Input): MetaIntelligence {
   const definitions = input.atlas?.definitions ?? [];
@@ -40,15 +40,25 @@ export function buildMetaIntelligence(input: Input): MetaIntelligence {
       missingMap.set(missing, current);
     }
   }
+
   const maxBlocked = Math.max(1, ...[...missingMap.values()].map(ids => new Set(ids).size));
   const bottlenecks = [...missingMap.entries()].map(([inputKey, analysisIds]) => {
     const uniqueIds = [...new Set(analysisIds)];
     const blocked = uniqueIds.length;
     const normalized = blocked / maxBlocked;
-    const leverage: MetaIntelligence["bottlenecks"][number]["leverage"] = blocked >= 8 ? "very_high" : blocked >= 5 ? "high" : blocked >= 3 ? "medium" : "low";
-    const informationValue = Number(normalized.toFixed(3));
-    return { input: inputKey, analysis_ids: uniqueIds, analyses_blocked: blocked, leverage, information_value: informationValue, statement: `${inputKey} is a high-leverage missing evidence input for ${blocked} currently limited analysis definition${blocked === 1 ? "" : "s"}. Its value is measured by analytical unlock potential, not by an assumed financial probability.` };
+    const leverage: MetaIntelligence["bottlenecks"][number]["leverage"] =
+      normalized >= 1 ? "very_high" : normalized >= 0.75 ? "high" : normalized >= 0.5 ? "medium" : "low";
+    const informationValue = Number(clamp(normalized).toFixed(3));
+    return {
+      input: inputKey,
+      analysis_ids: uniqueIds,
+      analyses_blocked: blocked,
+      leverage,
+      information_value: informationValue,
+      statement: `${inputKey} is a missing evidence input for ${blocked} currently limited analysis definition${blocked === 1 ? "" : "s"}. Its information value is derived only from the proportion of currently blocked analyses; it is not a financial probability or expected monetary value.`,
+    };
   }).sort((a, b) => b.information_value - a.information_value || a.input.localeCompare(b.input)).slice(0, 12);
+
   const higherOrderReady = input.sourceFidelity?.ready_for_higher_order_intelligence === true;
   const integrityPass = input.integrity?.status !== "fail";
   const investigationLimited = (input.investigations?.investigations ?? []).some(x => x.status === "evidence_limited");
@@ -57,17 +67,27 @@ export function buildMetaIntelligence(input: Input): MetaIntelligence {
   const evaluable = Number(composition.evaluable_combinations ?? 0);
   const evidenceReadyCombinations = Number(composition.evidence_ready_combinations ?? 0);
   const uncertaintyStrength = typeof input.uncertainty?.evidence_strength === "number" ? clamp(input.uncertainty.evidence_strength) : evidenceCoverage;
-  const analyticalCoverage = definitions.length ? ready / definitions.length : 0;
-  const temporalCoverage = typeof input.sourceFidelity?.temporal_coverage === "number" ? clamp(input.sourceFidelity.temporal_coverage) : (higherOrderReady ? 1 : 0.5);
+  const analyticalCoverage = evidenceCoverage;
+  const temporalCoverage = typeof input.sourceFidelity?.temporal_coverage === "number" ? clamp(input.sourceFidelity.temporal_coverage) : evidenceCoverage;
   const lineageIntegrity = integrityPass ? 1 : 0;
   const unknownCount = input.uncertainty?.known_unknowns?.length ?? 0;
   const blockedCount = input.uncertainty?.blocked_conclusions?.length ?? 0;
   const uncertaintyHealth = clamp(1 - Math.min(1, (unknownCount + blockedCount) / Math.max(1, definitions.length)));
-  const score = clamp(
-    evidenceCoverage * 0.30 + analyticalCoverage * 0.15 + temporalCoverage * 0.15 + lineageIntegrity * 0.15 + uncertaintyHealth * 0.10 + uncertaintyStrength * 0.05 + (higherOrderReady ? 0.10 : 0),
-  );
-  const nextSteps = bottlenecks.slice(0, 5).map(b => `Acquire or certify ${b.input} through the existing provider/canonical evidence pipeline; its current information value is ${b.information_value} and it can unlock up to ${b.analyses_blocked} analysis${b.analyses_blocked === 1 ? "" : "es"}.`);
+
+  // Conservative minimum-of-dimensions aggregation avoids arbitrary weights.
+  const score = clamp(Math.min(
+    evidenceCoverage,
+    analyticalCoverage,
+    temporalCoverage,
+    lineageIntegrity,
+    uncertaintyHealth,
+    uncertaintyStrength,
+    higherOrderReady ? 1 : 0,
+  ));
+
+  const nextSteps = bottlenecks.slice(0, 5).map(b => `Acquire or certify ${b.input} through the existing provider/canonical evidence pipeline; it currently blocks ${b.analyses_blocked} analysis${b.analyses_blocked === 1 ? "" : "es"}.`);
   if (!nextSteps.length) nextSteps.push("Increase independent evidence coverage across additional certified windows and provider domains before expanding conclusions.");
+
   return {
     architecture_version: "IRIS_META_INTELLIGENCE_V3",
     quality: {

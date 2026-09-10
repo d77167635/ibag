@@ -28,70 +28,40 @@ export interface ValueOfInformationResult {
 
 type InvestigationResult = { investigations: IrisInvestigation[] };
 
-/** Deterministic evidence-priority analysis. It does not manufacture evidence or claim probabilities. */
+/**
+ * Value-of-information remains fail-closed until its scoring model is governed.
+ *
+ * The former implementation assigned fixed decision-impact, uncertainty-reduction,
+ * reversibility, and evidence-quality numbers to evidence gaps. Those numbers were
+ * analytical assumptions, not observations or calculations derived from authoritative
+ * evidence. They therefore cannot be presented as Iris intelligence.
+ */
 export function buildValueOfInformation(
   investigations: InvestigationResult,
   robustness: DecisionRobustness,
 ): ValueOfInformationResult {
-  const candidates: InformationValueCandidate[] = [];
+  const evidenceGaps = investigations.investigations
+    .filter((investigation) => investigation.status !== "ready")
+    .flatMap((investigation) => investigation.evidence_required);
 
-  for (const investigation of investigations.investigations) {
-    if (investigation.status === "ready") continue;
-    const missing = investigation.evidence_required;
-    for (const gap of missing.slice(0, 4)) {
-      const decisionImpact = robustness.status === "sensitive" ? 0.9 : robustness.status === "robust" ? 0.35 : 0.2;
-      const uncertaintyReduction = missing.length ? Math.max(0.1, 1 / missing.length) : 0;
-      const reversibility = robustness.status === "sensitive" ? 0.85 : 0.55;
-      const evidenceQuality = 0.8;
-      const informationValue = Number((decisionImpact * uncertaintyReduction * reversibility * evidenceQuality).toFixed(3));
-      candidates.push({
-        id: `voi:${investigation.id}:${gap}`,
-        question: investigation.question,
-        source: "investigation",
-        evidence_gap: gap,
-        decision_impact: decisionImpact,
-        uncertainty_reduction: Number(uncertaintyReduction.toFixed(3)),
-        reversibility,
-        evidence_quality: evidenceQuality,
-        information_value: informationValue,
-        status: informationValue >= 0.45 ? "high" : informationValue >= 0.2 ? "medium" : "low",
-        limitation: "Information value is a deterministic prioritization heuristic; it is not probability, causal effect, or guaranteed information gain.",
-      });
-    }
-  }
+  const assumptions = robustness.highest_leverage_assumptions;
 
-  for (const assumption of robustness.highest_leverage_assumptions.slice(0, 6)) {
-    const sensitive = robustness.status === "sensitive";
-    const informationValue = Number(((sensitive ? 1 : 0.45) * (sensitive ? 0.8 : 0.35) * (sensitive ? 0.9 : 0.6) * 0.8).toFixed(3));
-    candidates.push({
-      id: `voi:robustness:${assumption}`,
-      question: `What evidence could validate or falsify the assumption: ${assumption}?`,
-      source: "robustness",
-      evidence_gap: assumption,
-      decision_impact: sensitive ? 1 : 0.45,
-      uncertainty_reduction: sensitive ? 0.8 : 0.35,
-      reversibility: sensitive ? 0.9 : 0.6,
-      evidence_quality: 0.8,
-      information_value: informationValue,
-      status: sensitive ? "high" : "medium",
-      limitation: "The engine identifies leverage in a modeled assumption; it does not assert that validating evidence is available from the provider.",
-    });
-  }
-
-  candidates.sort((a, b) => b.information_value - a.information_value);
-  const bounded = candidates.slice(0, 24);
-  const top = bounded[0] ?? null;
   return {
     architecture_version: "IRIS_VALUE_OF_INFORMATION_V1",
-    status: top?.status ?? "blocked",
-    candidates: bounded,
-    highest_value_question: top?.question ?? null,
-    methodology: "Rank evidence gaps by modeled decision impact, uncertainty reduction, decision reversibility, and evidence quality. Higher values identify evidence that could most change or clarify an analytical decision.",
+    status: "blocked",
+    candidates: [],
+    highest_value_question: null,
+    methodology:
+      "Evidence-priority scoring is withheld until a versioned, provenance-backed value-of-information model defines its parameters and transformation. Evidence gaps and assumptions may be surfaced elsewhere, but Iris will not assign invented numerical value to them.",
     limitations: [
-      "No provider evidence is manufactured when a candidate is missing.",
-      "Information value is not a probability or expected monetary value.",
-      "The ranking does not imply that a provider exposes the requested evidence.",
-      "Candidate priority remains subordinate to source fidelity, authorization, and evidence certification.",
+      evidenceGaps.length
+        ? `${evidenceGaps.length} evidence gap(s) were identified but were not assigned synthetic information-value scores.`
+        : "No unresolved investigation evidence gaps were available for scoring.",
+      assumptions.length
+        ? `${assumptions.length} modeled assumption(s) were identified but were not assigned synthetic information-value scores.`
+        : "No leverage assumptions were available for scoring.",
+      "No provider evidence, probability, causal effect, uncertainty reduction, reversibility value, or expected monetary value is manufactured.",
+      "A governed value-of-information model must be versioned, auditable, evidence-bound, and independently reproducible before numeric candidates can be emitted.",
     ],
   };
 }

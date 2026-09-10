@@ -42,7 +42,7 @@ export function IrisMoneyTopology({ accounts, liquidAssets, revolvingDebt, safeT
       <div className="iris-topology-orbit orbit-a" />
       <div className="iris-topology-orbit orbit-b" />
       <div className="iris-topology-center">
-        <span>iBag · MONEY STATE</span>
+        <span>Iris · MONEY STATE</span>
         <strong>{money(liquidAssets)}</strong>
         <small>Observed liquid position</small>
       </div>

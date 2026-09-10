@@ -1,39 +1,113 @@
-import { computeFullIntelligence } from "./orchestrator.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
+import { executeOutcomeOperator } from "./outcomeOperator.js";
+import { executeLearningOperator } from "./learningOperator.js";
+import { executeEmergentOperator } from "./emergentOperator.js";
+import { executeTemporalOperator, executeAnalysisOperator, executeBehavioralOperator, executePatternOperator, executeRelationshipOperator, executeAnomalyOperator, executePredictiveOperator } from "./governedOperators.js";
+import { executeCausalOperator, executeScenarioOperator, executeDecisionOperator, executeRecommendationOperator } from "./advancedOperators.js";
+import { loadCapabilityExecutionContext, type CapabilityExecutionContext } from "./capabilityExecutionContext.js";
+import { buildSupervisoryAggregate, synthesizeCapabilityGraph } from "./supervisorySynthesis.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
 export const GOVERNED_AGGREGATE_OPERATOR = "computeFullIntelligence";
 export const GOVERNED_AGGREGATE_OPERATOR_VERSION = "1";
 
-type DispatchRequest = {
-  userId: string;
-  capabilityId: string;
+type AggregateDispatch = {
+  capability_id: typeof GOVERNED_AGGREGATE_CAPABILITY;
+  operator_id: typeof GOVERNED_AGGREGATE_OPERATOR;
+  operator_version: typeof GOVERNED_AGGREGATE_OPERATOR_VERSION;
+  result: Record<string, unknown>;
 };
 
-/**
- * The single runtime dispatcher for governed capabilities.
- *
- * Only the aggregate capability is independently wired today. Catalog entries
- * marked planned are deliberately rejected rather than silently falling back to
- * the monolithic aggregate operator. This keeps catalog state and executable
- * runtime state truthful while the individual operators are implemented.
- */
-export async function dispatchGovernedCapability({ userId, capabilityId }: DispatchRequest) {
+type DispatchRequest = { userId: string; capabilityId: string; executionId?: string };
+type GovernedResult = Record<string, unknown>;
+
+function composeOperatorResult(result: unknown, context: Awaited<ReturnType<typeof loadCapabilityExecutionContext>>): unknown {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
+  const graphSynthesis = synthesizeCapabilityGraph(context.dependencyIds, context.dependencyOutputs);
+  return { ...(result as GovernedResult), dependency_composition: graphSynthesis };
+}
+
+async function finish<T>(context: CapabilityExecutionContext, result: T): Promise<T> {
+  const budget = context.resourceBudget?.max_execution_time_ms;
+  if (budget) {
+    const { data, error } = await supabaseAdmin
+      .from("iris_execution_records")
+      .select("started_at")
+      .eq("id", context.executionId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (error) throw new Error(`CAPABILITY_RESOURCE_USAGE_READ_FAILED:${error.message}`);
+    const startedAt = data?.started_at;
+    if (startedAt) {
+      const elapsed = Date.now() - Date.parse(startedAt);
+      if (Number.isFinite(elapsed) && elapsed > budget) throw new Error(`CAPABILITY_RESOURCE_BUDGET_EXCEEDED:execution_time_ms:${elapsed}>${budget}`);
+    }
+  }
+  return result;
+}
+
+export function dispatchGovernedCapability(request: { userId: string; capabilityId: typeof GOVERNED_AGGREGATE_CAPABILITY; executionId?: string }): Promise<AggregateDispatch>;
+export function dispatchGovernedCapability(request: DispatchRequest): Promise<{ capability_id: string; operator_id: string; operator_version: string; result: unknown }>;
+
+/** Single runtime dispatcher. Every governed operator receives durable dependency context for its execution record. */
+export async function dispatchGovernedCapability({ userId, capabilityId, executionId }: DispatchRequest) {
+  const context = await loadCapabilityExecutionContext(userId, capabilityId, executionId);
+
   if (capabilityId === GOVERNED_AGGREGATE_CAPABILITY) {
-    const result = await computeFullIntelligence(userId);
+    const graphSynthesis = synthesizeCapabilityGraph(context.dependencyIds, context.dependencyOutputs);
+    if (!graphSynthesis.graph_complete) {
+      throw new Error(`CAPABILITY_SUPERVISORY_GRAPH_INCOMPLETE:${graphSynthesis.missing_capabilities.join(",")}`);
+    }
+
+    const result = buildSupervisoryAggregate(
+      context.dependencyIds,
+      context.dependencyOutputs,
+      graphSynthesis,
+      context.evidenceBoundary,
+      await loadSelectedItemId(context.runId, userId),
+    );
     return {
       capability_id: GOVERNED_AGGREGATE_CAPABILITY,
       operator_id: GOVERNED_AGGREGATE_OPERATOR,
       operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION,
-      result,
+      result: await finish(context, result),
     };
   }
 
   const operator = getCapabilityOperator(capabilityId);
   if (!operator) throw new Error(`CAPABILITY_NOT_REGISTERED: ${capabilityId}`);
-  if (operator.status !== "implemented") {
-    throw new Error(`CAPABILITY_NOT_RUNTIME_WIRED: ${capabilityId}`);
-  }
+  if (operator.status !== "implemented") throw new Error(`CAPABILITY_NOT_RUNTIME_WIRED: ${capabilityId}`);
 
-  throw new Error(`CAPABILITY_DISPATCH_UNIMPLEMENTED: ${capabilityId}`);
+  switch (capabilityId) {
+    case "temporal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeTemporalOperator(userId, context), context)) };
+    case "analysis": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeAnalysisOperator(userId, context), context)) };
+    case "behavioral": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeBehavioralOperator(userId, context), context)) };
+    case "pattern": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executePatternOperator(userId, context), context)) };
+    case "relationship": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeRelationshipOperator(userId, context), context)) };
+    case "anomaly": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeAnomalyOperator(userId, context), context)) };
+    case "causal": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeCausalOperator(userId, context), context)) };
+    case "predictive": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executePredictiveOperator(userId, context), context)) };
+    case "scenario": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeScenarioOperator(userId, context), context)) };
+    case "decision": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeDecisionOperator(userId, context), context)) };
+    case "recommendation": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeRecommendationOperator(userId, context), context)) };
+    case "outcome": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeOutcomeOperator(userId, context), context)) };
+    case "learning": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeLearningOperator(userId, context), context)) };
+    case "emergent": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeEmergentOperator(userId, context), context)) };
+    default: throw new Error(`CAPABILITY_DISPATCH_UNIMPLEMENTED: ${capabilityId}`);
+  }
+}
+
+async function loadSelectedItemId(runId: string, userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("iris_runs")
+    .select("execution_policy")
+    .eq("id", runId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`CAPABILITY_SUPERVISORY_SCOPE_READ_FAILED:${error.message}`);
+  const policy = data?.execution_policy;
+  if (!policy || typeof policy !== "object") return null;
+  const selected = (policy as Record<string, unknown>).selected_item_id;
+  return typeof selected === "string" ? selected : null;
 }

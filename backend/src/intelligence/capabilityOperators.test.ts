@@ -14,8 +14,12 @@ test("planned capabilities are never reported as implemented", () => {
   }
 });
 
-test("implemented operators carry an explicit non-observed output state", () => {
-  for (const operator of EXECUTABLE_CAPABILITY_OPERATORS.filter(x => x.status === "implemented")) {
+test("implemented operators are backed by explicit runtime operator identities", () => {
+  const implemented = EXECUTABLE_CAPABILITY_OPERATORS.filter(x => x.status === "implemented");
+  assert.deepEqual(implemented.map(x => x.capability_id), ["temporal", "analysis", "behavioral", "pattern", "relationship", "anomaly", "causal", "predictive", "scenario", "decision", "recommendation", "outcome", "learning", "emergent"]);
+  for (const operator of implemented) {
+    assert.equal(operator.operator_id, operator.capability_id);
+    assert.match(operator.version, /^\d+\.\d+\.\d+$/);
     assert.notEqual(operator.evidence_state, "OBSERVED");
     assert.ok(operator.execution_stage.length > 0);
   }

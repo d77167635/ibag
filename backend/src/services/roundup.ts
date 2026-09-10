@@ -26,7 +26,7 @@ export async function recomputeRoundupsForAccount(
   if (accountFlags?.roundup_enabled === false) return;
 
   const flags = await getFeatureFlags(userId);
-  if (!flags.roundup) return;
+  if (!flags["feature.roundups"]) return;
 
   const { data: txRows, error: txErr } = await supabaseAdmin
     .from("transactions")
