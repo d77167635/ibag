@@ -3,7 +3,7 @@ import { executeAnalysis, executeBehavioral, executePattern, executeRelationship
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
 export type GovernedCapabilityResult = { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } }; uncertainty?: unknown; evidence_boundary?: string | null; [key: string]: unknown };
-export type CapabilityExecutionContext = { asOf?: string | null; evidenceBoundary?: string | null; runId?: string | null; evidenceManifestHash?: string | null; dependencyResults?: Record<string, CapabilityOperatorResult> };
+export type CapabilityExecutionContext = { asOf?: string | null; evidenceBoundary?: string | null; runId?: string | null; evidenceManifestHash?: string | null; runEvidenceIds?: string[]; dependencyResults?: Record<string, CapabilityOperatorResult> };
 export type CapabilityOperatorResult = { capability_id: string; operator_id: string; operator_version: string; evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE"; result: GovernedCapabilityResult };
 export type CapabilityOperator = { capability_id: string; operator_id: string; version: string; status: CapabilityOperatorStatus; execution_stage: string; evidence_state: CapabilityOperatorResult["evidence_state"]; execute?: (userId: string, context?: CapabilityExecutionContext) => Promise<CapabilityOperatorResult> };
 
@@ -17,7 +17,7 @@ const temporalOperator: CapabilityOperator = {
     return { capability_id: "temporal", operator_id: "temporal", operator_version: "1.0.0", evidence_state: state, result: {
       windows, trajectory, evidence_boundary: context?.evidenceBoundary ?? context?.asOf ?? null,
       evidence: { state: state === "CALCULATED" ? "calculated" : "insufficient_evidence", source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false },
-      provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null },
+      provenance: { source: "canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort() },
     } };
   },
 };
