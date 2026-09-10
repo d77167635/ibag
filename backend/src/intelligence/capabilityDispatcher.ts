@@ -1,4 +1,3 @@
-import { computeFullIntelligence } from "./orchestrator.js";
 import { getCapabilityOperator } from "./capabilityOperators.js";
 import { executeOutcomeOperator } from "./outcomeOperator.js";
 import { executeLearningOperator } from "./learningOperator.js";
@@ -6,7 +5,7 @@ import { executeEmergentOperator } from "./emergentOperator.js";
 import { executeTemporalOperator, executeAnalysisOperator, executeBehavioralOperator, executePatternOperator, executeRelationshipOperator, executeAnomalyOperator, executePredictiveOperator } from "./governedOperators.js";
 import { executeCausalOperator, executeScenarioOperator, executeDecisionOperator, executeRecommendationOperator } from "./advancedOperators.js";
 import { loadCapabilityExecutionContext, type CapabilityExecutionContext } from "./capabilityExecutionContext.js";
-import { synthesizeCapabilityGraph } from "./supervisorySynthesis.js";
+import { buildSupervisoryAggregate, synthesizeCapabilityGraph } from "./supervisorySynthesis.js";
 import { supabaseAdmin } from "../config/supabase.js";
 
 export const GOVERNED_AGGREGATE_CAPABILITY = "iris.full_intelligence";
@@ -17,7 +16,7 @@ type AggregateDispatch = {
   capability_id: typeof GOVERNED_AGGREGATE_CAPABILITY;
   operator_id: typeof GOVERNED_AGGREGATE_OPERATOR;
   operator_version: typeof GOVERNED_AGGREGATE_OPERATOR_VERSION;
-  result: Awaited<ReturnType<typeof computeFullIntelligence>>;
+  result: Record<string, unknown>;
 };
 
 type DispatchRequest = { userId: string; capabilityId: string; executionId?: string };
@@ -61,28 +60,18 @@ export async function dispatchGovernedCapability({ userId, capabilityId, executi
       throw new Error(`CAPABILITY_SUPERVISORY_GRAPH_INCOMPLETE:${graphSynthesis.missing_capabilities.join(",")}`);
     }
 
-    const result = await computeFullIntelligence(userId);
-    const composedResult = {
-      ...result,
-      supervisory_composition: {
-        dependency_capabilities: context.dependencyIds,
-        dependency_output_hashes: graphSynthesis.output_hashes,
-        dependency_outputs_consumed: true,
-        dependency_evidence_state: graphSynthesis.evidence_state,
-        dependency_evidence_distribution: graphSynthesis.evidence_state_distribution,
-        dependency_uncertainty_present: graphSynthesis.uncertainty_present,
-        dependency_lineage: graphSynthesis.dependency_lineage,
-        graph_synthesis: graphSynthesis,
-        recursion_depth: context.recursionDepth,
-        execution_id: context.executionId,
-        run_id: context.runId,
-      },
-    } as Awaited<ReturnType<typeof computeFullIntelligence>>;
+    const result = buildSupervisoryAggregate(
+      context.dependencyIds,
+      context.dependencyOutputs,
+      graphSynthesis,
+      context.evidenceBoundary,
+      await loadSelectedItemId(context.runId, userId),
+    );
     return {
       capability_id: GOVERNED_AGGREGATE_CAPABILITY,
       operator_id: GOVERNED_AGGREGATE_OPERATOR,
       operator_version: GOVERNED_AGGREGATE_OPERATOR_VERSION,
-      result: await finish(context, composedResult),
+      result: await finish(context, result),
     };
   }
 
@@ -107,4 +96,18 @@ export async function dispatchGovernedCapability({ userId, capabilityId, executi
     case "emergent": return { capability_id: capabilityId, operator_id: operator.operator_id, operator_version: operator.version, result: await finish(context, composeOperatorResult(await executeEmergentOperator(userId, context), context)) };
     default: throw new Error(`CAPABILITY_DISPATCH_UNIMPLEMENTED: ${capabilityId}`);
   }
+}
+
+async function loadSelectedItemId(runId: string, userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("iris_runs")
+    .select("execution_policy")
+    .eq("id", runId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`CAPABILITY_SUPERVISORY_SCOPE_READ_FAILED:${error.message}`);
+  const policy = data?.execution_policy;
+  if (!policy || typeof policy !== "object") return null;
+  const selected = (policy as Record<string, unknown>).selected_item_id;
+  return typeof selected === "string" ? selected : null;
 }
