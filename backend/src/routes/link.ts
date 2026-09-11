@@ -27,7 +27,12 @@ function linkExchangeIdempotencyKey(publicToken: string): string {
 
 linkRouter.post("/link/token", requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const response = await plaidClient.linkTokenCreate({ user: { client_user_id: req.userId! }, client_name: "Iris", products: env.plaidProducts as unknown as Products[], country_codes: env.plaidCountryCodes as CountryCode[], language: "en", webhook: env.plaidWebhookUrl || undefined });
+    // Statements is a governed evidence domain, but Plaid requires a
+    // statements date range whenever the Statements Link product is requested.
+    // Initial institution connection intentionally does not request it; the
+    // dedicated statements upgrade path below supplies the required range.
+    const initialProducts = env.plaidProducts.filter((product) => product !== "statements");
+    const response = await plaidClient.linkTokenCreate({ user: { client_user_id: req.userId! }, client_name: "Iris", products: initialProducts as unknown as Products[], country_codes: env.plaidCountryCodes as CountryCode[], language: "en", webhook: env.plaidWebhookUrl || undefined });
     res.json({ link_token: response.data.link_token });
   } catch (err) { console.error("link/token error", safePlaidError(err)); res.status(502).json({ error: "Failed to create Plaid Link token" }); }
 });
