@@ -46,6 +46,31 @@ test("a genuinely deep 41-node chain executes end-to-end through dependency resu
   assert.equal(result.status, "COMPLETED"); assert.equal(result.executed_capabilities.length, count); assert.equal(Object.keys(result.results).length, count); assert.equal(observedDependencies.length, count - 1); assert.equal(observedDependencies[39], "structural_41<-structural_40");
 });
 
+test("produced graph persistence receives the exact upstream node identities", async () => {
+  const contracts = [
+    plan().contracts[0],
+    { capability_id: "behavioral", version: "1.0.0", operator_id: "behavioral", operator_version: "test", evidence_requirements: [], dependencies: ["analysis"], validation_rules: [], output_type: "behavioral", output_contract: {}, lineage_requirements: ["run"], resource_limits: {}, user_control: {}, recursive: true, cross_domain: false },
+  ];
+  const seen: Array<{ capabilityId: string; dependencyNodeIds: Record<string, string> }> = [];
+  const graphNodeIds: Record<string, string> = {};
+  const dispatcher = async ({ capabilityId }: { userId: string; capabilityId: string }) => structuralResult(capabilityId);
+  const graphPlan = plan({ requested: ["behavioral"], ordered_capabilities: ["analysis", "behavioral"], contracts, resource_estimate: { nodes: 2, edges: 1, compositions: 2 } });
+  const result = await executeRecursiveCapabilityPlan("00000000-0000-0000-0000-000000000000", graphPlan, {
+    runId: "run-test", executionId: "execution-test",
+    persistGraphNode: async ({ capabilityId, dependencyNodeIds }) => {
+      seen.push({ capabilityId, dependencyNodeIds: { ...dependencyNodeIds } });
+      const id = `${capabilityId}-node`;
+      graphNodeIds[capabilityId] = id;
+      return { id };
+    },
+  }, { maxNodes: 10, maxEdges: 10, maxCompositions: 10 }, dispatcher);
+  assert.equal(result.status, "COMPLETED");
+  assert.deepEqual(seen, [
+    { capabilityId: "analysis", dependencyNodeIds: {} },
+    { capabilityId: "behavioral", dependencyNodeIds: { analysis: "analysis-node" } },
+  ]);
+});
+
 test("malformed duplicate paths are rejected deterministically", async () => {
   const malformed = plan({ ordered_capabilities: ["analysis", "analysis"], resource_estimate: { nodes: 2, edges: 0, compositions: 2 } });
   const result = await executeRecursiveCapabilityPlan("00000000-0000-0000-0000-000000000000", malformed, {}, { maxNodes: 10, maxEdges: 10, maxCompositions: 10 }, async () => structuralResult("analysis"));
