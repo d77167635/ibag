@@ -4,6 +4,7 @@ import { planCapabilities } from "./capabilityPlanner.js";
 import { executeRecursiveCapabilityPlan } from "./recursiveCapabilityExecutor.js";
 import { persistRecursiveLineage } from "./recursiveLineage.js";
 import { persistUserIntelligenceGraph } from "./persistedIntelligenceGraph.js";
+import { materializeArbitraryRecursiveCompositions } from "./arbitraryRecursiveComposition.js";
 import { evaluateCertificationGate } from "./certificationGate.js";
 import { resolveCanonicalProviderItem, IRIS_CANONICAL_PROVIDER_DOMAINS, type IrisEvidenceScope } from "./evidenceScope.js";
 
@@ -88,11 +89,24 @@ export async function executeIrisRun(request: RunRequest) {
       return { ...run, id: run.id, status: "FAILED", execution_id: execution.id, result: recursive, certified: false };
     }
 
+    const emergentResult = recursive.results.emergent?.result;
+    const higherOrderFindings = emergentResult && typeof emergentResult === "object" && Array.isArray((emergentResult as Record<string, unknown>).higher_order_findings)
+      ? (emergentResult as { higher_order_findings: Parameters<typeof materializeArbitraryRecursiveCompositions>[0]["synthesis"]["higher_order_findings"] }).higher_order_findings
+      : null;
+    const arbitraryRecursiveCompositions = higherOrderFindings
+      ? await materializeArbitraryRecursiveCompositions({
+          userId,
+          runId: run.id,
+          executionId: execution.id,
+          synthesis: { ...(emergentResult as object), higher_order_findings: higherOrderFindings } as Parameters<typeof materializeArbitraryRecursiveCompositions>[0]["synthesis"],
+        })
+      : { materializedNodeIds: [], skippedFindingIds: [] };
+
     const result = {
       architecture_version: "IRIS_RECURSIVE_CAPABILITY_GRAPH_V2", execution_status: recursive.status, requested_capabilities: requestedCapabilities,
-      ordered_capabilities: recursive.ordered_capabilities, executed_capabilities: recursive.executed_capabilities, results: recursive.results, resource_usage: recursive.resource_usage,
+      ordered_capabilities: recursive.ordered_capabilities, executed_capabilities: recursive.executed_capabilities, results: recursive.results, resource_usage: recursive.resource_usage, arbitrary_recursive_compositions: arbitraryRecursiveCompositions,
       evidence_scope: evidenceScope, evidence_boundary: run.evidence_boundary,
-      provenance: { source: "governed_capability_registry_and_run_bound_evidence", run_id: run.id, run_evidence_ids: [...runEvidenceIds].sort(), evidence_manifest_hash: run.evidence_manifest_hash, planner_version: PLANNER_VERSION, executor_version: EXECUTOR_OPERATOR_VERSION, persisted_graph_version: "iris-persisted-intelligence-graph-v1", financial_values_created: false, provider_observations_created: false, money_movement_executed: false },
+      provenance: { source: "governed_capability_registry_and_run_bound_evidence", run_id: run.id, run_evidence_ids: [...runEvidenceIds].sort(), evidence_manifest_hash: run.evidence_manifest_hash, planner_version: PLANNER_VERSION, executor_version: EXECUTOR_OPERATOR_VERSION, persisted_graph_version: "iris-persisted-intelligence-graph-v3", arbitrary_composition_version: "iris-arbitrary-recursive-composition-v1", financial_values_created: false, provider_observations_created: false, money_movement_executed: false },
     };
     const outputHash = hash(result); const finishedAt = new Date().toISOString();
     const { error: outputError } = await supabaseAdmin.from("iris_execution_outputs").insert({ execution_id: execution.id, output_key: "recursive_intelligence_graph", output_type: "recursive_intelligence_graph", value: result, hash: outputHash, evidence_state: "CALCULATED", uncertainty: null });
