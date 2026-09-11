@@ -31,6 +31,7 @@ type LineageRow = {
 };
 
 type ProofRow = SemanticDependencyProof & { capability_id: string };
+export type IrisAuthoritativeDomainGateDatabase = Pick<typeof supabaseAdmin, "from">;
 
 export type IrisAuthoritativeDomainGateState =
   | "DOMAIN_DEFINED"
@@ -150,10 +151,12 @@ export async function auditIrisAuthoritativeDomainGates(input: {
   runId: string;
   executionId: string;
   reportDependencyGraph?: IrisReportDependency[];
+  database?: IrisAuthoritativeDomainGateDatabase;
 }): Promise<IrisAuthoritativeDomainGateAudit> {
   const reportDependencyGraph = input.reportDependencyGraph ?? buildIrisReportDependencyGraph();
+  const database = input.database ?? supabaseAdmin;
 
-  const { data: familyRows, error: familyError } = await supabaseAdmin
+  const { data: familyRows, error: familyError } = await database
     .from("iris_intelligence_nodes")
     .select("id,key,node_type,active")
     .in("key", IRIS_AUTHORITATIVE_DOMAINS.map((definition) => definition.nodeKey));
@@ -165,7 +168,7 @@ export async function auditIrisAuthoritativeDomainGates(input: {
       .map((row: { id: string; key: string }) => [row.key, row.id]),
   );
 
-  const { data: sourceFields, error: sourceFieldError } = await supabaseAdmin
+  const { data: sourceFields, error: sourceFieldError } = await database
     .from("iris_intelligence_source_fields")
     .select("id,family_node_id,product,active")
     .eq("active", true);
@@ -178,21 +181,21 @@ export async function auditIrisAuthoritativeDomainGates(input: {
     registeredFieldsByFamily.set(row.family_node_id, values);
   }
 
-  const { data: observations, error: observationError } = await supabaseAdmin
+  const { data: observations, error: observationError } = await database
     .from("iris_source_field_observations")
     .select("id,product,evidence_state,raw_observation_id")
     .eq("user_id", input.userId)
     .eq("evidence_state", "observed");
   if (observationError) throw new Error(`IRIS_DOMAIN_GATE_SOURCE_OBSERVATION_LOOKUP_FAILED: ${observationError.message}`);
 
-  const { data: runEvidenceRows, error: runEvidenceError } = await supabaseAdmin
+  const { data: runEvidenceRows, error: runEvidenceError } = await database
     .from("iris_run_evidence")
     .select("id,product,raw_observation_id,source_field_id")
     .eq("user_id", input.userId)
     .eq("run_id", input.runId);
   if (runEvidenceError) throw new Error(`IRIS_DOMAIN_GATE_RUN_EVIDENCE_LOOKUP_FAILED: ${runEvidenceError.message}`);
 
-  const { data: lineageRows, error: lineageError } = await supabaseAdmin
+  const { data: lineageRows, error: lineageError } = await database
     .from("iris_execution_lineage")
     .select("lineage_role,source_type,source_id,destination_type,destination_id")
     .eq("user_id", input.userId)
@@ -200,7 +203,7 @@ export async function auditIrisAuthoritativeDomainGates(input: {
     .eq("execution_id", input.executionId);
   if (lineageError) throw new Error(`IRIS_DOMAIN_GATE_LINEAGE_LOOKUP_FAILED: ${lineageError.message}`);
 
-  const { data: runtimeNodeRows, error: runtimeNodeError } = await supabaseAdmin
+  const { data: runtimeNodeRows, error: runtimeNodeError } = await database
     .from("iris_user_intelligence_nodes")
     .select("id,capability_id,intelligence_key,evidence_state")
     .eq("user_id", input.userId)
@@ -208,7 +211,7 @@ export async function auditIrisAuthoritativeDomainGates(input: {
     .eq("execution_id", input.executionId);
   if (runtimeNodeError) throw new Error(`IRIS_DOMAIN_GATE_RUNTIME_NODE_LOOKUP_FAILED: ${runtimeNodeError.message}`);
 
-  const { data: proofRows, error: proofError } = await supabaseAdmin
+  const { data: proofRows, error: proofError } = await database
     .from("iris_semantic_dependency_proofs")
     .select("capability_id,consumed_dependency_ids,consumed_dependency_hashes,consumed_dependency_paths,output_hash,proof_version")
     .eq("user_id", input.userId)
@@ -272,6 +275,7 @@ export async function auditIrisAuthoritativeDomainGates(input: {
         executionId: input.executionId,
         evidenceIds: domainRunEvidenceIds,
         reportDependencyGraph,
+        database,
       });
       reachableReports = traversal.reports.filter((report) => report.state !== "unresolved").map((report) => report.report_id).sort();
       satisfiedReports = traversal.reports.filter((report) => report.state === "satisfied").map((report) => report.report_id).sort();
