@@ -5,6 +5,7 @@ import type { IrisReportDependency } from "./irisReportDependencyGraph.js";
 type RuntimeNodeRow = { id: string; capability_id: string | null; intelligence_key: string | null; intelligence_name: string | null; node_hash: string; recursive_depth: number | null; recursive_ancestry: string[] | null; upstream_node_ids: string[] | null; evidence_state: string };
 type LineageRow = { lineage_role: string; source_type: string; source_id: string; source_field_path?: string | null; destination_type: string; destination_id: string; destination_field_path?: string | null; evidence_state?: string | null };
 type TransformationEdgeRow = { id: string; downstream_node_id: string; upstream_node_id: string; capability_id: string; upstream_capability_id: string; input_paths: unknown; output_paths: unknown; source_hash: string | null; output_hash: string | null };
+type RunEvidenceRow = { id: string };
 
 export type IrisReportRuntimeLineage = {
   resolution_state: "resolved" | "partially_resolved" | "unresolved";
@@ -14,10 +15,11 @@ export type IrisReportRuntimeLineage = {
 };
 
 /**
- * Resolve one report against one exact execution. Traversal is recursive and
- * bidirectionally grounded: report -> mapped capability nodes -> transformation
- * edges -> every reachable upstream node -> SOURCE_EVIDENCE. Catalog identifiers
- * are never promoted to runtime evidence or intelligence nodes.
+ * Resolve one report against one exact execution. Runtime resolution is fail-closed:
+ * a capability must resolve to exactly one execution-bound node; every traversed
+ * upstream reference must exist in that same boundary; transformation hashes must
+ * match node hashes; and every root must recursively reach run-bound source evidence.
+ * Catalog identifiers are never promoted to runtime evidence or intelligence nodes.
  */
 export async function resolveIrisReportRuntimeLineage(input: { userId: string; runId: string; executionId: string; dependencies: IrisReportDependency[] }): Promise<Record<string, IrisReportRuntimeLineage>> {
   const result: Record<string, IrisReportRuntimeLineage> = {};
@@ -48,31 +50,88 @@ export async function resolveIrisReportRuntimeLineage(input: { userId: string; r
     }
   }
 
+  const { data: runEvidence, error: runEvidenceError } = await supabaseAdmin.from("iris_run_evidence").select("id").eq("user_id", input.userId).eq("run_id", input.runId);
+  if (runEvidenceError) throw new Error(`IRIS_REPORT_RUNTIME_EVIDENCE_LOOKUP_FAILED: ${runEvidenceError.message}`);
+  const runEvidenceIds = new Set(((runEvidence ?? []) as RunEvidenceRow[]).map((row) => row.id));
+
   for (const dependency of input.dependencies) {
     const featureIds = [...dependency.feature_ids];
     const capabilityIds = [...new Set(featureIds.flatMap((featureId) => { const feature = IRIS_FEATURE_REGISTRY.find((candidate) => candidate.featureId === featureId); return feature?.capabilityId ? [feature.capabilityId] : []; }))].sort();
-    const roots = capabilityIds.flatMap((capabilityId) => capabilityNodes.get(capabilityId) ?? []);
+    const rootByCapability = new Map<string, RuntimeNodeRow>();
+    const ambiguousCapabilities: string[] = [];
+    const missingCapabilities: string[] = [];
+    for (const capabilityId of capabilityIds) {
+      const candidates = capabilityNodes.get(capabilityId) ?? [];
+      if (candidates.length === 1) rootByCapability.set(capabilityId, candidates[0]);
+      else if (!candidates.length) missingCapabilities.push(capabilityId);
+      else ambiguousCapabilities.push(capabilityId);
+    }
+    const roots = [...rootByCapability.values()];
     const visited = new Set<string>();
     const visitedEdges = new Set<string>();
+    const structuralFailures = new Set<string>();
     const stack = roots.map((node) => node.id);
     while (stack.length) {
       const nodeId = stack.pop()!;
       if (visited.has(nodeId)) continue;
-      visited.add(nodeId);
-      for (const edge of upstreamEdges.get(nodeId) ?? []) {
-        visitedEdges.add(edge.id);
-        if (!visited.has(edge.upstream_node_id) && nodeById.has(edge.upstream_node_id)) stack.push(edge.upstream_node_id);
-      }
       const node = nodeById.get(nodeId);
-      for (const ancestorId of node?.recursive_ancestry ?? []) if (!visited.has(ancestorId) && nodeById.has(ancestorId)) stack.push(ancestorId);
-      for (const upstreamId of node?.upstream_node_ids ?? []) if (!visited.has(upstreamId) && nodeById.has(upstreamId)) stack.push(upstreamId);
+      if (!node) { structuralFailures.add(`missing_node:${nodeId}`); continue; }
+      visited.add(nodeId);
+      const declaredUpstream = [...new Set(node.upstream_node_ids ?? [])];
+      const outgoing = upstreamEdges.get(nodeId) ?? [];
+      const outgoingByUpstream = new Map(outgoing.map((edge) => [edge.upstream_node_id, edge]));
+      for (const upstreamId of declaredUpstream) {
+        const upstream = nodeById.get(upstreamId);
+        const edge = outgoingByUpstream.get(upstreamId);
+        if (!upstream) { structuralFailures.add(`missing_upstream_node:${nodeId}->${upstreamId}`); continue; }
+        if (!edge) { structuralFailures.add(`missing_transformation_edge:${nodeId}->${upstreamId}`); continue; }
+        if (edge.source_hash !== null && edge.source_hash !== upstream.node_hash) structuralFailures.add(`source_hash_mismatch:${edge.id}`);
+        if (edge.output_hash !== null && edge.output_hash !== node.node_hash) structuralFailures.add(`output_hash_mismatch:${edge.id}`);
+        visitedEdges.add(edge.id);
+        if (!visited.has(upstreamId)) stack.push(upstreamId);
+      }
+      for (const edge of outgoing) {
+        if (!nodeById.has(edge.upstream_node_id)) { structuralFailures.add(`edge_upstream_missing:${edge.id}`); continue; }
+        if (!declaredUpstream.includes(edge.upstream_node_id)) structuralFailures.add(`undeclared_transformation_edge:${edge.id}`);
+      }
+      for (const ancestorId of node.recursive_ancestry ?? []) if (!nodeById.has(ancestorId)) structuralFailures.add(`missing_recursive_ancestor:${nodeId}->${ancestorId}`);
     }
+
+    const directEvidence = (nodeId: string): Set<string> => {
+      const node = nodeById.get(nodeId);
+      const ids = new Set([...(evidenceByNode.get(nodeId) ?? []), ...(node?.capability_id ? evidenceByCapability.get(node.capability_id) ?? [] : [])]);
+      return new Set([...ids].filter((id) => runEvidenceIds.has(id)));
+    };
+    const grounding = new Map<string, boolean>();
+    const groundingStack = new Set<string>();
+    const isGrounded = (nodeId: string): boolean => {
+      if (grounding.has(nodeId)) return grounding.get(nodeId)!;
+      if (groundingStack.has(nodeId)) { structuralFailures.add(`lineage_cycle:${nodeId}`); return false; }
+      const node = nodeById.get(nodeId);
+      if (!node) return false;
+      groundingStack.add(nodeId);
+      const upstreamIds = [...new Set(node.upstream_node_ids ?? [])];
+      const grounded = directEvidence(nodeId).size > 0 || (upstreamIds.length > 0 && upstreamIds.every(isGrounded));
+      groundingStack.delete(nodeId);
+      grounding.set(nodeId, grounded);
+      return grounded;
+    };
+    const rootsGrounded = roots.length > 0 && roots.every((root) => isGrounded(root.id));
+    const evidenceIds = [...new Set([...visited].flatMap((nodeId) => [...directEvidence(nodeId)]))].sort();
     const nodeIds = [...visited].sort();
-    const upstreamNodeIds = nodeIds.filter((id) => !roots.some((node) => node.id === id)).sort();
-    const evidenceIds = [...new Set(nodeIds.flatMap((nodeId) => [...(evidenceByNode.get(nodeId) ?? [])]).concat(capabilityIds.flatMap((capabilityId) => [...(evidenceByCapability.get(capabilityId) ?? [])])))].sort();
-    const allRootsResolved = capabilityIds.length > 0 && capabilityIds.every((capabilityId) => (capabilityNodes.get(capabilityId) ?? []).length > 0);
-    const resolution_state = !nodeIds.length ? "unresolved" : allRootsResolved && evidenceIds.length > 0 ? "resolved" : "partially_resolved";
-    const limitation = resolution_state === "resolved" ? null : !nodeIds.length ? "No persisted runtime intelligence node was resolved for the report's mapped capabilities." : evidenceIds.length === 0 ? "Recursive runtime nodes were resolved, but no run-bound SOURCE_EVIDENCE lineage was resolved." : "Only part of the report's recursive runtime lineage or mapped capability set was resolved.";
+    const rootIds = new Set(roots.map((node) => node.id));
+    const upstreamNodeIds = nodeIds.filter((id) => !rootIds.has(id)).sort();
+    const rootsComplete = capabilityIds.length > 0 && missingCapabilities.length === 0 && ambiguousCapabilities.length === 0;
+    const structurallyResolved = structuralFailures.size === 0;
+    const resolved = rootsComplete && structurallyResolved && rootsGrounded && evidenceIds.length > 0;
+    const resolution_state = resolved ? "resolved" : nodeIds.length ? "partially_resolved" : "unresolved";
+    const limitation = resolved ? null : [
+      missingCapabilities.length ? `missing_capabilities:${missingCapabilities.join(",")}` : null,
+      ambiguousCapabilities.length ? `ambiguous_capabilities:${ambiguousCapabilities.join(",")}` : null,
+      structuralFailures.size ? `structural_lineage_failures:${[...structuralFailures].sort().join(",")}` : null,
+      !rootsGrounded ? "one_or_more_runtime_roots_not_evidence_grounded" : null,
+      evidenceIds.length === 0 ? "no_valid_run_bound_source_evidence" : null,
+    ].filter((value): value is string => Boolean(value)).join(" | ") || "Recursive runtime lineage was not fully resolved.";
     result[dependency.report_id] = { resolution_state, report_id: dependency.report_id, analysis_definition_id: dependency.analysis_definition_id, feature_ids: featureIds, capability_ids: capabilityIds, intelligence_node_ids: nodeIds, upstream_intelligence_node_ids: upstreamNodeIds, transformation_edge_ids: [...visitedEdges].sort(), run_evidence_ids: evidenceIds, evidence_lineage_present: evidenceIds.length > 0, run_id: input.runId, execution_id: input.executionId, limitation };
   }
   return result;
