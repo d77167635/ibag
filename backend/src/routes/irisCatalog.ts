@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { IRIS_DEFAULT_ACTIVE_REPORT_IDS, IRIS_REPORT_CATALOG, IRIS_REPORT_CATALOG_VERSION } from "../intelligence/irisReportCatalog.js";
 import { buildIrisReportDependencyGraph } from "../intelligence/irisReportDependencyGraph.js";
 import { persistIrisReportCatalog } from "../intelligence/irisReportCatalogPersistence.js";
+import { resolveIrisEvidenceToReports } from "../intelligence/irisEvidenceToReportTraversal.js";
 
 export const irisCatalogRouter = Router();
 const REPORT_IDS = new Set(IRIS_REPORT_CATALOG.map((report) => report.reportId));
@@ -36,6 +37,29 @@ irisCatalogRouter.get("/iris/catalog", requireAuth, async (req: AuthedRequest, r
   }
 });
 
+irisCatalogRouter.get("/iris/catalog/evidence-to-reports", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const runId = typeof req.query.run_id === "string" ? req.query.run_id : "";
+    const executionId = typeof req.query.execution_id === "string" ? req.query.execution_id : "";
+    const rawEvidenceIds = typeof req.query.evidence_ids === "string" ? req.query.evidence_ids.split(",") : [];
+    const evidenceIds = [...new Set(rawEvidenceIds.map((id) => id.trim()).filter(Boolean))];
+
+    if (!runId || !executionId) {
+      return res.status(400).json({ error: "run_id and execution_id are required for exact runtime traversal." });
+    }
+
+    const traversal = await resolveIrisEvidenceToReports({ userId: req.userId!, runId, executionId, evidenceIds });
+    res.json({
+      traversal_boundary: "Exact user + run + execution boundary. SOURCE_EVIDENCE lineage is the only starting point.",
+      certification_boundary: "Traversal does not certify evidence, semantic sufficiency, lineage completeness, or report publication readiness.",
+      ...traversal,
+    });
+  } catch (error) {
+    console.error("iris/catalog/evidence-to-reports error:", error);
+    res.status(500).json({ error: "Unable to resolve evidence to Iris reports" });
+  }
+});
+
 irisCatalogRouter.put("/iris/catalog/selection", requireAuth, async (req: AuthedRequest, res) => {
   try {
     const rawReportIds: unknown = req.body?.report_ids;
@@ -59,6 +83,6 @@ irisCatalogRouter.post("/iris/catalog/reset", requireAuth, async (req: AuthedReq
     res.json({ saved: true, activation: { mode: "all_available", count: IRIS_DEFAULT_ACTIVE_REPORT_IDS.length, report_ids: IRIS_DEFAULT_ACTIVE_REPORT_IDS } });
   } catch (error) {
     console.error("iris/catalog/reset error:", error);
-    res.status(500).json({ error: "Unable to reset Iris report activation" });
+    res.status(500).json({ error: "Unable to reset Iris report catalog" });
   }
 });
