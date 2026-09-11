@@ -69,6 +69,8 @@ test("recursive executor returns the exact persisted graph-node ID for every exe
     {
       runId: "run-test",
       executionId: "execution-test",
+      persistSemanticDependencyProof: async () => {},
+      persistSemanticTransformationEdges: async () => {},
       persistGraphNode: async ({ capabilityId, dependencyNodeIds }) => {
         if (capabilityId === "child") assert.deepEqual(dependencyNodeIds, { parent: "node-parent" });
         const id = `node-${capabilityId}`;
