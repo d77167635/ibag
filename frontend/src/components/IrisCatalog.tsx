@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/backend";
-import type { IrisReportCatalogProduct } from "../contracts/irisReportCatalog";
+import type { IrisReportCatalogProduct, IrisReportCatalogResponse } from "../contracts/irisReportCatalog";
 import { IrisReportDetail } from "./IrisReportDetail";
 import "./IrisIntelligenceScreens.css";
 
 export function IrisCatalog({ go }: { go?: (page: string) => void }) {
   const [catalog, setCatalog] = useState<IrisReportCatalogProduct[]>([]);
   const [active, setActive] = useState<string[]>([]);
+  const [metadata, setMetadata] = useState<Pick<IrisReportCatalogResponse, "catalog_version" | "product_boundary" | "provider_boundary" | "catalog_counts"> | null>(null);
   const [family, setFamily] = useState("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -18,6 +19,7 @@ export function IrisCatalog({ go }: { go?: (page: string) => void }) {
       const data = await api.getIrisCatalog();
       setCatalog(data.catalog ?? []);
       setActive(data.activation?.report_ids ?? []);
+      setMetadata({ catalog_version: data.catalog_version, product_boundary: data.product_boundary, provider_boundary: data.provider_boundary, catalog_counts: data.catalog_counts });
       setMessage("");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Unable to load Iris report catalog.");
@@ -71,8 +73,8 @@ export function IrisCatalog({ go }: { go?: (page: string) => void }) {
 
     <div className="iis-metric-grid">
       <div className="iis-metric"><span>Active reports</span><strong>{active.length}</strong><small>{saving ? "Saving…" : message || "Your active Iris products"}</small></div>
-      <div className="iis-metric"><span>Catalog products</span><strong>{catalog.length || "—"}</strong><small>Defined from the Iris analytical catalog</small></div>
-      <div className="iis-metric"><span>Families</span><strong>{families.length || "—"}</strong><small>Analytical product families</small></div>
+      <div className="iis-metric"><span>Catalog products</span><strong>{metadata?.catalog_counts.total ?? catalog.length || "—"}</strong><small>{metadata?.catalog_version ?? "Defined from the Iris analytical catalog"}</small></div>
+      <div className="iis-metric"><span>Families</span><strong>{metadata?.catalog_counts.families ?? families.length || "—"}</strong><small>Analytical product families</small></div>
       <div className="iis-metric"><span>Evidence rule</span><strong>Required</strong><small>No evidence means no fabricated report</small></div>
     </div>
 
@@ -97,6 +99,6 @@ export function IrisCatalog({ go }: { go?: (page: string) => void }) {
       </div>
     </section>
 
-    <section className="iis-panel"><header><div><span>PRODUCT BOUNDARY</span><h2>How Iris products are created</h2></div></header><div className="iis-boundary"><p><strong>Intelligence creates the products.</strong> Iris can combine observations, canonical facts, relationships, statistics, baselines, patterns, risk, opportunity, scenarios, decisions, consequences, outcomes, learning, and higher-order reasoning recursively. The resulting evidence-qualified reports and analytics are the user products. Report names and contextual titles must be derived from the actual information available at execution time; missing information is never invented.</p></div></section>
+    <section className="iis-panel"><header><div><span>PRODUCT BOUNDARY</span><h2>How Iris products are created</h2></div></header><div className="iis-boundary"><p><strong>Intelligence creates the products.</strong> Iris can combine observations, canonical facts, relationships, statistics, baselines, patterns, risk, opportunity, scenarios, decisions, consequences, outcomes, learning, and higher-order reasoning recursively. The resulting evidence-qualified reports and analytics are the user products. Report names and contextual titles must be derived from the actual information available at execution time; missing information is never invented.</p><p className="iis-note"><strong>Catalog:</strong> {metadata?.product_boundary ?? "Report catalog metadata is separate from financial evidence."}</p><p className="iis-note"><strong>Provider boundary:</strong> {metadata?.provider_boundary ?? "Provider observations are separate from report activation and catalog metadata."}</p></div></section>
   </div>;
 }
