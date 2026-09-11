@@ -1,750 +1,762 @@
 # IRIS Intelligence Library
 
-## Purpose
+## Purpose and product boundary
 
-This document is the governed naming and semantic-definition library for IRIS intelligence. It defines stable names, identities, meanings, boundaries, evidence requirements, and composition roles for intelligence concepts without imposing a maximum intelligence depth.
+This document is the canonical **IRIS intelligence-definition library**. It names and precisely defines the intelligence that exists inside the IRIS intelligence hierarchy.
 
-This is an **intelligence-definition library**, not a claim that every entry is currently implemented, independently executable, evidence-certified, or user-visible. Implementation state remains governed by `docs/ROADMAP.md` and runtime evidence.
+**These entries are intelligence, not products.**
 
-IRIS must never create a user-specific factual value merely because a library entry exists. A library definition describes what an intelligence node means and what would be required to instantiate it truthfully.
+IRIS intelligence is the internal reasoning substrate: observations become governed state; governed state can produce semantic interpretations; interpretations can participate in temporal, relational, behavioral, statistical, anomaly, causal, predictive, scenario, decision, consequence, outcome, learning, cross-domain, higher-order, and recursively derived intelligence.
+
+The hierarchy has **no artificial maximum semantic depth**. The names below establish stable semantic concepts where those concepts are useful and governable. They do not constitute a finite list of everything IRIS can ever know or derive.
+
+The **products** are the enormous and continuously expandable set of user-facing reports, analyses, explanations, comparisons, alerts, summaries, forecasts, scenarios, recommendations, and other report instances that the intelligence hierarchy can produce from actual evidence and valid derived intelligence. A report product is an output/publication of intelligence; it is not itself a hierarchy level or an intelligence definition.
+
+Therefore:
+
+`Evidence → Intelligence Graph → Higher-Order / Recursive Intelligence → Report Product`
+
+The same intelligence can contribute to many different reports, and one report can combine many intelligence nodes. Report abundance must come from real evidence, valid composition, materiality, and usefulness—not from inventing financial facts or manufacturing placeholder reports.
+
+This library does **not** claim that every named intelligence is currently implemented, independently executable, evidence-certified, or user-visible. Runtime implementation and certification remain governed by `docs/ROADMAP.md` and actual runtime evidence.
 
 ## Non-negotiable semantic rules
 
 1. **No evidence, no factual value.**
 2. **No observation, no fabricated observation.**
 3. **Unknown is not zero.** Zero requires an observed or mathematically established basis.
-4. **Available is not consented.** Provider availability, authorization, response receipt, persistence, normalization, evidence certification, and intelligence consumption remain separate states.
+4. **Available is not consented.** Provider availability, authorization, response receipt, persistence, normalization, evidence certification, intelligence consumption, and actual use remain separate states.
 5. **A dependency reference is not proof of dependency consumption.**
-6. **A dependency read is not automatically proof of semantic sufficiency.** The transformation must also be independently verifiable where the contract requires it.
-7. **A graph node is not automatically certified intelligence.** Persistence establishes storage, not truth.
-8. **Predictions are not observations.** Hypothetical scenarios are not observed state.
-9. **Correlation is not causation.** Causal language requires appropriate evidence and reasoning support.
-10. **Recursive depth has no artificial ceiling.** Resource, safety, evidence, semantic, and governance constraints may stop an execution, but they do not define a maximum intelligence level.
-11. **Cross-domain synthesis must use compatible evidence and preserve exact lineage.**
-12. **Historical facts must not be silently rewritten by learning.** Learning creates versioned changes with provenance.
+6. **A dependency read is not automatically proof of semantic sufficiency.** Required transformations must be independently verifiable where the contract requires them.
+7. **A persisted graph node is not automatically certified intelligence.** Persistence proves storage, not truth.
+8. **Predictions are not observations.**
+9. **Scenarios and counterfactuals are hypothetical outputs, not observed state.**
+10. **Correlation is not causation.** Causal language requires appropriate evidence and reasoning support.
+11. **Recursive depth has no artificial ceiling.** Resource, safety, evidence, semantic, and governance limits may stop an execution; they do not define a maximum intelligence level.
+12. **Cross-domain intelligence must use compatible evidence and preserve exact lineage.**
+13. **Learning cannot silently rewrite historical facts.** Changes to models, rules, or interpretations require versioning and provenance.
+14. **A missing observation does not prove absence.**
+15. **A capability/operator is not the intelligence itself.** Operators are execution machinery that instantiate intelligence definitions.
+16. **A report is not the intelligence itself.** Reports are publication products generated from intelligence.
 
-## Naming convention
+## Intelligence entry specification
 
-Each library entry has:
+Every named intelligence concept should eventually have these semantic fields:
 
 - **ID** — stable machine-oriented semantic identity.
-- **Name** — human-readable intelligence name.
-- **Definition** — exact meaning of the intelligence.
-- **Inputs** — evidence or upstream intelligence required to instantiate it.
-- **Output** — the kind of state/result it produces.
-- **Boundary** — what it must not claim.
-- **Composition role** — how it can participate in higher-order reasoning.
-- **Status** — conceptual library status only; it does not override the roadmap.
+- **Name** — precise human-readable intelligence name.
+- **Definition** — extremely specific statement of what the intelligence means.
+- **Question answered** — the class of question this intelligence can legitimately address.
+- **Evidence inputs** — observations and evidence domains that can support it.
+- **Upstream intelligence** — previously derived intelligence that may be legitimately consumed.
+- **Transformation** — what semantic operation turns inputs into this intelligence.
+- **Output state** — what the intelligence actually represents.
+- **Temporal scope** — the relevant observation period or point-in-time boundary.
+- **Evidence boundary** — exact permitted evidence scope.
+- **Uncertainty** — known uncertainty, limitations, and insufficient-evidence conditions.
+- **Boundary** — claims the intelligence must not make.
+- **Composition role** — how the intelligence can participate in higher-order intelligence.
+- **Lineage requirement** — exact upstream observations/nodes and transformations that must be preserved.
+- **Product potential** — classes of reports that may consume the intelligence, without making those reports part of the intelligence definition.
+- **Status** — conceptual definition only; implementation/certification is determined elsewhere.
 
-IDs are semantic identities, not UI labels. A future implementation may version an operator independently from the identity of the intelligence concept.
+IDs are semantic identities, not UI labels. Operator versions may change independently from the semantic identity of the intelligence concept.
 
 ---
 
-# 1. Root intelligence
+# 1. ROOT INTELLIGENCE
 
-## IRIS.001 — IRIS
-**Name:** Iris Financial-Life Intelligence Operating System
+## IRIS.001 — IRIS Financial-Life Intelligence Operating System
 
-**Definition:** The governing intelligence system that observes permitted financial-life evidence, reconciles it into defensible state, derives increasingly higher-order intelligence through explicit relationships and transformations, preserves provenance and uncertainty, and exposes evidence-grounded reports, answers, recommendations, scenarios, and other user-controlled intelligence products.
+**Name:** IRIS
 
-**Inputs:** All permitted evidence domains and all valid derived intelligence available within the user's governed evidence boundary.
+**Extremely detailed description:** IRIS is the governing intelligence system that receives permitted evidence, establishes the exact evidence boundary, reconciles observations into defensible state, identifies semantic relationships, derives increasingly higher-order intelligence, preserves uncertainty and provenance, and recursively composes valid intelligence into further intelligence when evidence, semantics, resources, and governance permit. IRIS is the root of the intelligence graph and the authority governing whether a downstream claim may exist at all. It is not a report, dashboard, product card, or single analytical capability. It is the complete intelligence substrate from which user-facing reports and other products are generated.
 
-**Output:** A governed intelligence graph and its publication surfaces. Iris itself is the root boundary, not merely another analytical report.
+**Question answered:** What can IRIS truthfully know, derive, relate, model, predict, test, recommend, and learn from the evidence actually available within the governed boundary?
 
-**Boundary:** Iris cannot manufacture observations, infer unavailable facts as facts, treat provider capability as observed user data, or certify its own results solely because a computation completed.
+**Inputs:** All permitted authoritative evidence and all valid derived intelligence whose lineage remains intact.
+
+**Transformation:** Governs the full chain from observation through canonicalization, semantic derivation, relational composition, temporal reasoning, modeling, decision reasoning, outcome interpretation, learning, and recursive composition.
+
+**Output:** Governed intelligence nodes and relationships, not a single report.
+
+**Boundary:** IRIS cannot manufacture observations, turn unavailable provider data into user facts, silently fill missing information, certify itself merely because code executed, or convert hypothetical/modelled state into observed fact.
 
 **Composition role:** Root parent and governing semantic boundary for every downstream intelligence node.
 
-**Status:** Architectural definition.
+**Product potential:** Potentially contributes to an enormous and continuously expanding set of reports and report instances. Those products are deliberately outside this intelligence definition.
 
 ---
 
-# 2. Authoritative Level-2 domains
+# 2. AUTHORITATIVE LEVEL-2 INTELLIGENCE DOMAINS
 
-These eight domains are authoritative source/evidence domains. They are not the complete intelligence hierarchy and are not a depth limit.
+These eight domains are the authoritative Level-2 domains. They are **intelligence domains**, not products, and they are not a maximum hierarchy depth.
 
-## IRIS.DOMAIN.AUTH — Authentication
-**Name:** Authentication Intelligence Domain
+## IRIS.DOMAIN.AUTH — Authentication Intelligence
 
-**Definition:** The domain representing the authenticated connection and identity-control state necessary to establish which principal is authorized to access a governed IRIS data boundary.
+**Name:** Authentication Intelligence
 
-**Inputs:** Authentication events, authorization state, governed user/session identity, provider connection state where applicable.
+**Extremely detailed description:** Intelligence concerning the authenticated principal, authorization state, access-control boundary, connection/session state, and evidence-governance identity required to determine whose permitted evidence IRIS may process and under what authorization context. Authentication intelligence establishes the security and ownership boundary around every downstream operation; it does not describe the user's financial condition merely because authentication succeeded.
 
-**Output:** Authentication/authorization state and evidence about access boundaries.
+**Inputs:** Authentication events, authorization state, governed user identity, provider connection state where applicable.
 
-**Boundary:** Authentication state does not itself establish financial facts.
+**Output:** Evidence-qualified access and authorization state.
 
-**Composition role:** Establishes who may access or govern evidence; can constrain every downstream intelligence operation.
+**Boundary:** Authentication does not establish financial facts, account ownership beyond what the evidence actually establishes, or user characteristics not supported by evidence.
 
-**Status:** Authoritative domain definition.
+**Composition role:** Governs access to and scope of every downstream intelligence operation.
 
-## IRIS.DOMAIN.TXN — Transactions
-**Name:** Transaction Intelligence Domain
+---
 
-**Definition:** The domain representing observed transaction records and their canonical financial semantics, including direction, economic role, account relationship, merchant/entity relationship, classification, timing, and evidence lineage.
+## IRIS.DOMAIN.TXN — Transaction Intelligence
 
-**Inputs:** Provider transaction observations and field-level source evidence.
+**Name:** Transaction Intelligence
 
-**Output:** Canonical transaction state and transaction-derived intelligence inputs.
+**Extremely detailed description:** Intelligence concerning observed transaction events and their defensible economic semantics. It can represent transaction identity, timing, direction, amount, account relationship, merchant/entity relationship, economic role, classification, category, recurrence relationships, and source-field provenance. Transaction intelligence is a foundational evidence substrate because many higher-order financial-life concepts depend on understanding what observed financial events actually represent.
 
-**Boundary:** A transaction domain cannot claim an interpretation unsupported by observed fields or governed classification rules.
+**Inputs:** Provider transaction observations and source-field evidence.
 
-**Composition role:** Primary evidence substrate for cash flow, spending, recurrence, behavior, patterns, anomalies, and many higher-order financial-life compositions.
+**Output:** Canonical transaction state and transaction-derived semantic intelligence.
 
-**Status:** Authoritative domain definition.
+**Boundary:** Unknown or ambiguous transactions remain unknown or qualified; transaction signs, descriptions, or categories must not be treated as complete economic meaning without governed semantics.
 
-## IRIS.DOMAIN.BAL — Balance
-**Name:** Balance Intelligence Domain
+**Composition role:** Foundational substrate for flow, spending, income, recurrence, behavior, patterns, anomalies, relationships, and higher-order financial reasoning.
 
-**Definition:** The domain representing observed account balance states and their temporal relationship to accounts, observation timestamps, and evidence boundaries.
+---
+
+## IRIS.DOMAIN.BAL — Balance Intelligence
+
+**Name:** Balance Intelligence
+
+**Extremely detailed description:** Intelligence concerning observed account balances and their temporal relationship to accounts, observations, synchronization boundaries, and other evidence. It establishes what balance state was actually observed at a specific point or observation interval and can support reconciliation, liquidity reasoning, historical comparison, and balance-aware analysis.
 
 **Inputs:** Provider balance observations.
 
-**Output:** Observed balance state and balance-derived temporal/liquidity inputs.
+**Output:** Evidence-qualified balance state.
 
-**Boundary:** A missing balance observation is not a zero balance.
+**Boundary:** No observation is not zero. An old observation remains historical evidence but cannot automatically be represented as current state.
 
-**Composition role:** Supports liquidity, cash-position, reconciliation, spending context, and temporal state reasoning.
+**Composition role:** Supports liquidity, account state, reconciliation, cash-position reasoning, and temporal financial-life intelligence.
 
-**Status:** Authoritative domain definition.
+---
 
-## IRIS.DOMAIN.ID — Identity
-**Name:** Identity Intelligence Domain
+## IRIS.DOMAIN.ID — Identity Intelligence
 
-**Definition:** The domain representing provider-observed identity attributes and their evidence status, including the distinction between observed identity information and unverified assumptions.
+**Name:** Identity Intelligence
+
+**Extremely detailed description:** Intelligence concerning identity attributes actually observed through permitted provider evidence and the confidence, provenance, temporal scope, and authorization associated with those attributes. Identity intelligence supplies context to downstream reasoning only when that context is relevant, supported, and governed.
 
 **Inputs:** Provider identity observations and source-field evidence.
 
 **Output:** Evidence-qualified identity state.
 
-**Boundary:** Identity observations must not be expanded into unsupported demographic, legal, behavioral, or financial claims.
+**Boundary:** Identity evidence must not be expanded into unsupported demographic, psychological, legal, behavioral, or financial conclusions.
 
-**Composition role:** Supplies identity context where legitimately relevant and authorized.
+**Composition role:** Provides legitimate identity context to other intelligence while preserving strict evidence boundaries.
 
-**Status:** Authoritative domain definition.
+---
 
-## IRIS.DOMAIN.ASSET — Assets
-**Name:** Asset Intelligence Domain
+## IRIS.DOMAIN.ASSET — Asset Intelligence
 
-**Definition:** The domain representing observed asset-related financial state, including asset accounts, positions, valuations, and other provider-supported asset observations.
+**Name:** Asset Intelligence
 
-**Inputs:** Provider asset observations and related account/evidence records.
+**Extremely detailed description:** Intelligence concerning observed assets and asset-related financial state, including supported asset accounts, holdings, positions, valuations, and relationships. It distinguishes directly observed asset state from derived valuations, modeled changes, and predictions.
+
+**Inputs:** Provider asset observations and related evidence.
 
 **Output:** Evidence-qualified asset state.
 
-**Boundary:** An absent asset observation does not establish absence of assets.
+**Boundary:** Missing asset evidence does not establish that the user owns no assets.
 
-**Composition role:** Supports net worth, liquidity context, opportunity, risk, and cross-domain financial-life synthesis.
+**Composition role:** Supports net-worth intelligence, concentration, opportunity, risk, scenario analysis, and cross-domain synthesis.
 
-**Status:** Authoritative domain definition.
+---
 
-## IRIS.DOMAIN.LIAB — Liabilities
-**Name:** Liability Intelligence Domain
+## IRIS.DOMAIN.LIAB — Liability Intelligence
 
-**Definition:** The domain representing observed liability and debt-related financial state, including balances, obligations, accounts, and provider-supported liability attributes.
+**Name:** Liability Intelligence
 
-**Inputs:** Provider liability observations and related account/evidence records.
+**Extremely detailed description:** Intelligence concerning observed liabilities, debt accounts, balances, payment obligations, and supported liability attributes. It distinguishes verified liability state from candidates inferred from transaction behavior and preserves the evidence needed to establish each distinction.
+
+**Inputs:** Provider liability observations, related accounts, and transaction evidence where legitimately relevant.
 
 **Output:** Evidence-qualified liability state.
 
-**Boundary:** A liability candidate is not automatically a verified obligation, and missing liability data does not prove no debt exists.
+**Boundary:** A recurring payment is not automatically a verified debt, and missing liability data does not establish absence of debt.
 
-**Composition role:** Supports debt intelligence, obligation reasoning, risk, cash-flow pressure, and net-worth composition.
+**Composition role:** Supports debt, obligations, cash-flow pressure, risk, net worth, and financial resilience intelligence.
 
-**Status:** Authoritative domain definition.
+---
 
-## IRIS.DOMAIN.INV — Investments
-**Name:** Investment Intelligence Domain
+## IRIS.DOMAIN.INV — Investment Intelligence
 
-**Definition:** The domain representing observed investment holdings, positions, securities, valuations, transactions, and related provider-supported investment state.
+**Name:** Investment Intelligence
+
+**Extremely detailed description:** Intelligence concerning observed investment holdings, positions, securities, valuations, investment transactions, and related financial relationships supported by actual provider evidence. It distinguishes current observed holdings from modeled performance, projected value, scenario outcomes, and predictions.
 
 **Inputs:** Provider investment observations and source-field evidence.
 
 **Output:** Evidence-qualified investment state.
 
-**Boundary:** Projected investment outcomes remain modeled or predicted rather than observed unless directly evidenced.
+**Boundary:** A projected investment result is not an observed result; absent investment observations do not prove absence of investments.
 
-**Composition role:** Supports asset composition, net worth, concentration, risk, opportunity, and scenario reasoning.
-
-**Status:** Authoritative domain definition.
-
-## IRIS.DOMAIN.STMT — Statements
-**Name:** Statement Intelligence Domain
-
-**Definition:** The domain representing provider-observed statement documents and statement-derived evidence that can establish historical financial information over explicit reporting periods.
-
-**Inputs:** Provider statements and statement metadata/content observations.
-
-**Output:** Statement evidence and statement-derived facts within the documented period and evidence boundary.
-
-**Boundary:** A statement period cannot be extended beyond its actual evidence span without additional evidence.
-
-**Composition role:** Supports historical reconciliation, period comparison, verification, and longitudinal financial-life reasoning.
-
-**Status:** Authoritative domain definition.
+**Composition role:** Supports asset composition, net worth, concentration, risk, opportunity, and scenario intelligence.
 
 ---
 
-# 3. Foundational intelligence
+## IRIS.DOMAIN.STMT — Statement Intelligence
 
-## IRIS.FND.001 — Evidence State
+**Name:** Statement Intelligence
+
+**Extremely detailed description:** Intelligence concerning provider-observed financial statements and the historical evidence contained within explicit statement periods. Statement intelligence can establish period-bounded historical facts, reconciliation evidence, and longitudinal comparisons while preserving the exact statement period and source lineage.
+
+**Inputs:** Provider statement observations, statement metadata, and statement-derived evidence.
+
+**Output:** Period-bounded statement evidence and derived historical state.
+
+**Boundary:** A statement's evidence cannot silently be extended beyond its actual period or content.
+
+**Composition role:** Supports historical reconciliation, verification, period comparison, and longitudinal intelligence.
+
+---
+
+# 3. EVIDENCE INTELLIGENCE
+
+## IRIS.EVIDENCE.001 — Evidence State Intelligence
 **Name:** Evidence State Intelligence
 
-**Definition:** The explicit state of whether a potential data element is unavailable, available, consented, authorized, received, persisted, normalized, certified, consumable, or consumed.
+**Extremely detailed description:** Determines the actual lifecycle state of a potential evidence element: provider capability availability, consent, authorization, response receipt, persistence, normalization, evidence certification, intelligence consumption, and actual use. Its purpose is to prevent any pipeline stage from being mistaken for an observed financial fact.
 
-**Purpose:** Prevents provider capability and pipeline state from being confused with actual evidence.
-
-**Boundary:** A provider product being available never becomes an observed user fact merely because the product exists.
-
-## IRIS.FND.002 — Evidence Boundary
+## IRIS.EVIDENCE.002 — Exact Evidence Boundary Intelligence
 **Name:** Exact Evidence Boundary Intelligence
 
-**Definition:** The precise temporal, provider, item, account, field, run, and observation boundary within which a derived result is allowed to make claims.
+**Extremely detailed description:** Defines precisely which provider, Item, account, field, observation, timestamp, run, execution, and historical period may legally contribute to a particular intelligence result. It prevents downstream computation from silently reaching outside the evidence actually available to the execution.
 
-**Purpose:** Prevents computations from silently reaching outside the evidence actually available to the execution.
-
-## IRIS.FND.003 — Evidence Freshness
+## IRIS.EVIDENCE.003 — Evidence Freshness Intelligence
 **Name:** Evidence Freshness Intelligence
 
-**Definition:** A qualified representation of how current an observation is relative to the intelligence being requested, including observation time and relevant synchronization boundaries.
+**Extremely detailed description:** Determines how current an observation is relative to the question being answered, while preserving the difference between stale historical evidence and invalid evidence. Freshness considers observation timestamps, synchronization state, and the requested intelligence time horizon.
 
-**Boundary:** Old evidence may remain valid historical evidence; stale does not mean false.
-
-## IRIS.FND.004 — Evidence Sufficiency
+## IRIS.EVIDENCE.004 — Evidence Sufficiency Intelligence
 **Name:** Evidence Sufficiency Intelligence
 
-**Definition:** Determination of whether the available evidence is sufficient for a particular intelligence contract.
+**Extremely detailed description:** Determines whether the available evidence is adequate to instantiate a specific intelligence contract. It is contract-specific: evidence sufficient for one intelligence may be insufficient for another. Failure of sufficiency must produce an explicit insufficient/unknown state rather than a fabricated completion.
 
-**Boundary:** Insufficient evidence produces an insufficient/unknown result rather than an invented completion.
-
-## IRIS.FND.005 — Evidence Lineage
+## IRIS.EVIDENCE.005 — Evidence Lineage Intelligence
 **Name:** Evidence Lineage Intelligence
 
-**Definition:** The exact trace connecting a result to the observations, fields, canonical records, upstream nodes, transformations, execution, and versions that produced it.
-
-**Boundary:** Provenance metadata must not claim transformations that did not occur.
+**Extremely detailed description:** Maintains the exact chain from provider observation and source field through canonical state, semantic transformation, upstream intelligence, execution, and downstream result. It allows IRIS to explain not only what it concluded but exactly which evidence and transformations support the conclusion.
 
 ---
 
-# 4. Canonical state intelligence
+# 4. CANONICAL STATE INTELLIGENCE
 
-## IRIS.CAN.001 — Financial Life State
-**Name:** Canonical Financial-Life State
+## IRIS.STATE.001 — Canonical Financial-Life State
+**Name:** Canonical Financial-Life State Intelligence
 
-**Definition:** A reconciled representation of the user's observed financial-life state at a defined evidence boundary, combining authoritative domain observations without inventing missing domains.
+**Extremely detailed description:** A reconciled, evidence-qualified representation of the user's observed financial-life state at an explicit boundary. It integrates compatible observations across the eight authoritative domains without manufacturing missing domains or silently treating partial visibility as complete visibility.
 
-**Inputs:** Canonical observations across the eight domains.
-
-**Output:** Governed state snapshot with explicit unknown and insufficient-evidence states.
-
-## IRIS.CAN.002 — Account State
+## IRIS.STATE.002 — Account State Intelligence
 **Name:** Account State Intelligence
 
-**Definition:** Evidence-qualified state of an individual financial account, including its provider identity, account relationships, observed balance state, transaction activity, and supported capabilities.
+**Extremely detailed description:** Represents the governed state of an individual account, including provider identity, account relationships, observed balance state, transaction activity, temporal state, and supported account semantics. Capability metadata is kept distinct from observed activity.
 
-**Boundary:** Account capability is not account activity.
+## IRIS.STATE.003 — Transaction Semantic State Intelligence
+**Name:** Transaction Semantic State Intelligence
 
-## IRIS.CAN.003 — Transaction Semantic State
-**Name:** Transaction Semantic State
+**Extremely detailed description:** Converts an observed transaction into a governed semantic representation covering direction, economic role, category/classification, merchant/entity relationships, timing, and relevant uncertainty. Ambiguity remains explicit rather than being forced into a false category.
 
-**Definition:** The normalized semantic interpretation of an observed transaction, including transaction direction, economic role, class, category, merchant/entity relationships, temporal attributes, and classification confidence where applicable.
+## IRIS.STATE.004 — Economic Flow State Intelligence
+**Name:** Economic Flow State Intelligence
 
-**Boundary:** Unknown classification remains unknown rather than being forced into a convenient category.
+**Extremely detailed description:** Represents observed inflows, outflows, transfers, reversals, fees, debt activity, investments, and other economic roles after transaction semantics have been established. It separates raw record representation from economic interpretation.
 
-## IRIS.CAN.004 — Economic Flow State
-**Name:** Economic Flow State
+## IRIS.STATE.005 — Financial Entity State Intelligence
+**Name:** Financial Entity State Intelligence
 
-**Definition:** A canonical representation of observed inflows, outflows, transfers, reversals, and other economic roles after explicit transaction semantics have been established.
-
-**Boundary:** Raw transaction signs are not automatically economic meaning.
-
-## IRIS.CAN.005 — Financial Entity State
-**Name:** Financial Entity State
-
-**Definition:** Evidence-qualified state for entities such as accounts, merchants, transaction classes, obligations, income sources, and investment positions and their relationships.
+**Extremely detailed description:** Represents evidence-qualified state for financial entities such as accounts, merchants, transaction classes, obligations, income sources, liabilities, assets, and investment positions and preserves the relationships among them.
 
 ---
 
-# 5. Temporal intelligence
+# 5. TEMPORAL INTELLIGENCE
 
-## IRIS.TMP.001 — Observation Span
+## IRIS.TEMP.001 — Observation Span Intelligence
 **Name:** Observation Span Intelligence
 
-**Definition:** The exact period covered by available observations, including gaps and density, without assuming that an unobserved period was inactive.
+**Extremely detailed description:** Establishes the actual temporal span represented by available observations, including beginning, ending, gaps, density, and boundary limitations. It prevents IRIS from interpreting missing observations as periods of inactivity.
 
-## IRIS.TMP.002 — Activity Density
+## IRIS.TEMP.002 — Activity Density Intelligence
 **Name:** Activity Density Intelligence
 
-**Definition:** Measurement of how densely observations occur across a defined time window, preserving the distinction between inactivity and missing evidence.
+**Extremely detailed description:** Measures the concentration and distribution of actual observations across time so that comparisons, baselines, and patterns account for whether a period contains sufficient observed activity.
 
-## IRIS.TMP.003 — Temporal Aggregation
-**Name:** Evidence-Bound Temporal Aggregation
+## IRIS.TEMP.003 — Evidence-Bound Temporal Aggregation Intelligence
+**Name:** Evidence-Bound Temporal Aggregation Intelligence
 
-**Definition:** Deterministic aggregation of observed financial events over an explicitly defined period and evidence boundary.
+**Extremely detailed description:** Deterministically aggregates actual observations over an explicitly defined temporal window and evidence boundary. It preserves the difference between observed totals and values unavailable because evidence does not cover the required period.
 
-## IRIS.TMP.004 — Recurrence
+## IRIS.TEMP.004 — Recurrence Intelligence
 **Name:** Recurrence Intelligence
 
-**Definition:** Evidence-based detection of repeated financial events or behaviors across time, including interval regularity, amount stability, and recurrence confidence.
+**Extremely detailed description:** Detects repeated financial events or behavior over time by evaluating observed timing, interval regularity, amount stability, semantic consistency, and evidence sufficiency. Recurrence is a derived pattern, not an automatic obligation claim.
 
-**Boundary:** A small number of similar events does not automatically establish a recurring obligation.
-
-## IRIS.TMP.005 — Historical Baseline
+## IRIS.TEMP.005 — Historical Baseline Intelligence
 **Name:** Historical Baseline Intelligence
 
-**Definition:** A reference representation derived from the user's actual historical observations for comparison against current state.
-
-**Boundary:** Baselines must respect evidence windows, gaps, seasonality where supported, and changing behavior.
+**Extremely detailed description:** Constructs an evidence-grounded reference representation of the user's actual historical behavior for comparison with current observations. It must preserve its window, gaps, methodology, and limitations and must adapt when historical behavior genuinely changes.
 
 ---
 
-# 6. Financial-life intelligence
+# 6. CORE FINANCIAL-LIFE INTELLIGENCE
 
-## IRIS.FIN.001 — Financial Overview
+## IRIS.FIN.001 — Financial-Life Overview Intelligence
 **Name:** Financial-Life Overview Intelligence
 
-**Definition:** A concise, evidence-qualified synthesis of the most material observed financial state across domains available within the current evidence boundary.
+**Extremely detailed description:** Synthesizes the most material observed financial state available across relevant domains into a governed state representation. It does not mean complete financial visibility; missing or insufficient domains remain explicit.
 
-**Boundary:** It must not imply complete financial visibility when domains are missing or incomplete.
-
-## IRIS.FIN.002 — Money State
+## IRIS.FIN.002 — Money and Account Intelligence
 **Name:** Money and Account Intelligence
 
-**Definition:** Integrated understanding of observed account structure, balances, flows, and account relationships within the available evidence.
+**Extremely detailed description:** Integrates observed account structure, balances, transaction flows, account relationships, and temporal account state to characterize how money is positioned and moving within the evidence boundary.
 
-## IRIS.FIN.003 — Cash Flow State
+## IRIS.FIN.003 — Cash-Flow Intelligence
 **Name:** Cash-Flow Intelligence
 
-**Definition:** Evidence-grounded representation of observed inflows, outflows, transfers, net movement, timing, concentration, and cash-flow stability over a defined period.
+**Extremely detailed description:** Characterizes observed inflows, outflows, transfers, net movement, timing, concentration, stability, and changes over an explicit period after economic transaction semantics have been established.
 
-## IRIS.FIN.004 — Spending State
+## IRIS.FIN.004 — Spending Intelligence
 **Name:** Spending Intelligence
 
-**Definition:** Evidence-grounded analysis of observed consumer or financial outflows by time, category, merchant/entity, account, and economic role.
+**Extremely detailed description:** Analyzes observed financial outflows by time, category, merchant/entity, account, economic role, recurrence, concentration, and historical comparison where evidence supports those dimensions.
 
-## IRIS.FIN.005 — Income State
+## IRIS.FIN.005 — Income Intelligence
 **Name:** Income Intelligence
 
-**Definition:** Evidence-grounded analysis of observed inflows that meet the governed semantic criteria for income, including source, timing, recurrence, concentration, and variability where supported.
+**Extremely detailed description:** Analyzes observed inflows that meet governed income criteria, including source, timing, recurrence, concentration, variability, and changes. It does not classify every positive transaction as income.
 
-## IRIS.FIN.006 — Liquidity State
+## IRIS.FIN.006 — Liquidity Intelligence
 **Name:** Liquidity Intelligence
 
-**Definition:** Assessment of observed available financial resources and near-term obligations within the evidence boundary, explicitly separating observed liquidity from projected liquidity.
+**Extremely detailed description:** Evaluates observed resources available for financial obligations and near-term needs using actual balance, flow, and obligation evidence within an explicit time boundary. Observed liquidity is kept separate from projected liquidity.
 
-## IRIS.FIN.007 — Obligation Candidate
+## IRIS.FIN.007 — Obligation-Candidate Intelligence
 **Name:** Obligation-Candidate Intelligence
 
-**Definition:** Evidence-based identification of transactions or recurring patterns that may represent financial obligations without promoting the candidate to a verified obligation without sufficient evidence.
+**Extremely detailed description:** Identifies observed patterns that may represent financial obligations while preserving candidate status until sufficient evidence establishes the obligation's existence and relevant attributes.
 
-## IRIS.FIN.008 — Verified Obligation
+## IRIS.FIN.008 — Verified Obligation Intelligence
 **Name:** Verified Obligation Intelligence
 
-**Definition:** A financial obligation supported by sufficient evidence to establish its existence and relevant attributes within a defined evidence boundary.
+**Extremely detailed description:** Represents an obligation whose existence and relevant attributes are supported by sufficient evidence within a defined boundary. Verification requires more than a plausible recurring transaction pattern.
 
-## IRIS.FIN.009 — Debt State
+## IRIS.FIN.009 — Debt Intelligence
 **Name:** Debt Intelligence
 
-**Definition:** Evidence-qualified representation of debt balances, payment activity, obligations, and debt-related relationships supported by available liability evidence.
+**Extremely detailed description:** Represents observed debt state, including liability balances, payment activity, debt relationships, and supported obligation information, while distinguishing provider-observed liabilities from inferred candidates.
 
-## IRIS.FIN.010 — Net Worth State
+## IRIS.FIN.010 — Net-Worth Intelligence
 **Name:** Net-Worth Intelligence
 
-**Definition:** A mathematically derived relationship among observed assets and liabilities at a defined time/boundary, with missing-domain limitations made explicit.
-
-**Boundary:** Partial asset/liability visibility cannot be presented as complete net worth.
+**Extremely detailed description:** Derives net worth from compatible observed asset and liability state at an explicit time and evidence boundary. It must expose partial visibility rather than presenting a partial calculation as complete net worth.
 
 ---
 
-# 7. Relational and behavioral intelligence
+# 7. RELATIONAL INTELLIGENCE
 
-## IRIS.REL.001 — Financial Relationship
+## IRIS.REL.001 — Financial Relationship Intelligence
 **Name:** Financial Relationship Intelligence
 
-**Definition:** Identification and qualification of meaningful relationships among accounts, transactions, merchants, entities, categories, obligations, income sources, assets, liabilities, and temporal states.
+**Extremely detailed description:** Identifies and qualifies meaningful relationships among financial entities, events, accounts, merchants, categories, obligations, income sources, assets, liabilities, investments, and temporal states. Relationships become inputs for higher-order reasoning only when their evidence and semantics are preserved.
 
-## IRIS.REL.002 — Transaction Topology
+## IRIS.REL.002 — Transaction Topology Intelligence
 **Name:** Transaction Topology Intelligence
 
-**Definition:** Structural representation of how observed transaction activity connects financial entities, categories, accounts, and time.
+**Extremely detailed description:** Represents the structural network formed by observed transactions and their connections to accounts, merchants, categories, entities, economic roles, and time. It enables graph-based reasoning beyond isolated transaction analysis.
 
-## IRIS.REL.003 — Concentration
+## IRIS.REL.003 — Financial Concentration Intelligence
 **Name:** Financial Concentration Intelligence
 
-**Definition:** Measurement of how much observed financial activity is concentrated in particular entities, categories, accounts, or sources over a defined period.
+**Extremely detailed description:** Measures how strongly observed activity is concentrated among entities, categories, accounts, income sources, obligations, or other governed dimensions over an explicit period.
 
-## IRIS.BHV.001 — Behavioral State
+---
+
+# 8. BEHAVIORAL AND PATTERN INTELLIGENCE
+
+## IRIS.BEH.001 — Financial Behavior Intelligence
 **Name:** Financial Behavior Intelligence
 
-**Definition:** Evidence-grounded characterization of repeated observed financial behavior over time, including stability, drift, recurrence, and changing patterns.
+**Extremely detailed description:** Characterizes repeated observed financial behavior across time, including stability, variability, recurrence, drift, concentration, and changes relative to appropriate historical references. It describes financial actions, not personality or psychological traits.
 
-**Boundary:** Behavior descriptions must remain tied to observed financial actions and must not become unsupported personality or psychological claims.
-
-## IRIS.BHV.002 — Category Drift
+## IRIS.BEH.002 — Category Drift Intelligence
 **Name:** Category Drift Intelligence
 
-**Definition:** Detection of meaningful changes in the distribution or semantics of observed activity across categories over time.
+**Extremely detailed description:** Detects meaningful changes in the distribution or semantic composition of observed activity across categories over time and identifies whether the change is supported by sufficient evidence.
 
-## IRIS.PAT.001 — Pattern State
+## IRIS.PAT.001 — Pattern Intelligence
 **Name:** Pattern Intelligence
 
-**Definition:** Detection of repeatable structures in observed financial activity that exceed arbitrary single-event interpretation and meet the applicable evidence threshold.
+**Extremely detailed description:** Detects repeatable structures in observed financial activity that become meaningful when evaluated against temporal, statistical, relational, and semantic evidence rather than arbitrary single-event interpretation.
 
-## IRIS.PAT.002 — Change Point
+## IRIS.PAT.002 — Financial Change-Point Intelligence
 **Name:** Financial Change-Point Intelligence
 
-**Definition:** Detection of a statistically or semantically meaningful change in an observed financial series relative to its historical reference.
+**Extremely detailed description:** Identifies a meaningful change in an observed financial series relative to its historical reference, preserving the detection method, comparison window, evidence span, and uncertainty.
 
 ---
 
-# 8. Statistical and anomaly intelligence
+# 9. STATISTICAL INTELLIGENCE
 
-## IRIS.STAT.001 — Robust Reference
+## IRIS.STAT.001 — Robust Statistical Reference Intelligence
 **Name:** Robust Statistical Reference Intelligence
 
-**Definition:** A statistical representation of actual historical observations designed to resist distortion from outliers, missing periods, and irregular activity where the available evidence permits.
+**Extremely detailed description:** Constructs statistical reference measures from actual historical observations while reducing inappropriate distortion from outliers, irregular activity, and evidence gaps where the methodology permits.
 
-## IRIS.STAT.002 — Adaptive Threshold
+## IRIS.STAT.002 — Adaptive Historical Threshold Intelligence
 **Name:** Adaptive Historical Threshold Intelligence
 
-**Definition:** A threshold derived from the user's observed historical behavior rather than an arbitrary universal constant, with evidence window and methodology preserved.
+**Extremely detailed description:** Derives comparison thresholds from the user's actual historical observations rather than relying solely on arbitrary universal constants. The threshold retains its evidence window, method, and limitations.
 
-## IRIS.ANM.001 — Anomaly State
+## IRIS.STAT.003 — Variability Intelligence
+**Name:** Financial Variability Intelligence
+
+**Extremely detailed description:** Quantifies how much an observed financial measure changes over time, distinguishing genuine variability from insufficient observation density or changing evidence coverage.
+
+---
+
+# 10. ANOMALY INTELLIGENCE
+
+## IRIS.ANM.001 — Anomaly Intelligence
 **Name:** Anomaly Intelligence
 
-**Definition:** Identification of observed activity that materially departs from an appropriate historical, relational, statistical, or semantic reference.
+**Extremely detailed description:** Identifies observed activity that materially departs from an appropriate historical, relational, statistical, or semantic reference. Anomaly detection is a statement about unusualness relative to a defined reference, not a declaration of fraud or wrongdoing.
 
-**Boundary:** An anomaly means unusual relative to the selected reference; it does not automatically mean fraudulent, harmful, or erroneous.
+## IRIS.ANM.002 — Material Anomaly Intelligence
+**Name:** Material Anomaly Intelligence
 
-## IRIS.ANM.002 — Material Anomaly
-**Name:** Material Financial Anomaly Intelligence
-
-**Definition:** An anomaly whose magnitude, recurrence, context, or relationship makes it materially relevant to the user's financial state or requested analysis.
+**Extremely detailed description:** Determines whether an observed deviation is sufficiently meaningful under the applicable evidence, statistical, temporal, and materiality criteria to warrant higher-order attention or downstream analysis.
 
 ---
 
-# 9. Causal, predictive, and scenario intelligence
+# 11. CAUSAL AND EXPLANATORY INTELLIGENCE
 
-## IRIS.CAU.001 — Causal Candidate
-**Name:** Causal-Relationship Candidate Intelligence
+## IRIS.CAUS.001 — Association Intelligence
+**Name:** Financial Association Intelligence
 
-**Definition:** A structured representation of a possible causal relationship supported by temporal ordering, association, mechanism evidence, or other relevant evidence without claiming causation prematurely.
+**Extremely detailed description:** Identifies supported relationships between financial variables or events without asserting that one caused another. Association is intentionally weaker than causal inference.
 
-## IRIS.CAU.002 — Supported Causal Reasoning
+## IRIS.CAUS.002 — Temporal Precedence Intelligence
+**Name:** Temporal Precedence Intelligence
+
+**Extremely detailed description:** Determines whether one observed event or state preceded another within a defined temporal boundary. Temporal precedence can support causal investigation but does not establish causation by itself.
+
+## IRIS.CAUS.003 — Causal Evidence Intelligence
 **Name:** Evidence-Grounded Causal Intelligence
 
-**Definition:** Causal reasoning whose claim strength is limited to the evidence and methodology actually supporting the relationship.
+**Extremely detailed description:** Evaluates whether available evidence and an appropriate reasoning methodology support a causal explanation. It must distinguish correlation, association, temporal precedence, plausible mechanism, confounding, alternative explanations, and actual causal support.
 
-**Boundary:** Correlation, coincidence, and temporal sequence alone do not justify unrestricted causal claims.
+## IRIS.EXPL.001 — Financial Explanation Intelligence
+**Name:** Financial Explanation Intelligence
 
-## IRIS.PRD.001 — Forward Projection
-**Name:** Constrained Forward Projection Intelligence
+**Extremely detailed description:** Produces an evidence-grounded explanation for an observed state, change, pattern, or anomaly by tracing the relevant upstream observations and derived intelligence. Explanations must distinguish observed facts from interpretations and hypotheses.
 
-**Definition:** A forward estimate derived from actual observed state and explicitly declared assumptions, constraints, and methodology.
+---
 
-## IRIS.PRD.002 — Probabilistic Forecast
+# 12. FORWARD INTELLIGENCE
+
+## IRIS.PRED.001 — Predictive Intelligence
+**Name:** Predictive Intelligence
+
+**Extremely detailed description:** Estimates a future state or event from actual evidence and an explicitly defined methodology, horizon, assumptions, uncertainty, and limitations. Predictions are modeled outputs and never become historical observations.
+
+## IRIS.PRED.002 — Probabilistic Forecast Intelligence
 **Name:** Probabilistic Financial Forecast Intelligence
 
-**Definition:** A probability-aware prediction of future financial state using a defined methodology, target, horizon, evidence set, uncertainty representation, and refresh conditions.
+**Extremely detailed description:** Represents a future estimate as a distribution or explicitly bounded range when the available evidence and methodology support probabilistic treatment. It preserves uncertainty rather than presenting a single estimate as certain fact.
 
-**Boundary:** Forecast output remains predicted/modelled state, never observed fact.
+## IRIS.PRED.003 — Recursive Uncertainty Propagation Intelligence
+**Name:** Recursive Uncertainty Propagation Intelligence
 
-## IRIS.SCN.001 — Scenario
+**Extremely detailed description:** Carries uncertainty from upstream intelligence through downstream recursive transformations so that higher-order results cannot silently appear more certain than the evidence and transformations justify.
+
+---
+
+# 13. SCENARIO AND COUNTERFACTUAL INTELLIGENCE
+
+## IRIS.SCEN.001 — Scenario Intelligence
 **Name:** Financial Scenario Intelligence
 
-**Definition:** A hypothetical future state generated by changing explicit assumptions while preserving the distinction between scenario inputs and observed reality.
+**Extremely detailed description:** Evaluates a defined hypothetical future condition using actual observed state as the starting boundary and explicit assumptions for what is changed. Scenario output is hypothetical and must remain separate from observed state.
 
-## IRIS.SCN.002 — Counterfactual
+## IRIS.SCEN.002 — Counterfactual Intelligence
 **Name:** Financial Counterfactual Intelligence
 
-**Definition:** A structured hypothetical analysis asking how an outcome might differ if a defined condition had been different, with assumptions and limitations made explicit.
+**Extremely detailed description:** Examines what could differ under a specified alternative condition or decision while preserving the distinction between actual history and hypothetical reasoning. Counterfactuals must not rewrite observed history.
 
-**Boundary:** Counterfactual results are never written into observed state.
+## IRIS.SCEN.003 — Scenario Sensitivity Intelligence
+**Name:** Scenario Sensitivity Intelligence
+
+**Extremely detailed description:** Determines how scenario outcomes change when explicitly defined assumptions or variables change, allowing IRIS to identify which assumptions materially influence a modeled result.
 
 ---
 
-# 10. Risk, opportunity, decision, and recommendation intelligence
+# 14. RISK AND OPPORTUNITY INTELLIGENCE
 
-## IRIS.RSK.001 — Risk State
+## IRIS.RISK.001 — Risk Intelligence
 **Name:** Financial Risk Intelligence
 
-**Definition:** Evidence-grounded identification and qualification of conditions that may increase the probability or severity of an adverse financial outcome.
+**Extremely detailed description:** Identifies evidence-supported exposures, vulnerabilities, adverse conditions, or uncertainty that could materially affect a defined financial-life state or objective. Risk must be grounded in actual evidence and explicit assumptions.
 
-**Boundary:** Risk is not certainty of loss.
+## IRIS.RISK.002 — Risk Concentration Intelligence
+**Name:** Risk Concentration Intelligence
 
-## IRIS.OPP.001 — Opportunity State
+**Extremely detailed description:** Determines whether material financial exposure is concentrated in a particular account, liability, income source, entity, asset, behavior, or other supported dimension.
+
+## IRIS.OPP.001 — Opportunity Intelligence
 **Name:** Financial Opportunity Intelligence
 
-**Definition:** Evidence-grounded identification of potentially beneficial actions or conditions supported by the user's observed state and constraints.
+**Extremely detailed description:** Identifies evidence-supported conditions where an alternative action, relationship, resource, or financial configuration may create a meaningful improvement or advantage, without treating a hypothetical benefit as guaranteed.
 
-**Boundary:** Opportunity does not mean guaranteed benefit.
+## IRIS.OPP.002 — Opportunity Constraint Intelligence
+**Name:** Opportunity Constraint Intelligence
 
-## IRIS.DEC.001 — Decision State
-**Name:** Decision Intelligence
-
-**Definition:** Structured comparison of feasible choices using observed state, constraints, predicted consequences, scenario results, risks, opportunities, and explicit uncertainty.
-
-## IRIS.REC.001 — Recommendation State
-**Name:** Recommendation Intelligence
-
-**Definition:** A proposed action or option generated from evidence-grounded decision reasoning, with the relevant rationale, assumptions, uncertainty, and limitations exposed.
-
-**Boundary:** A recommendation must not imply certainty, authorization, or execution merely because Iris recommends it.
-
-## IRIS.CNS.001 — Consequence State
-**Name:** Consequence Intelligence
-
-**Definition:** Analysis of likely or modeled downstream effects of a decision, recommendation, or scenario across the evidence-supported financial-life graph.
-
-**Boundary:** Modeled consequences remain modeled until independently observed.
+**Extremely detailed description:** Determines the evidence-supported conditions, limitations, tradeoffs, and dependencies that constrain a potential financial opportunity.
 
 ---
 
-# 11. Outcome and learning intelligence
+# 15. DECISION INTELLIGENCE
 
-## IRIS.OUT.001 — Outcome State
-**Name:** Observed Outcome Intelligence
+## IRIS.DEC.001 — Decision Intelligence
+**Name:** Financial Decision Intelligence
 
-**Definition:** The observed result of a prior decision, recommendation, scenario, or event when sufficient evidence establishes what actually occurred.
+**Extremely detailed description:** Evaluates supported choices against explicit objectives, constraints, evidence, projected consequences, risks, opportunities, and uncertainty. Decision intelligence informs a decision; it does not secretly execute a financial action.
 
-**Boundary:** A predicted result is not an observed outcome.
+## IRIS.DEC.002 — Constraint-Aware Optimization Intelligence
+**Name:** Constraint-Aware Financial Optimization Intelligence
 
-## IRIS.LRN.001 — Learning State
+**Extremely detailed description:** Searches for better-supported configurations or choices while honoring explicit financial constraints, evidence boundaries, uncertainty, and safety conditions. Optimization must never manufacture missing inputs simply to produce an answer.
+
+## IRIS.DEC.003 — Recommendation Intelligence
+**Name:** Financial Recommendation Intelligence
+
+**Extremely detailed description:** Converts supported decision analysis into an actionable recommendation when evidence, objective, constraints, uncertainty, and expected consequences are sufficiently established. Recommendations remain recommendations rather than observations.
+
+---
+
+# 16. CONSEQUENCE AND OUTCOME INTELLIGENCE
+
+## IRIS.CONSEQ.001 — Consequence Intelligence
+**Name:** Financial Consequence Intelligence
+
+**Extremely detailed description:** Evaluates the downstream effects of an observed event, decision, recommendation, or scenario using supported relationships and explicit uncertainty. It distinguishes modeled consequences from consequences later confirmed by observation.
+
+## IRIS.OUT.001 — Outcome Intelligence
+**Name:** Verified Financial Outcome Intelligence
+
+**Extremely detailed description:** Represents the actual observed result of a prior decision, recommendation, event, or intervention when sufficient evidence establishes the outcome and its relationship to the originating action or condition.
+
+## IRIS.OUT.002 — Outcome Attribution Intelligence
+**Name:** Outcome Attribution Intelligence
+
+**Extremely detailed description:** Evaluates how strongly an observed outcome can be connected to a prior decision or event while distinguishing temporal sequence, association, plausible mechanism, alternative explanations, and actual causal support.
+
+---
+
+# 17. LEARNING INTELLIGENCE
+
+## IRIS.LEARN.001 — Verified-Outcome Learning Intelligence
+
 **Name:** Verified-Outcome Learning Intelligence
 
-**Definition:** Versioned adaptation of models, rules, thresholds, or reasoning strategies using verified outcomes, prediction error, changing observed behavior, or explicit user feedback within governance boundaries.
+**Extremely detailed description:** Uses verified observed outcomes, prediction error, changing historical behavior, recurring evidence, and governed feedback to improve future reasoning without silently rewriting historical facts. Every learning change requires provenance, versioning, affected rule/model identification, and a reason for the change.
 
-**Boundary:** Learning cannot silently rewrite historical observations.
+## IRIS.LEARN.002 — Prediction-Error Intelligence
 
-## IRIS.LRN.002 — Prediction Error
 **Name:** Prediction-Error Intelligence
 
-**Definition:** Measured difference between a prior prediction and the subsequently observed outcome, using the exact prediction and outcome lineage.
+**Extremely detailed description:** Compares a prior prediction with the subsequently observed result and measures the discrepancy within compatible evidence boundaries. It can inform model improvement but cannot retroactively turn the prediction into an observation.
 
-## IRIS.LRN.003 — Baseline Evolution
-**Name:** Baseline-Evolution Intelligence
+## IRIS.LEARN.003 — Adaptive Intelligence
 
-**Definition:** Evidence-backed recognition that the user's historical reference behavior has changed sufficiently to justify a versioned baseline update.
+**Name:** Adaptive Financial Intelligence
+
+**Extremely detailed description:** Represents governed changes in thresholds, models, interpretations, or composition behavior resulting from verified evidence and learning signals. Adaptation is versioned and auditable.
 
 ---
 
-# 12. Higher-order and recursive intelligence
+# 18. CROSS-DOMAIN AND HIGHER-ORDER INTELLIGENCE
 
-## IRIS.HO.001 — Cross-Domain Synthesis
-**Name:** Cross-Domain Financial-Life Synthesis
+## IRIS.XD.001 — Cross-Domain Synthesis Intelligence
 
-**Definition:** A derived intelligence result that combines evidence or derived intelligence from multiple authoritative domains where the semantic relationship between those inputs is explicitly governed and traceable.
+**Name:** Cross-Domain Financial-Life Synthesis Intelligence
 
-**Boundary:** Combining two datasets is not sufficient; the composition must be semantically meaningful and evidence-compatible.
+**Extremely detailed description:** Combines compatible intelligence from multiple authoritative domains to derive a higher-order understanding that cannot be represented adequately by any one domain alone. Every contributing domain, node, transformation, and evidence boundary must remain explicit.
 
-## IRIS.HO.002 — Higher-Order Intelligence
-**Name:** Higher-Order Intelligence
+## IRIS.XD.002 — Higher-Order Intelligence
 
-**Definition:** Intelligence derived from one or more already-derived intelligence nodes rather than directly from raw or canonical observations.
+**Name:** Higher-Order Financial-Life Intelligence
 
-**Boundary:** Higher-order does not mean more truthful automatically. Every additional derivation adds another transformation that must remain traceable.
+**Extremely detailed description:** Represents intelligence derived from already-derived intelligence when the downstream semantic relationship is explicitly valid and independently verifiable. Higher-order status does not imply greater truth; it means greater compositional depth.
 
-## IRIS.HO.003 — Recursive Composition
+## IRIS.XD.003 — Emergent Intelligence
+
+**Name:** Emergent Financial-Life Intelligence
+
+**Extremely detailed description:** Represents a materially useful intelligence structure that emerges from valid combinations of multiple existing intelligence nodes and is not adequately represented by a single predefined capability. Emergence must still have exact upstream lineage and semantic justification.
+
+## IRIS.XD.004 — Recursive Composition Intelligence
+
 **Name:** Recursive Intelligence Composition
 
-**Definition:** The governed process by which newly derived intelligence becomes an eligible upstream input to subsequent intelligence generation when semantic compatibility, evidence sufficiency, lineage, resource limits, and safety constraints permit.
+**Extremely detailed description:** Allows valid intelligence nodes to become inputs to further intelligence recursively without imposing a predetermined maximum number of levels. Composition continues only when semantic compatibility, evidence sufficiency, lineage, safety, resource limits, and usefulness permit it.
 
-**Boundary:** Recursive composition has no predefined semantic depth ceiling, but any individual execution may be bounded by resources, safety, cycles, evidence, or governance.
+## IRIS.XD.005 — Arbitrary Derived Intelligence
 
-## IRIS.HO.004 — Emergent Intelligence
-**Name:** Emergent Intelligence
-
-**Definition:** A materially useful intelligence structure discovered through valid composition of existing evidence and derived nodes that was not required to be represented as a finite predefined capability entry.
-
-**Boundary:** “Emergent” never means unexplained, fabricated, or exempt from lineage. Its inputs and transformation must remain inspectable.
-
-## IRIS.HO.005 — Arbitrary Derived Intelligence Node
 **Name:** Arbitrary Derived-Intelligence Node
 
-**Definition:** A persistable intelligence node whose semantic identity and derivation are valid even when the node does not correspond to a finite capability-registry entry.
+**Extremely detailed description:** Represents a newly derived intelligence node whose semantic identity is not limited to the finite capability/operator registry. It preserves exact upstream node identifiers, recursive ancestry, derivation operator/version, transformation evidence, execution lineage, and deterministic identity so newly composed intelligence can persist and participate in further reasoning.
 
-**Required lineage:** Exact upstream node IDs, recursive ancestry, derivation operator/version, evidence boundary, execution context, deterministic node identity/hash, and applicable semantic transformation evidence.
+## IRIS.XD.006 — Semantic Transformation Intelligence
 
-## IRIS.HO.006 — Recursive Lineage
-**Name:** Recursive Intelligence Lineage
-
-**Definition:** The complete ancestry chain through which a derived intelligence node ultimately connects to its evidence and intermediate intelligence predecessors.
-
-**Boundary:** Lineage depth is descriptive, not a semantic ceiling.
-
----
-
-# 13. Semantic transformation intelligence
-
-## IRIS.SEM.001 — Dependency Consumption
-**Name:** Semantic Dependency Consumption
-
-**Definition:** Evidence that a declared upstream intelligence result was actually accessed by the downstream computation where the downstream contract requires that dependency.
-
-**Boundary:** A recorded dependency ID alone is not proof of consumption.
-
-## IRIS.SEM.002 — Semantic Transformation
 **Name:** Semantic Transformation Intelligence
 
-**Definition:** The explicit relationship describing how an upstream field, value, structure, or intelligence contributes to a downstream field, value, structure, or intelligence under a named operator/version.
+**Extremely detailed description:** Describes how specific upstream intelligence is transformed into specific downstream intelligence, including the semantic input, transformation operation, output meaning, operator/version, evidence boundary, and exact lineage. A dependency reference or object read alone is insufficient.
 
-## IRIS.SEM.003 — Transformation Edge
-**Name:** Semantic Transformation Edge
+## IRIS.XD.007 — Semantic Sufficiency Intelligence
 
-**Definition:** A persisted, inspectable graph relationship connecting a consumed upstream intelligence result to the downstream result and identifying the transformation semantics that relate them.
+**Name:** Semantic Sufficiency Intelligence
 
-**Boundary:** Edge persistence is a proof foundation, not by itself semantic certification.
-
-## IRIS.SEM.004 — Semantic Sufficiency
-**Name:** Independent Semantic Sufficiency Intelligence
-
-**Definition:** An independently evaluated determination that the declared upstream dependencies and transformations are sufficient for the downstream intelligence contract, rather than merely present or read.
-
-**Boundary:** Runtime success cannot substitute for semantic sufficiency verification.
-
-## IRIS.SEM.005 — Semantic Contract
-**Name:** Intelligence Semantic Contract
-
-**Definition:** A formal declaration of the meaning, required dependencies, required semantic paths, transformation obligations, evidence constraints, and output boundary of an intelligence operator.
+**Extremely detailed description:** Determines whether the actual inputs and transformations used by an intelligence derivation are sufficient to justify the meaning claimed by the downstream node. It is deliberately stronger than proving that a dependency existed, was read, or was persisted.
 
 ---
 
-# 14. Governance and certification intelligence
+# 19. INTELLIGENCE GRAPH INTEGRITY
 
-## IRIS.GOV.001 — Execution Integrity
-**Name:** Intelligence Execution Integrity
+## IRIS.GRAPH.001 — Intelligence Lineage Intelligence
 
-**Definition:** Verification that an intelligence execution stayed within its planned capabilities, dependencies, evidence boundary, resource budget, and safety rules.
+**Name:** Recursive Intelligence Lineage
 
-## IRIS.GOV.002 — Cycle Detection
+**Extremely detailed description:** Preserves the complete ancestry of a derived intelligence node through exact upstream node identifiers, source observations, execution context, transformations, versions, and evidence boundaries. Lineage allows IRIS to traverse backward from a result to the evidence that supports it.
+
+## IRIS.GRAPH.002 — Dependency Consumption Intelligence
+
+**Name:** Actual Dependency Consumption Intelligence
+
+**Extremely detailed description:** Establishes which upstream intelligence results were actually consumed by a downstream derivation rather than merely declared, referenced, persisted, or made available. Consumption must be independently observable where the contract requires proof.
+
+## IRIS.GRAPH.003 — Semantic Transformation Edge Intelligence
+
+**Name:** Semantic Transformation Edge Intelligence
+
+**Extremely detailed description:** Represents an explicit graph edge explaining the semantic relationship between an upstream and downstream intelligence node, including the transformation identity and relevant field/path semantics. It exists to make derivation inspectable rather than inferred from proximity.
+
+## IRIS.GRAPH.004 — Recursive Depth Intelligence
+
+**Name:** Recursive Intelligence Depth
+
+**Extremely detailed description:** Represents the actual compositional depth of a derived intelligence node in the graph. Depth is an observed graph property, not a predefined maximum hierarchy level.
+
+## IRIS.GRAPH.005 — Cycle Safety Intelligence
+
 **Name:** Recursive Cycle-Safety Intelligence
 
-**Definition:** Detection and controlled rejection or containment of recursive dependency cycles that could otherwise create infinite execution.
+**Extremely detailed description:** Detects recursive dependency cycles that could cause non-terminating execution while preserving valid graph relationships. Cycle prevention is an execution-safety mechanism and does not impose an intelligence-depth ceiling.
 
-**Boundary:** Cycle rejection is an execution-safety mechanism and does not impose a maximum intelligence hierarchy depth.
+## IRIS.GRAPH.006 — Intelligence Identity Integrity
 
-## IRIS.GOV.003 — Certification State
+**Name:** Derived Intelligence Identity Integrity
+
+**Extremely detailed description:** Ensures that a derived intelligence node has a deterministic identity tied to its semantic inputs, transformation, version, and relevant lineage so that equivalent compositions can be recognized and conflicting derivations can be detected.
+
+---
+
+# 20. CERTIFICATION INTELLIGENCE
+
+## IRIS.CERT.001 — Evidence Certification Intelligence
+
+**Name:** Evidence Certification Intelligence
+
+**Extremely detailed description:** Determines whether the evidence required by a specific intelligence contract has actually been observed, persisted, scoped, and verified sufficiently for the result's intended claim.
+
+## IRIS.CERT.002 — Semantic Certification Intelligence
+
+**Name:** Semantic Certification Intelligence
+
+**Extremely detailed description:** Determines whether the actual semantic transformations and dependency consumption satisfy the downstream intelligence contract rather than merely satisfying structural execution checks.
+
+## IRIS.CERT.003 — Intelligence Certification State
+
 **Name:** Intelligence Certification State
 
-**Definition:** The governed status of whether a particular result has passed the required evidence, execution, lineage, semantic, and product-publication checks.
-
-**Boundary:** Certification cannot be inferred from capability registration, test existence, or database persistence alone.
-
-## IRIS.GOV.004 — Publication Boundary
-**Name:** Intelligence Publication Boundary
-
-**Definition:** The final governance boundary deciding whether a derived result may be surfaced as a user-facing product, report, answer, recommendation, scenario, or other intelligence artifact.
-
-## IRIS.GOV.005 — Uncertainty State
-**Name:** Intelligence Uncertainty and Limitation State
-
-**Definition:** Explicit representation of uncertainty, missing evidence, assumptions, confidence limitations, methodological constraints, and other conditions that affect interpretation.
+**Extremely detailed description:** Represents the current verification state of an intelligence result, distinguishing conceptual definition, implementation, execution, evidence verification, lineage verification, semantic sufficiency, certification, and publication readiness.
 
 ---
 
-# 15. Report-product layer
+# 21. THE UNBOUNDED COMPOSITION RULE
 
-Report products are user-facing publications of intelligence. They are not intelligence hierarchy levels.
+The library intentionally does **not** attempt to enumerate every possible intelligence node.
 
-## IRIS.REPORT.001 — Financial-Life Overview Report
-**Definition:** User-facing publication of the highest-value evidence-grounded current financial-life state available within the user's actual evidence boundary.
+A new intelligence node may be created when a valid composition establishes a genuinely meaningful downstream semantic result from actual upstream evidence/intelligence. Its identity must preserve:
 
-## IRIS.REPORT.002 — Cash-Flow Report
-**Definition:** User-facing publication of observed cash-flow behavior, period comparisons, sources, outflows, timing, and material changes supported by evidence.
+1. exact upstream node references;
+2. exact recursive ancestry;
+3. actual dependency consumption;
+4. semantic transformation identity;
+5. operator and version information;
+6. evidence boundary;
+7. uncertainty and limitations;
+8. deterministic derivation identity;
+9. execution/run lineage; and
+10. sufficient evidence to support the downstream claim.
 
-## IRIS.REPORT.003 — Spending Report
-**Definition:** User-facing publication of observed spending behavior, concentration, category movement, recurring activity, and material anomalies supported by evidence.
+Therefore the hierarchy is not:
 
-## IRIS.REPORT.004 — Income Report
-**Definition:** User-facing publication of evidence-qualified income sources, timing, recurrence, stability, and changes.
+`Level 1 → Level 2 → Level 3 → ... → Level N → STOP`
 
-## IRIS.REPORT.005 — Liquidity Report
-**Definition:** User-facing publication of observed liquidity state and relevant near-term financial pressures within the available evidence boundary.
+It is:
 
-## IRIS.REPORT.006 — Debt Report
-**Definition:** User-facing publication of verified or explicitly qualified debt/liability state and related payment behavior supported by liability evidence.
+`IRIS → authoritative evidence domains → derived intelligence → higher-order intelligence → recursively derived intelligence → further valid intelligence ...`
 
-## IRIS.REPORT.007 — Net-Worth Report
-**Definition:** User-facing publication of mathematically derived net worth where asset and liability evidence is sufficiently complete for the stated boundary; otherwise it must clearly qualify partial visibility.
-
-## IRIS.REPORT.008 — Anomaly Report
-**Definition:** User-facing publication of materially unusual observed financial activity with the comparison reference and evidence boundary exposed.
-
-## IRIS.REPORT.009 — Risk Report
-**Definition:** User-facing publication of evidence-grounded financial risks, their supporting conditions, uncertainty, and relevant modeled consequences.
-
-## IRIS.REPORT.010 — Opportunity Report
-**Definition:** User-facing publication of evidence-grounded opportunities and their supporting rationale, constraints, and uncertainty.
-
-## IRIS.REPORT.011 — Decision Report
-**Definition:** User-facing comparison of available options and modeled consequences based on actual observed state and explicit assumptions.
-
-## IRIS.REPORT.012 — Recommendation Report
-**Definition:** User-facing presentation of one or more evidence-grounded recommended actions with rationale, assumptions, uncertainty, and non-execution boundaries.
-
-## IRIS.REPORT.013 — Scenario Report
-**Definition:** User-facing presentation of hypothetical financial scenarios and counterfactual outcomes, clearly separated from observed state.
-
-## IRIS.REPORT.014 — Intelligence Lineage Report
-**Definition:** User-facing inspection surface showing where a material intelligence result came from, including upstream evidence, derived nodes, transformations, timestamps, and limitations.
-
-## IRIS.REPORT.015 — Evidence Coverage Report
-**Definition:** User-facing description of which financial-life domains and evidence types are actually observed, which are unavailable or incomplete, and how that affects available intelligence.
+There is no artificial final level.
 
 ---
 
-# 16. Recursive naming model for future intelligence
+# 22. INTELLIGENCE ≠ PRODUCT
 
-The library deliberately does **not** enumerate every future intelligence node. Instead, new nodes must receive a semantic identity that describes their actual meaning.
+This distinction is fundamental.
 
-A valid future node should answer:
+### Intelligence
 
-1. **What is it?** — precise semantic name.
-2. **Why does it exist?** — useful analytical purpose.
-3. **What evidence or upstream intelligence supports it?**
-4. **What transformation produces it?**
-5. **What exactly does the output mean?**
-6. **What does it explicitly not mean?**
-7. **What is its evidence boundary?**
-8. **What uncertainty or limitations apply?**
-9. **What exact upstream nodes produced it?**
-10. **Can another valid intelligence node consume it?**
-11. **If consumed, what semantic transformation connects the two?**
-12. **Can the result be independently verified and, if appropriate, certified for publication?**
+An intelligence node is a governed semantic result inside the IRIS intelligence graph. It has meaning, evidence requirements, upstream dependencies, transformations, lineage, uncertainty, and a defined boundary.
 
-A future intelligence node may therefore be conceptually named using patterns such as:
+### Report product
 
-`<domain> + <state/relationship/pattern> + <time/context>`
+A report product is a user-facing publication generated by consuming one or more intelligence nodes. It may combine many intelligence concepts and may be instantiated for a specific user, period, account, merchant, event, relationship, scenario, question, or other legitimate context.
 
-or
+### Why the product count can become enormous
 
-`<upstream intelligence> + <transformation> + <new semantic state>`
+A relatively small set of reusable intelligence can generate a very large number of distinct reports because reports can vary by:
 
-The naming system must describe meaning rather than merely describing implementation mechanics.
+- user context;
+- time period;
+- account;
+- merchant/entity;
+- category;
+- relationship;
+- event;
+- comparison;
+- anomaly;
+- forecast horizon;
+- scenario assumption;
+- decision context;
+- evidence boundary;
+- question asked;
+- combination of intelligence nodes; and
+- newly discovered useful compositions.
 
----
+Those report products belong in the **IRIS Report Product Library/catalog**, not in this intelligence library.
 
-# 17. Status interpretation
+This document therefore defines **what IRIS intelligence means**. A separate product layer defines **what users can receive from that intelligence**.
 
-The presence of a name in this library means only that IRIS has a governed semantic definition for that concept.
+## Status
 
-It does **not** mean:
-
-- the operator is implemented;
-- the operator is registered;
-- real provider evidence currently exists;
-- the operator has been independently executed;
-- semantic dependency consumption has been proven;
-- the result has been persisted;
-- the result has been certified;
-- the result is currently available to a user;
-- the corresponding report is enabled;
-- the corresponding report has passed end-to-end verification.
-
-Those states must be established independently by repository, database, runtime, test, deployment, evidence, and certification evidence.
-
-# 18. Governing principle
-
-**IRIS is allowed to become more intelligent without becoming less truthful.**
-
-The hierarchy may continue recursively and indefinitely in semantic depth whenever valid evidence, meaningful relationships, explicit transformations, computational resources, and governance permit. The system must stop a particular derivation when evidence, semantics, safety, resources, or certification requirements are insufficient—not because an arbitrary intelligence level has been reached.
+This file is a semantic library and architectural source of truth for intelligence naming and meaning. It does not certify implementation. The implementation/certification chain remains governed by `docs/ROADMAP.md` and actual evidence.
