@@ -4,6 +4,48 @@ This roadmap tracks **capability state and product-readiness state**, not artifa
 
 IRIS is a recursive financial-life intelligence operating system. Its intelligence hierarchy is a graph with no artificial semantic depth ceiling. **The hierarchy is internal reasoning machinery. The user products are the evidence-grounded reports and analytics produced from that hierarchy.**
 
+## Product priorities and connected experiences
+
+IRIS has two connected experiences over one underlying system. They are deliberately separated by **user-data boundary and purpose**, not by architecture.
+
+### Priority 1 — Financial Life / Results / User Journey
+
+This is the primary consumer product surface and the first implementation priority. It is the person's journey through their observed financial reality and the results Iris can validly derive from it. It includes the financial-life home, changes, understanding, evidence, the large report and analytics inventory, user-specific intelligence results, scenarios, decisions, actions, outcomes, controls, explanations, education, and empowerment.
+
+The journey must remain primary even as the intelligence hierarchy grows. The intelligence graph powers the experience; it does not replace the experience.
+
+### Priority 2 — IRIS Intelligence / Education
+
+This is a read-only educational surface for learning how Iris thinks. It contains **no user financial data and no user-specific financial results**. It explains the hierarchy, graph, evidence states, lineage, recursive composition, uncertainty, and the boundaries between observation, interpretation, prediction, scenario, causality, and higher-order intelligence.
+
+Priority 2 does not reduce or cap the intelligence architecture. The hierarchy remains unbounded in semantic depth.
+
+### One connected system
+
+```text
+provider evidence
+      ↓
+governed evidence boundary
+      ↓
+canonical financial state
+      ↓
+IRIS intelligence graph
+      ↓
+user-specific intelligence results
+      ↓
+Financial Life / Results / Reports
+
+                 ↕
+
+IRIS Intelligence / Education
+explains the same reasoning machinery without user data
+```
+
+The same IRIS assistant is available throughout both experiences, but its behavior is surface-aware:
+
+- Financial Life / Results: contextual help grounded in the user's governed evidence and actual results.
+- Intelligence / Education: educational help only; no user financial data or user-specific results are loaded.
+
 ## Governing execution chain
 
 `Architecture Defined → Contract Defined → Schema Implemented → Runtime Implemented → Independently Executable → Evidence Verified → Exact Evidence Boundary Verified → Semantic Lineage Verified → Report Product Defined → Report Product User-Controlled → Report Product Surfaced → Interaction Verified → Deployment Verified → End-to-End Certified`
@@ -38,6 +80,30 @@ Correlation ≠ causation.
 - A report title must never make a stronger claim than its underlying intelligence.
 - Product availability must depend on evidence state, implementation state, certification state, subscription entitlement, and user activation; these states must remain distinct.
 - During beta, intended report-product access is free, but free access never creates missing evidence.
+
+## Persistent IRIS assistance requirement
+
+The IRIS assistant is a **global experience capability**, not a page-specific enhancement. It must be present and ready to help on every authenticated page in both connected experiences.
+
+### Financial Life / Results assistant
+
+- Available on every Financial Life / Results page.
+- Helps the user understand what is currently displayed, navigate the journey, understand reports, inspect evidence, interpret supported results, and ask questions.
+- May use governed user-specific IRIS APIs where appropriate.
+- Must preserve exact evidence state, uncertainty, provenance, freshness, and applicability.
+- Must never invent a balance, transaction, result, confidence, causal claim, prediction, scenario, or other financial fact.
+
+### Intelligence / Education assistant
+
+- Available on every Intelligence / Education page.
+- Explains the intelligence hierarchy, graph, evidence model, lineage, recursive reasoning, and epistemic boundaries.
+- Must not load, query, display, or infer user financial data.
+- Must not present user-specific intelligence results or reports.
+- Is read-only and educational for the current product boundary.
+
+### Assistant certification requirement
+
+The assistant's **presence, visibility, interaction, and surface-specific data boundary** must be independently verified across every supported authenticated route and supported responsive composition. A visible launcher alone is not sufficient certification; its mode must also be proven to respect the corresponding user-data boundary.
 
 ## Library/catalog user experience
 
@@ -91,6 +157,9 @@ The face must provide progressive disclosure from human-readable meaning to inte
 - [x] Shell maps the consumer journey to existing governed routes without inventing backend capabilities.
 - [x] Shell provides persistent contextual entry points for Evidence, Ask/Understand, and connection flow.
 - [x] Shell preserves the same semantic model across desktop and mobile composition.
+- [x] Global IRIS assistant mounted at the experience-shell level so it is available across Financial Life / Results and Intelligence / Education routes.
+- [x] Assistant has separate Financial Life and Intelligence/Education modes.
+- [x] Intelligence/Education assistant mode does not call user-data or user-intelligence APIs.
 
 ## Report naming principle
 
@@ -133,6 +202,9 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Subscription gating semantics defined.
 - [x] Product activation/deactivation semantics defined.
 - [x] Evidence/product availability state distinctions defined.
+- [x] Financial Life / Results established as Priority 1.
+- [x] IRIS Intelligence / Education established as Priority 2.
+- [x] Shared-system boundary between the two experiences explicitly documented.
 
 ### Implemented but not certified
 
@@ -170,6 +242,9 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Report runtime-lineage resolution now fails closed on missing/ambiguous capability roots, missing upstream nodes, missing or undeclared transformation edges, transformation hash mismatches, missing recursive ancestors, lineage cycles, and invalid run-bound evidence IDs.
 - [x] Report runtime-lineage resolution requires every report root to be recursively evidence-grounded within the exact user/run/execution boundary.
 - [x] CI verified the recursive report-lineage hardening source commit `627eb8cb41b3bf8c3e6d156ea7df1a02240e1c44`: backend intelligence tests and TypeScript build passed; frontend build passed; continuity refresh passed.
+- [x] Persistent IRIS assistant launcher mounted from the authenticated experience shell rather than only individual pages.
+- [x] Financial Life assistant retains governed user-specific question path.
+- [x] Intelligence assistant uses an educational-only path without user financial data.
 
 ### Not yet certified
 
@@ -188,6 +263,9 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [ ] Current-commit CI/deployment verification for the latest product-layer changes.
 - [ ] Full IRIS consumer journey certification against real provider evidence.
 - [ ] Premium consumer experience visual/interaction certification across supported device classes.
+- [ ] Global IRIS assistant visibility and interaction certification across every supported authenticated route.
+- [ ] Financial Life assistant evidence-boundary certification across every supported route.
+- [ ] Intelligence/Education assistant proof that no user financial data is loaded or exposed across every supported route.
 
 The previously listed migration-reconciliation blocker is **resolved**: the current repository contains the semantic-proof and transformation-edge migration history, and the live Supabase schema has the corresponding tables/columns with RLS enabled and forced. Those facts establish schema presence only; they do not establish runtime execution or certification.
 
@@ -198,6 +276,23 @@ These unchecked states are intentional. Documentation does not count as runtime 
 The intelligence hierarchy remains unbounded in semantic depth. A report product may consume intelligence from any valid depth, provided its required lineage, evidence, semantic transformations, uncertainty, and certification requirements are satisfied.
 
 The product layer does not impose a hierarchy ceiling.
+
+## Current Sandbox evidence boundary
+
+The architectural evidence model contains eight authoritative domains:
+
+1. Authentication
+2. Transactions
+3. Balance
+4. Identity
+5. Assets
+6. Liabilities
+7. Investments
+8. Statements
+
+The **current Sandbox/runtime executable and certifiable boundary is seven domains**: Authentication, Transactions, Balance, Identity, Assets, Liabilities, and Investments. Statements is architecturally defined but **deferred until real banking**. Statements must not be simulated, fabricated, or represented as observed Sandbox evidence.
+
+This boundary is a runtime state, not a reduction of the architectural eight-domain model.
 
 ## Certification rule
 
