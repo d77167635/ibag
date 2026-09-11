@@ -21,6 +21,7 @@ export async function persistSemanticDependencyProof(input: {
     capability_id: input.capabilityId,
     consumed_dependency_ids: dependencyIds,
     consumed_dependency_hashes: input.proof.consumed_dependency_hashes,
+    consumed_dependency_paths: input.proof.consumed_dependency_paths,
     output_hash: input.proof.output_hash,
     proof_version: input.proof.proof_version,
   });
