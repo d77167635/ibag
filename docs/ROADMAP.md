@@ -121,7 +121,9 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Recursive multi-report composition foundation implemented using exact runtime node IDs and derived depth when supplied, without imposing an artificial maximum.
 - [x] Exact report evidence-boundary evaluator implemented; required evidence keys are never treated as observations, and missing/unknown evidence remains explicit.
 - [x] Conjunctive report certification-gate foundation implemented across execution status, runtime lineage, declared dependency-read proof, and evidence boundary.
-- [x] Regression coverage added for recursive traversal, cycle safety, report semantic consumption, recursive composition, evidence boundaries, and conjunctive certification.
+- [x] Report publication resolver now consumes execution-scoped semantic dependency proofs and emits per-report semantic-consumption/certification state.
+- [x] Report publication resolver explicitly blocks certification until an authoritative runtime mapping exists from report evidence requirements to actual run-bound evidence records.
+- [x] Regression coverage added for conjunctive report certification and evidence-boundary non-certification behavior.
 - [x] Repository certification gate reconciled with the current recursive graph architecture version (`IRIS_RECURSIVE_CAPABILITY_GRAPH_V2`).
 - [x] Report certification gate aligned with the actual governed execution states (`EXECUTED`/`CERTIFIED`, while retaining compatibility with `SUCCEEDED`).
 
@@ -129,7 +131,7 @@ The catalog itself is unbounded in principle. Named report products are stable i
 
 - [ ] Persisted product catalog schema.
 - [ ] Persisted product-to-intelligence dependency records as first-class product data.
-- [ ] Runtime integration of report-level semantic-consumption proofs into the publication resolver.
+- [x] Runtime integration of report-level semantic-consumption proofs into the publication resolver; **certification remains blocked until exact evidence-key mapping is authoritative.**
 - [ ] Semantic sufficiency of report-to-intelligence mappings beyond structural runtime resolution.
 - [ ] Complete evidence → intelligence → report reverse traversal across every evidence domain and every recursive graph relationship.
 - [ ] Dynamic report-name generation runtime.
