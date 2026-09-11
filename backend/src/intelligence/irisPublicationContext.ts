@@ -7,6 +7,7 @@ import { buildIrisReportDependencyGraph } from "./irisReportDependencyGraph.js";
 import { resolveIrisReportRuntimeLineage, type IrisReportRuntimeLineage } from "./irisReportRuntimeLineage.js";
 import { evaluateIrisReportSemanticConsumption, type IrisReportSemanticConsumption } from "./irisReportSemanticConsumption.js";
 import { evaluateIrisReportCertificationGate, type IrisReportCertificationGate } from "./irisReportCertificationGate.js";
+import { resolveIrisReportEvidence } from "./irisReportEvidenceMapping.js";
 import type { SemanticDependencyProof } from "./semanticDependencyProof.js";
 import type { ReportEvidenceBoundary } from "./irisReportEvidenceBoundary.js";
 
@@ -18,18 +19,22 @@ type ReportCertificationRuntime = {
   semantic_consumption: IrisReportSemanticConsumption;
   evidence_boundary: ReportEvidenceBoundary;
   certification_gate: IrisReportCertificationGate;
+  evidence_ids: string[];
+  raw_observation_ids: string[];
+  source_field_ids: string[];
+  source_observations: Array<{
+    evidence_id: string;
+    raw_observation_id: string | null;
+    source_field_id: string | null;
+    evidence_type: string;
+    provider: string | null;
+    product: string | null;
+    effective_at: string | null;
+    acquired_at: string | null;
+    evidence_hash: string | null;
+  }>;
+  evidence_limitation: string | null;
 };
-
-/**
- * The report evidence-key boundary is intentionally conservative until an
- * authoritative runtime mapping exists from iris_run_evidence records to the
- * analysis input keys. Catalog/atlas input names are requirements, not evidence.
- */
-function buildUnmappedEvidenceBoundary(requiredKeys: string[]): ReportEvidenceBoundary {
-  const normalized = [...new Set(requiredKeys)].sort();
-  if (normalized.length === 0) return { required_keys: [], observed_evidence_ids: [], missing_keys: [], unknown_keys: [], state: "satisfied" };
-  return { required_keys: normalized, observed_evidence_ids: [], missing_keys: normalized, unknown_keys: [], state: "insufficient" };
-}
 
 export function buildIrisPublicationRuntime(atlasDefinitions: AtlasDefinitionInput[], activeReportIds: string[], runtimeLineage: Record<string, IrisReportRuntimeLineage> = {}, reportCertificationRuntime: Record<string, ReportCertificationRuntime> = {}) {
   const activations: Record<string, IrisFeatureActivation> = Object.fromEntries(IRIS_FEATURE_REGISTRY.map((feature) => [feature.featureId, "enabled"])) as Record<string, IrisFeatureActivation>;
@@ -37,7 +42,7 @@ export function buildIrisPublicationRuntime(atlasDefinitions: AtlasDefinitionInp
   const evidenceCoverage: Record<string, number> = Object.fromEntries(IRIS_FEATURE_REGISTRY.map((feature) => { const requiredAnalyses = feature.requiredAnalysisIds; if (requiredAnalyses.length === 0) return [feature.featureId, 0]; const satisfied = requiredAnalyses.filter((id) => readyAtlasIds.has(id)).length; return [feature.featureId, satisfied / requiredAnalyses.length]; }));
   const featureRuntime = buildIrisFeatureRuntime({ activations, evidenceCoverage });
   const intelligenceOutputRuntime = buildIrisIntelligenceOutputRuntime({ definitions: atlasDefinitions.map((definition) => ({ id: definition.id, family: definition.family ?? "unknown", name: definition.name ?? definition.id, purpose: definition.purpose ?? "", output: definition.output ?? "", evidence_ready: definition.evidence_ready === true, missing_inputs: definition.missing_inputs ?? [] })) }, featureRuntime, activeReportIds, runtimeLineage);
-  return { catalog_version: IRIS_REPORT_CATALOG_VERSION, selected_report_ids: activeReportIds, report_catalog: IRIS_REPORT_CATALOG, feature_runtime: featureRuntime, intelligence_output_runtime: intelligenceOutputRuntime, report_certification_runtime: reportCertificationRuntime, publication_boundary: { intelligence_hierarchy_is_not_a_user_product_catalog: true, report_products_are_user_controllable: true, report_activation_does_not_activate_provider_products: true, report_activation_does_not_create_evidence: true, catalog_metadata_is_not_evidence: true, limited_outputs_require_explicit_qualification: true, suppressed_outputs_are_not_normal_intelligence_claims: true, certified_report_publication_requires_exact_runtime_lineage: true, certified_report_publication_requires_verified_semantic_dependency_reads: true, certified_report_publication_requires_authoritative_evidence_key_mapping: true } };
+  return { catalog_version: IRIS_REPORT_CATALOG_VERSION, selected_report_ids: activeReportIds, report_catalog: IRIS_REPORT_CATALOG, feature_runtime: featureRuntime, intelligence_output_runtime: intelligenceOutputRuntime, report_certification_runtime: reportCertificationRuntime, publication_boundary: { intelligence_hierarchy_is_not_a_user_product_catalog: true, report_products_are_user_controllable: true, report_activation_does_not_activate_provider_products: true, report_activation_does_not_create_evidence: true, catalog_metadata_is_not_evidence: true, limited_outputs_require_explicit_qualification: true, suppressed_outputs_are_not_normal_intelligence_claims: true, certified_report_publication_requires_exact_runtime_lineage: true, certified_report_publication_requires_verified_semantic_dependency_reads: true, certified_report_publication_requires_authoritative_evidence_key_mapping: true, report_evidence_mapping_is_run_bound: true, report_evidence_mapping_resolves_source_observations: true } };
 }
 
 export async function buildIrisPublicationContext(userId: string, atlasDefinitions: AtlasDefinitionInput[], executionContext: PublicationExecutionContext = {}) {
@@ -64,9 +69,19 @@ export async function buildIrisPublicationContext(userId: string, atlasDefinitio
       const lineage = runtimeLineage[dependency.report_id] ?? null;
       const capabilityIds = lineage?.capability_ids ?? [];
       const semanticConsumption = evaluateIrisReportSemanticConsumption({ dependency, capabilityIds, proofs });
-      const evidenceBoundary = buildUnmappedEvidenceBoundary(dependency.required_evidence_keys);
-      const certificationGate = evaluateIrisReportCertificationGate({ executionStatus: executionContext.executionStatus ?? "UNKNOWN", runtimeLineage: lineage, semanticConsumption, evidenceBoundary });
-      reportCertificationRuntime[dependency.report_id] = { report_id: dependency.report_id, semantic_consumption: semanticConsumption, evidence_boundary: evidenceBoundary, certification_gate: certificationGate };
+      const evidenceResolution = await resolveIrisReportEvidence({ userId, runId: executionContext.runId, executionId: executionContext.executionId, requiredKeys: dependency.required_evidence_keys });
+      const certificationGate = evaluateIrisReportCertificationGate({ executionStatus: executionContext.executionStatus ?? "UNKNOWN", runtimeLineage: lineage, semanticConsumption, evidenceBoundary: evidenceResolution.boundary });
+      reportCertificationRuntime[dependency.report_id] = {
+        report_id: dependency.report_id,
+        semantic_consumption: semanticConsumption,
+        evidence_boundary: evidenceResolution.boundary,
+        certification_gate: certificationGate,
+        evidence_ids: evidenceResolution.evidence_ids,
+        raw_observation_ids: evidenceResolution.raw_observation_ids,
+        source_field_ids: evidenceResolution.source_field_ids,
+        source_observations: evidenceResolution.source_observations,
+        evidence_limitation: evidenceResolution.limitation,
+      };
     }
   }
   return buildIrisPublicationRuntime(atlasDefinitions, activeReportIds, runtimeLineage, reportCertificationRuntime);
