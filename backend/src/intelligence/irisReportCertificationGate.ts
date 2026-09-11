@@ -21,7 +21,8 @@ export function evaluateIrisReportCertificationGate(input: {
   const lineageVerified = input.runtimeLineage?.resolution_state === "resolved";
   const semanticVerified = input.semanticConsumption?.state === "verified" && input.semanticConsumption.semantic_sufficiency_certified === false;
   const evidenceSatisfied = input.evidenceBoundary.state === "satisfied";
-  if (input.executionStatus !== "SUCCEEDED") reasons.push("execution_not_succeeded");
+  const executionSucceeded = input.executionStatus === "EXECUTED" || input.executionStatus === "CERTIFIED" || input.executionStatus === "SUCCEEDED";
+  if (!executionSucceeded) reasons.push("execution_not_succeeded");
   if (!lineageVerified) reasons.push("runtime_lineage_not_resolved");
   if (!semanticVerified) reasons.push("declared_semantic_dependency_reads_not_verified");
   if (!evidenceSatisfied) reasons.push("evidence_boundary_not_satisfied");
