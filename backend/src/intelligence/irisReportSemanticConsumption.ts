@@ -9,7 +9,8 @@ export type IrisReportSemanticConsumption = {
   proof_capability_ids: string[];
   missing_capability_proofs: string[];
   missing_dependency_reads: string[];
-  semantic_sufficiency_certified: false;
+  /** Structural runtime-read proof is not semantic sufficiency. This remains false until a stronger semantic contract is independently satisfied. */
+  semantic_sufficiency_certified: boolean;
   limitation: string | null;
 };
 
