@@ -3,8 +3,9 @@ import { dispatchGovernedCapability } from "./capabilityDispatcher.js";
 import type { CapabilityExecutionContext, CapabilityOperatorResult } from "./capabilityOperators.js";
 import { trackDependencyReads } from "./semanticDependencyTracker.js";
 import { buildSemanticDependencyProof } from "./semanticDependencyProof.js";
+import { persistSemanticDependencyProof } from "./semanticDependencyPersistence.js";
 
-export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v6" as const;
+export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v7" as const;
 export type ExecutionBudget = { maxNodes: number; maxEdges: number; maxCompositions: number };
 type CapabilityDispatcher = (request: { userId: string; capabilityId: string; context?: CapabilityExecutionContext }) => Promise<CapabilityOperatorResult>;
 export type RecursiveCapabilityExecutionResult = { executor_version: typeof RECURSIVE_CAPABILITY_EXECUTOR_VERSION; status: "COMPLETED" | "PARTIAL" | "BLOCKED" | "EXECUTION_BUDGET_EXCEEDED" | "FAILED"; ordered_capabilities: string[]; executed_capabilities: string[]; results: Record<string, CapabilityOperatorResult>; failed_capability: string | null; error: string | null; resource_usage: { nodes: number; edges: number; compositions: number }; dependency_consumption: Record<string, string[]> };
@@ -59,9 +60,11 @@ export async function executeRecursiveCapabilityPlan(userId: string, plan: Capab
 
       results[capabilityId] = operatorResult;
       executed.push(capabilityId);
-
       const proof = buildSemanticDependencyProof(capabilityId, consumed, dependencyResults, operatorResult);
-      if (context.persistSemanticDependencyProof && context.runId && context.executionId) await context.persistSemanticDependencyProof({ capabilityId, dependencyResults, consumedDependencyIds: consumed, result: operatorResult, proof });
+      if (context.runId && context.executionId) {
+        if (context.persistSemanticDependencyProof) await context.persistSemanticDependencyProof({ capabilityId, dependencyResults, consumedDependencyIds: consumed, result: operatorResult, proof });
+        else await persistSemanticDependencyProof({ userId, runId: context.runId, executionId: context.executionId, capabilityId, dependencyResults, consumedDependencyIds: consumed, result: operatorResult, proof });
+      }
 
       if (context.persistGraphNode && context.runId && context.executionId) {
         const graphNode = await context.persistGraphNode({ capabilityId, result: operatorResult, dependencyResults, dependencyNodeIds });
