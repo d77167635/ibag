@@ -39,5 +39,6 @@ export default function App() {
           : irisPage === "iris"
             ? <IrisConsumerHome go={navigate} />
             : <IrisCommandSurface page={irisPage} go={navigate} />;
+  if (irisPage === "iris/connect") return <>{content}{account}</>;
   return <IrisExperienceShell page={irisPage} go={navigate}><div className="app-workspace app-workspace-iris">{content}{account}</div></IrisExperienceShell>;
 }
