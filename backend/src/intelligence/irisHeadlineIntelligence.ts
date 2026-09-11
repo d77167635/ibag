@@ -1,4 +1,5 @@
 import type { IrisIntelligenceOutput } from "./irisIntelligenceOutputRuntime.js";
+import type { IrisReportRuntimeLineage } from "./irisReportRuntimeLineage.js";
 
 export type IrisHeadlineIntelligence = {
   headline_intelligence_node_id: string | null;
@@ -6,34 +7,23 @@ export type IrisHeadlineIntelligence = {
 };
 
 /**
- * Conservative headline binding for the current report-product runtime.
- *
- * The runtime currently exposes one analytical intelligence definition per
- * report output. Therefore IRIS binds that exact analysis node as the headline
- * rather than inventing a more compelling finding. A future multi-node report
- * may replace this with a governed ranking over its verified supporting nodes.
+ * Conservative headline binding. A report headline must reference an actual
+ * persisted runtime intelligence node; an analytical definition ID is never
+ * promoted into a node ID.
  */
 export function selectHeadlineIntelligence(
   output: Pick<IrisIntelligenceOutput, "analysis_id" | "analysis_name" | "state" | "evidence_coverage" | "evidence_publication_state">,
+  runtimeLineage: IrisReportRuntimeLineage | null = null,
 ): IrisHeadlineIntelligence {
   if (output.state === "suppressed" || output.evidence_publication_state === "insufficient_evidence" || output.evidence_publication_state === "unknown") {
-    return {
-      headline_intelligence_node_id: null,
-      headline_reason: null,
-    };
+    return { headline_intelligence_node_id: null, headline_reason: null };
   }
-
-  if (!output.analysis_id || !output.analysis_name.trim()) {
-    return {
-      headline_intelligence_node_id: null,
-      headline_reason: null,
-    };
-  }
-
+  const nodeId = runtimeLineage?.intelligence_node_ids[0] ?? null;
+  if (!nodeId) return { headline_intelligence_node_id: null, headline_reason: null };
   return {
-    headline_intelligence_node_id: output.analysis_id,
+    headline_intelligence_node_id: nodeId,
     headline_reason: output.state === "limited"
-      ? "Primary supported analytical intelligence for this report; publication remains explicitly evidence-limited."
-      : "Primary supported analytical intelligence for this report; no competing report-level intelligence node was supplied to the publication runtime.",
+      ? "Primary resolved runtime intelligence node for this report; publication remains explicitly evidence-limited."
+      : "Primary resolved runtime intelligence node for this report; no competing report-level intelligence node was supplied to the publication runtime.",
   };
 }
