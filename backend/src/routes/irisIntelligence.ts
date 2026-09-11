@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
-import { executeIrisRun } from "../intelligence/irisExecution.js";
+import { supabaseAdmin } from "../config/supabase.js";
 import { buildIrisPublicationContext } from "../intelligence/irisPublicationContext.js";
 import { getFeatureFlags } from "../services/features.js";
 
@@ -8,22 +8,50 @@ export const irisIntelligenceRouter = Router();
 
 /**
  * Canonical Iris intelligence read path.
- * The UI never dispatches the raw intelligence orchestrator directly. Every
- * request enters the governed IrisRun lifecycle so report publication can be
- * bound to the exact executed run, graph nodes, and run-bound evidence lineage.
+ * Reads the latest persisted governed run; it never silently starts a new
+ * intelligence execution. Execution belongs to POST /iris/runs so a user
+ * action or explicit caller controls when a new evidence boundary is created.
  */
 irisIntelligenceRouter.get("/iris/intelligence", requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const result = await executeIrisRun({ userId: req.userId!, requestId: typeof req.header("x-iris-request-id") === "string" ? req.header("x-iris-request-id")! : undefined, surface: "iris", mode: "full_intelligence" });
-    if (!result.result) return res.status(result.status === "VALIDATION_FAILED" ? 422 : 503).json({ error: "Iris intelligence is not currently available from a completed governed run", run_id: result.id, status: result.status, certification_gate: result.certification_gate ?? null });
-    const full = result.result as any;
+    const { data: run, error: runError } = await supabaseAdmin
+      .from("iris_runs")
+      .select("id,status,execution_id,certification_hash,created_at,completed_at,failure_code,failure_message")
+      .eq("user_id", req.userId!)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (runError) throw runError;
+    if (!run) return res.status(503).json({ error: "Iris has not executed a governed intelligence run yet", certified: false, run_id: null, status: "NOT_RUN" });
+
+    const { data: execution } = await supabaseAdmin
+      .from("iris_execution_records")
+      .select("id")
+      .eq("run_id", run.id)
+      .eq("user_id", req.userId!)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!execution) return res.status(503).json({ error: "The latest Iris run has no execution record", certified: false, run_id: run.id, status: run.status });
+
+    const { data: output, error: outputError } = await supabaseAdmin
+      .from("iris_execution_outputs")
+      .select("value,hash,evidence_state")
+      .eq("execution_id", execution.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (outputError) throw outputError;
+    if (!output?.value) return res.status(503).json({ error: "The latest Iris run has no persisted intelligence output", certified: false, run_id: run.id, execution_id: execution.id, status: run.status, failure_code: run.failure_code ?? null, failure_message: run.failure_message ?? null });
+
+    const full = output.value as any;
     const metrics = full.layer_metrics ?? {};
     const atlasDefinitions = full.intelligence_atlas?.definitions ?? [];
-    const publication = await buildIrisPublicationContext(req.userId!, atlasDefinitions, { runId: result.id, executionId: result.execution_id, executionStatus: result.status });
+    const publication = await buildIrisPublicationContext(req.userId!, atlasDefinitions, { runId: run.id, executionId: execution.id, executionStatus: run.status });
     const featureFlags = await getFeatureFlags(req.userId!);
-    return res.json({ ...full, run_id: result.id, execution_id: result.execution_id, run_status: result.status, certified: result.certified, certification_gate: result.certification_gate ?? null, narrative: full.narrative, generated_at: full.generated_at, net_worth: metrics.net_worth, debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost }, cash_flow_safety: metrics.cash_flow_safety, roundup_projection: metrics.roundup_projection, cash_flow: metrics.cash_flow, spending_by_domain: metrics.spending_by_domain, balance_history: metrics.balance_history, forward_projection: metrics.forward_projection, anomalies: metrics.anomalies, spending_hierarchy: metrics.spending_hierarchy, category_drift: full.layer_behavioral?.categoryDrift, reasoning: full.layer_reasoning, maximum_intelligence: full.layer_max_intelligence, feature_flags: featureFlags, selected_report_ids: publication.selected_report_ids, report_catalog: publication.report_catalog, feature_runtime: publication.feature_runtime, intelligence_output_runtime: publication.intelligence_output_runtime, report_certification_runtime: publication.report_certification_runtime, publication_boundary: publication.publication_boundary });
+    return res.json({ ...full, run_id: run.id, execution_id: execution.id, run_status: run.status, certified: run.status === "CERTIFIED", certification_hash: run.certification_hash ?? null, failure_code: run.failure_code ?? null, failure_message: run.failure_message ?? null, output_hash: output.hash, output_evidence_state: output.evidence_state, net_worth: metrics.net_worth, debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost }, cash_flow_safety: metrics.cash_flow_safety, roundup_projection: metrics.roundup_projection, cash_flow: metrics.cash_flow, spending_by_domain: metrics.spending_by_domain, balance_history: metrics.balance_history, forward_projection: metrics.forward_projection, anomalies: metrics.anomalies, spending_hierarchy: metrics.spending_hierarchy, category_drift: full.layer_behavioral?.categoryDrift, reasoning: full.layer_reasoning, maximum_intelligence: full.layer_max_intelligence, feature_flags: featureFlags, selected_report_ids: publication.selected_report_ids, report_catalog: publication.report_catalog, feature_runtime: publication.feature_runtime, intelligence_output_runtime: publication.intelligence_output_runtime, report_certification_runtime: publication.report_certification_runtime, publication_boundary: publication.publication_boundary });
   } catch (err) {
     console.error("iris/intelligence error:", err);
-    return res.status(500).json({ error: "Iris intelligence is temporarily unavailable" });
+    return res.status(500).json({ error: "Iris intelligence could not be read" });
   }
 });
