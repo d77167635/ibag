@@ -72,7 +72,7 @@ export async function evaluateCertificationGate({ runId, executionId, userId, in
   const executed = Array.isArray(graph?.executed_capabilities) ? graph.executed_capabilities.filter((id: unknown): id is string => typeof id === "string") : [];
   const ordered = Array.isArray(graph?.ordered_capabilities) ? graph.ordered_capabilities.filter((id: unknown): id is string => typeof id === "string") : [];
   const results = graph?.results && typeof graph.results === "object" && !Array.isArray(graph.results) ? graph.results : null;
-  const graphComplete = graph?.architecture_version === "IRIS_RECURSIVE_CAPABILITY_GRAPH_V1" && graph?.execution_status === "COMPLETED" && ordered.length > 0 && executed.length === ordered.length && !!results;
+  const graphComplete = graph?.architecture_version === "IRIS_RECURSIVE_CAPABILITY_GRAPH_V2" && graph?.execution_status === "COMPLETED" && ordered.length > 0 && executed.length === ordered.length && !!results;
   check("iris.output.recursive_graph", !!output && output.evidence_state !== "OBSERVED" && graphComplete, "The persisted output is a completed recursive capability graph and is not misclassified as provider observation.", "The persisted output is missing, observed-state, incomplete, or not the governed recursive graph.");
 
   const missingResults = ordered.filter((id: string) => !results?.[id]);
