@@ -71,7 +71,7 @@ export function IrisExperienceShell({ page, go, children }: Props) {
             <button type="button" onClick={() => go("iris/evidence")}>Evidence</button>
             <button type="button" onClick={() => go("iris/reasoning")}>Ask / Understand</button>
             <button type="button" onClick={() => go("iris/action")}>Action boundary</button>
-            <button className="ies-connect" type="button" onClick={() => go("iris")}>Connect evidence</button>
+            <button className="ies-connect" type="button" onClick={() => go("iris/connect")}>Connect evidence</button>
           </div>
         </header>
 
