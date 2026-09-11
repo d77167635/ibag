@@ -79,7 +79,7 @@ export async function executeRecursiveCapabilityPlan(
       executed.push(capabilityId);
 
       if (context.persistGraphNode && context.runId && context.executionId) {
-        const graphNode = await context.persistGraphNode({ capabilityId, result: operatorResult, dependencyResults });
+        const graphNode = await context.persistGraphNode({ capabilityId, result: operatorResult, dependencyResults, dependencyNodeIds });
         if (!graphNode?.id) return finish(plan, "FAILED", executed, results, capabilityId, `INTELLIGENCE_GRAPH_NODE_ID_MISSING: ${capabilityId}.`, executed.length, edges, compositions);
         graphNodeIds[capabilityId] = graphNode.id;
       }
