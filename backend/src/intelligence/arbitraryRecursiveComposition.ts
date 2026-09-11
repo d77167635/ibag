@@ -23,8 +23,9 @@ function deriveEvidenceState(states: string[]): EvidenceState {
 /**
  * Turns recursively discovered higher-order findings into durable graph nodes
  * without requiring a capability-registry entry for each new composition.
- * Only findings whose complete upstream path resolves to actual persisted graph
- * node UUIDs are materialized.
+ * Only findings whose complete upstream path resolves to exactly one persisted
+ * graph node for the same execution are materialized. Ambiguous lineage is
+ * skipped rather than guessing which node was the intended upstream result.
  */
 export async function materializeArbitraryRecursiveCompositions(input: {
   userId: string;
@@ -46,12 +47,20 @@ export async function materializeArbitraryRecursiveCompositions(input: {
     .select("id,capability_id,node_hash")
     .eq("user_id", input.userId)
     .eq("run_id", input.runId)
+    .eq("execution_id", input.executionId)
     .in("capability_id", capabilityIds);
   if (error) throw new Error(`ARBITRARY_RECURSIVE_GRAPH_LOOKUP_FAILED: ${error.message}`);
 
   const nodesByCapability = new Map<string, GraphNodeRow>();
+  const ambiguousCapabilities = new Set<string>();
   for (const row of (rows ?? []) as GraphNodeRow[]) {
-    if (row.capability_id && !nodesByCapability.has(row.capability_id)) nodesByCapability.set(row.capability_id, row);
+    if (!row.capability_id) continue;
+    if (nodesByCapability.has(row.capability_id)) {
+      ambiguousCapabilities.add(row.capability_id);
+      nodesByCapability.delete(row.capability_id);
+      continue;
+    }
+    nodesByCapability.set(row.capability_id, row);
   }
 
   const materializedNodeIds: string[] = [];
@@ -60,7 +69,8 @@ export async function materializeArbitraryRecursiveCompositions(input: {
   for (const finding of findings) {
     const upstream = finding.capabilities.map((capabilityId) => {
       const node = nodesByCapability.get(capabilityId);
-      return node ? { nodeId: node.id, role: capabilityId, sourceFieldPath: null } : null;
+      if (!node || ambiguousCapabilities.has(capabilityId)) return null;
+      return { nodeId: node.id, role: capabilityId, sourceFieldPath: null };
     });
 
     if (upstream.some((reference) => reference === null)) {
