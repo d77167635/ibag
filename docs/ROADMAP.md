@@ -99,14 +99,16 @@ The catalog itself is unbounded in principle. Named report products are stable i
 
 ### Implemented but not certified
 
-- [x] Frontend report-catalog API contract typed.
+- [x] Frontend report-catalog API contract typed, including catalog version, activation state, product/provider boundaries, and catalog counts.
 - [x] Frontend report catalog loads live catalog/activation state through the governed API boundary.
 - [x] Catalog search and family filtering implemented.
 - [x] Report activation/deactivation UI connected to the existing catalog selection API.
 - [x] Report product detail/exploration surface implemented from the live catalog definition.
+- [x] Catalog UI surfaces backend-governed product/provider boundary metadata.
 - [x] Consumer home consumes the canonical governed intelligence endpoint.
 - [x] Consumer publication is gated by the governed certification flag.
 - [x] Headline-intelligence binding is represented in the consumer report contract/runtime boundary.
+- [x] Canonical intelligence and summary API requests maintain independent in-flight state; they cannot accidentally share one promise solely because both are typed as the consumer response.
 
 ### Not yet certified
 
