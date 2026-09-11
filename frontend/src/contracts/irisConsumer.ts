@@ -10,6 +10,7 @@ export interface ConsumerReportRuntimeLineage {
   capability_ids: string[];
   intelligence_node_ids: string[];
   upstream_intelligence_node_ids: string[];
+  transformation_edge_ids: string[];
   run_evidence_ids: string[];
   evidence_lineage_present: boolean;
   run_id: string;
@@ -33,9 +34,9 @@ export interface IrisConsumerIntelligenceResponse {
 }
 
 export interface IrisReverseLineageResponse {
-  resolution_state: "resolved" | "unresolved";
+  resolution_state: "resolved" | "partially_resolved" | "unresolved";
   evidence_id: string; run_id: string; execution_id: string;
-  intelligence_node_ids: string[]; capability_ids: string[]; report_ids: string[];
+  intelligence_node_ids: string[]; capability_ids: string[]; transformation_edge_ids: string[]; report_ids: string[];
   limitation: string | null;
   traversal: "evidence -> intelligence -> report";
   catalog_metadata_is_not_evidence: true;
