@@ -37,7 +37,7 @@ test("report certification remains blocked when the exact evidence-key boundary 
   const gate = evaluateIrisReportCertificationGate({ executionStatus: "EXECUTED", runtimeLineage: lineage, semanticConsumption: semantic, evidenceBoundary: boundary });
   assert.equal(boundary.state, "insufficient");
   assert.equal(gate.certified, false);
-  assert.deepEqual(gate.reasons, ["evidence_boundary_not_satisfied"]);
+  assert.deepEqual(gate.reasons, ["semantic_sufficiency_not_certified", "evidence_boundary_not_satisfied"]);
 });
 
 test("report certification requires every conjunctive condition", () => {
@@ -45,12 +45,15 @@ test("report certification requires every conjunctive condition", () => {
   const blockedExecution = evaluateIrisReportCertificationGate({ executionStatus: "FAILED", runtimeLineage: lineage, semanticConsumption: semantic, evidenceBoundary: boundary });
   assert.equal(blockedExecution.certified, false);
   assert.ok(blockedExecution.reasons.includes("execution_not_succeeded"));
+  assert.ok(blockedExecution.reasons.includes("semantic_sufficiency_not_certified"));
 
   const blockedLineage = evaluateIrisReportCertificationGate({ executionStatus: "EXECUTED", runtimeLineage: { ...lineage, resolution_state: "partially_resolved" }, semanticConsumption: semantic, evidenceBoundary: boundary });
   assert.equal(blockedLineage.certified, false);
   assert.ok(blockedLineage.reasons.includes("runtime_lineage_not_resolved"));
+  assert.ok(blockedLineage.reasons.includes("semantic_sufficiency_not_certified"));
 
   const blockedSemantic = evaluateIrisReportCertificationGate({ executionStatus: "EXECUTED", runtimeLineage: lineage, semanticConsumption: { ...semantic, state: "partial" }, evidenceBoundary: boundary });
   assert.equal(blockedSemantic.certified, false);
   assert.ok(blockedSemantic.reasons.includes("declared_semantic_dependency_reads_not_verified"));
+  assert.ok(blockedSemantic.reasons.includes("semantic_sufficiency_not_certified"));
 });
