@@ -13,12 +13,12 @@ test("insufficient feature evidence suppresses an active report", () => {
   assert.equal(output.publishable.length, 0);
 });
 
-test("ready evidence publishes an active mapped report product", () => {
+test("complete feature evidence still requires exact runtime lineage before ready publication", () => {
   const runtime = buildIrisFeatureRuntime({ evidenceCoverage: { "feature.financial-state": 1 } });
   const output = buildIrisIntelligenceOutputRuntime(atlas, runtime, [reportId]);
-  assert.equal(output.ready_outputs.length, 1);
-  assert.equal(output.ready_outputs[0]?.analysis_id, "state.financial-state");
-  assert.equal(output.ready_outputs[0]?.report_id, reportId);
+  assert.equal(output.ready_outputs.length, 0);
+  assert.equal(output.publishable.length, 0);
+  assert.ok(output.suppressed_outputs[0]?.blockers.includes("runtime_intelligence_lineage_unresolved"));
 });
 
 test("limited evidence remains explicitly qualified", () => {
