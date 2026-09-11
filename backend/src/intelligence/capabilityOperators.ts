@@ -6,6 +6,7 @@ import { executeRisk, executeOpportunity, executeConsequence } from "./riskOppor
 import { buildRecursiveIntelligenceSynthesis } from "./recursiveIntelligenceSynthesis.js";
 import { buildCanonicalLifeState } from "./canonicalLifeState.js";
 import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.js";
+import type { SemanticDependencyProof } from "./semanticDependencyProof.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
 export type GovernedCapabilityResult = { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } }; uncertainty?: unknown; [key: string]: unknown };
@@ -20,6 +21,7 @@ export type CapabilityExecutionContext = {
   scenarioAssumptions?: Array<{ reductionPct: number }>;
   persistLineage?: (input: { capabilityId: string; result: CapabilityOperatorResult; dependencyResults: Record<string, CapabilityOperatorResult> }) => Promise<void>;
   persistGraphNode?: (input: { capabilityId: string; result: CapabilityOperatorResult; dependencyResults: Record<string, CapabilityOperatorResult>; dependencyNodeIds: Record<string, string> }) => Promise<{ id: string }>;
+  persistSemanticDependencyProof?: (input: { capabilityId: string; dependencyResults: Record<string, CapabilityOperatorResult>; consumedDependencyIds: string[]; result: CapabilityOperatorResult; proof: SemanticDependencyProof }) => Promise<void>;
 };
 export type CapabilityOperatorResult = { capability_id: string; operator_id: string; operator_version: string; evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE"; result: GovernedCapabilityResult };
 export type CapabilityOperator = { capability_id: string; operator_id: string; version: string; status: CapabilityOperatorStatus; execution_stage: string; evidence_state: CapabilityOperatorResult["evidence_state"]; execute?: (userId: string, context?: CapabilityExecutionContext) => Promise<CapabilityOperatorResult> };
