@@ -2,7 +2,7 @@ import type { CapabilityPlan } from "./capabilityPlanner.js";
 import { dispatchGovernedCapability } from "./capabilityDispatcher.js";
 import type { CapabilityExecutionContext, CapabilityOperatorResult } from "./capabilityOperators.js";
 
-export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v3" as const;
+export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v4" as const;
 
 export type ExecutionBudget = { maxNodes: number; maxEdges: number; maxCompositions: number };
 
@@ -25,7 +25,7 @@ function finish(plan: CapabilityPlan, status: RecursiveCapabilityExecutionResult
   return { executor_version: RECURSIVE_CAPABILITY_EXECUTOR_VERSION, status, ordered_capabilities: [...plan.ordered_capabilities], executed_capabilities, results, failed_capability, error, resource_usage: { nodes, edges, compositions } };
 }
 
-/** Execute the governed dependency graph with execution budgets, never a semantic depth ceiling. Every dispatched node may persist its actual dependency lineage. */
+/** Execute the governed dependency graph with execution budgets, never a semantic depth ceiling. Every dispatched node may persist actual dependency lineage and its produced graph node. */
 export async function executeRecursiveCapabilityPlan(
   userId: string,
   plan: CapabilityPlan,
@@ -46,6 +46,7 @@ export async function executeRecursiveCapabilityPlan(
 
   const contractById = new Map(plan.contracts.map((contract) => [contract.capability_id, contract]));
   const results: Record<string, CapabilityOperatorResult> = {};
+  const graphNodeIds: Record<string, string> = {};
   const executed: string[] = [];
   let edges = 0;
   let compositions = 0;
@@ -61,11 +62,14 @@ export async function executeRecursiveCapabilityPlan(
     if (edges > budget.maxEdges || compositions > budget.maxCompositions) return finish(plan, "EXECUTION_BUDGET_EXCEEDED", executed, results, null, "Execution budget exhausted while traversing the governed dependency graph.", executed.length, edges, compositions);
 
     const dependencyResults: Record<string, CapabilityOperatorResult> = {};
+    const dependencyNodeIds: Record<string, string> = {};
     for (const dependency of dependencies) {
       if (!unique.has(dependency)) return finish(plan, "FAILED", executed, results, capabilityId, `DEPENDENCY_NOT_IN_PLAN: ${capabilityId} requires ${dependency}.`, executed.length, edges, compositions);
       const dependencyResult = results[dependency];
       if (!dependencyResult) return finish(plan, "FAILED", executed, results, capabilityId, `DEPENDENCY_RESULT_MISSING: ${capabilityId} requires ${dependency}.`, executed.length, edges, compositions);
       dependencyResults[dependency] = dependencyResult;
+      const dependencyNodeId = graphNodeIds[dependency];
+      if (dependencyNodeId) dependencyNodeIds[dependency] = dependencyNodeId;
     }
 
     try {
@@ -73,6 +77,13 @@ export async function executeRecursiveCapabilityPlan(
       if (!operatorResult || operatorResult.capability_id !== capabilityId) return finish(plan, "FAILED", executed, results, capabilityId, `INVALID_OPERATOR_RESULT: ${capabilityId}.`, executed.length, edges, compositions);
       results[capabilityId] = operatorResult;
       executed.push(capabilityId);
+
+      if (context.persistGraphNode && context.runId && context.executionId) {
+        const graphNode = await context.persistGraphNode({ capabilityId, result: operatorResult, dependencyResults });
+        if (!graphNode?.id) return finish(plan, "FAILED", executed, results, capabilityId, `INTELLIGENCE_GRAPH_NODE_ID_MISSING: ${capabilityId}.`, executed.length, edges, compositions);
+        graphNodeIds[capabilityId] = graphNode.id;
+      }
+
       if (context.persistLineage && context.runId && context.executionId) {
         await context.persistLineage({ capabilityId, result: operatorResult, dependencyResults });
       }
