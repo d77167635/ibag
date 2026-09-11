@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { executeIrisRun } from "../intelligence/irisExecution.js";
 import { buildIrisPublicationContext } from "../intelligence/irisPublicationContext.js";
+import { getFeatureFlags } from "../services/features.js";
 
 export const irisIntelligenceRouter = Router();
 
@@ -19,7 +20,8 @@ irisIntelligenceRouter.get("/iris/intelligence", requireAuth, async (req: Authed
     const metrics = full.layer_metrics ?? {};
     const atlasDefinitions = full.intelligence_atlas?.definitions ?? [];
     const publication = await buildIrisPublicationContext(req.userId!, atlasDefinitions, { runId: result.id, executionId: result.execution_id, executionStatus: result.status });
-    return res.json({ ...full, run_id: result.id, execution_id: result.execution_id, run_status: result.status, certified: result.certified, certification_gate: result.certification_gate ?? null, narrative: full.narrative, generated_at: full.generated_at, net_worth: metrics.net_worth, debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost }, cash_flow_safety: metrics.cash_flow_safety, roundup_projection: metrics.roundup_projection, cash_flow: metrics.cash_flow, spending_by_domain: metrics.spending_by_domain, balance_history: metrics.balance_history, forward_projection: metrics.forward_projection, anomalies: metrics.anomalies, spending_hierarchy: metrics.spending_hierarchy, category_drift: full.layer_behavioral?.categoryDrift, reasoning: full.layer_reasoning, maximum_intelligence: full.layer_max_intelligence, selected_report_ids: publication.selected_report_ids, report_catalog: publication.report_catalog, feature_runtime: publication.feature_runtime, intelligence_output_runtime: publication.intelligence_output_runtime, report_certification_runtime: publication.report_certification_runtime, publication_boundary: publication.publication_boundary });
+    const featureFlags = await getFeatureFlags(req.userId!);
+    return res.json({ ...full, run_id: result.id, execution_id: result.execution_id, run_status: result.status, certified: result.certified, certification_gate: result.certification_gate ?? null, narrative: full.narrative, generated_at: full.generated_at, net_worth: metrics.net_worth, debt_health: { ...metrics.debt_health, interest_cost_attribution: full.layer_debt_cost }, cash_flow_safety: metrics.cash_flow_safety, roundup_projection: metrics.roundup_projection, cash_flow: metrics.cash_flow, spending_by_domain: metrics.spending_by_domain, balance_history: metrics.balance_history, forward_projection: metrics.forward_projection, anomalies: metrics.anomalies, spending_hierarchy: metrics.spending_hierarchy, category_drift: full.layer_behavioral?.categoryDrift, reasoning: full.layer_reasoning, maximum_intelligence: full.layer_max_intelligence, feature_flags: featureFlags, selected_report_ids: publication.selected_report_ids, report_catalog: publication.report_catalog, feature_runtime: publication.feature_runtime, intelligence_output_runtime: publication.intelligence_output_runtime, report_certification_runtime: publication.report_certification_runtime, publication_boundary: publication.publication_boundary });
   } catch (err) {
     console.error("iris/intelligence error:", err);
     return res.status(500).json({ error: "Iris intelligence is temporarily unavailable" });
