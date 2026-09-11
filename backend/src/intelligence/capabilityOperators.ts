@@ -8,7 +8,7 @@ import { buildCanonicalLifeState } from "./canonicalLifeState.js";
 import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.js";
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
-export type GovernedCapabilityResult = { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } }; uncertainty?: unknown; evidence_boundary?: string | null; [key: string]: unknown };
+export type GovernedCapabilityResult = { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } }; uncertainty?: unknown; [key: string]: unknown };
 export type CapabilityExecutionContext = {
   asOf?: string | null;
   evidenceBoundary?: string | null;
@@ -19,6 +19,7 @@ export type CapabilityExecutionContext = {
   dependencyResults?: Record<string, CapabilityOperatorResult>;
   scenarioAssumptions?: Array<{ reductionPct: number }>;
   persistLineage?: (input: { capabilityId: string; result: CapabilityOperatorResult; dependencyResults: Record<string, CapabilityOperatorResult> }) => Promise<void>;
+  persistGraphNode?: (input: { capabilityId: string; result: CapabilityOperatorResult; dependencyResults: Record<string, CapabilityOperatorResult> }) => Promise<{ id: string }>;
 };
 export type CapabilityOperatorResult = { capability_id: string; operator_id: string; operator_version: string; evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE"; result: GovernedCapabilityResult };
 export type CapabilityOperator = { capability_id: string; operator_id: string; version: string; status: CapabilityOperatorStatus; execution_stage: string; evidence_state: CapabilityOperatorResult["evidence_state"]; execute?: (userId: string, context?: CapabilityExecutionContext) => Promise<CapabilityOperatorResult> };
@@ -56,7 +57,7 @@ const emergentOperator: CapabilityOperator = {
     const lifeState = lifeStateDependency ?? buildCanonicalLifeState(transactions, boundary);
     const relationalOntology = Array.isArray(ontologyDependency?.relationships) ? ontologyDependency.relationships : buildRelationalOntologyExpansion(transactions);
     const state = synthesis.dependency_count > 0 || lifeState.transaction_count > 0 ? "INFERRED" : "INSUFFICIENT_EVIDENCE";
-    return { capability_id: "emergent", operator_id: "emergent", operator_version: "1.1.0", evidence_state: state, result: { ...synthesis, canonical_life_state: lifeState, relational_ontology: { architecture_version: "IRIS_RELATIONAL_ONTOLOGY_EXPANSION_V2", relation_count: relationalOntology.length, relationships: relationalOntology, evidence_state: transactions.length ? "calculated" : "insufficient_evidence", limitation: transactions.length ? "Relationships are calculated from shared canonical observations; they do not establish causation, intent, necessity, or future behavior." : "No canonical transaction evidence is available to construct relational observations." }, evidence: { state: state === "INFERRED" ? "inferred" : "insufficient_evidence", source: "certified_capability_outputs_and_canonical_financial_transactions", dependency_count: synthesis.dependency_count, transaction_count: transactions.length }, provenance: { source: "certified_capability_outputs_and_canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(), evidence_boundary: boundary } } };
+    return { capability_id: "emergent", operator_id: "emergent", operator_version: "1.1.0", evidence_state: state, result: { ...synthesis, canonical_life_state: lifeState, relational_ontology: { architecture_version: "IRIS_RELATIONAL_ONTOLOGY_EXPANSION_V2", relation_count: relationalOntology.length, relationships: relationalOntology, evidence_state: transactions.length ? "calculated" : "insufficient_evidence", limitation: transactions.length ? "Relationships are calculated from shared canonical observations; they do not establish causation, intent, necessity, or future behavior." : "No canonical transaction evidence is available to construct relational observations." }, evidence: { state: state === "INFERRED" ? "inferred" : "insufficient_evidence", source: "certified_capability_outputs_and_canonical_financial_transactions", dependency_count: synthesis.dependency_count, transaction_count: transactions.length }, provenance: { source: "certified_capability_outputs_and_canonical_financial_transactions", provider_observations_created: false, financial_values_created: false, money_movement_executed: false, run_id: context?.runId ?? null, evidence_manifest_hash: context?.evidenceManifestHash ?? null, run_evidence_ids: [...(context?.runEvidenceIds ?? [])].sort(), evidence_boundary: boundary, composition_depth: synthesis.composition_depth } } };
   },
 };
 
