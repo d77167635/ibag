@@ -9,28 +9,40 @@ export type SemanticDependencyProof = {
   proof_version: string;
 };
 
-const PROOF_VERSION = "1.0.0";
+export const SEMANTIC_DEPENDENCY_PROOF_VERSION = "1.1.0" as const;
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, child]) => [key, canonicalize(child)]),
+    );
+  }
+  return value;
+}
 
 export function hashIntelligenceResult(result: CapabilityOperatorResult): string {
-  return createHash("sha256").update(JSON.stringify(result.result)).digest("hex");
+  return createHash("sha256").update(JSON.stringify(canonicalize(result.result))).digest("hex");
 }
 
 export function buildSemanticDependencyProof(
   capabilityId: string,
-  declaredDependencyIds: string[],
+  consumedDependencyIds: string[],
   dependencyResults: Record<string, CapabilityOperatorResult>,
   output: CapabilityOperatorResult,
 ): SemanticDependencyProof {
-  const consumed = declaredDependencyIds.filter((id) => dependencyResults[id] !== undefined);
+  const consumed = [...new Set(consumedDependencyIds)].filter((id) => dependencyResults[id] !== undefined).sort();
   const consumedHashes = Object.fromEntries(
-    consumed.sort().map((id) => [id, hashIntelligenceResult(dependencyResults[id])]),
+    consumed.map((id) => [id, hashIntelligenceResult(dependencyResults[id])]),
   );
   return {
     capability_id: capabilityId,
     consumed_dependency_ids: consumed,
     consumed_dependency_hashes: consumedHashes,
     output_hash: hashIntelligenceResult(output),
-    proof_version: PROOF_VERSION,
+    proof_version: SEMANTIC_DEPENDENCY_PROOF_VERSION,
   };
 }
 
@@ -39,10 +51,11 @@ export function verifySemanticDependencyProof(
   dependencyResults: Record<string, CapabilityOperatorResult>,
   output: CapabilityOperatorResult,
 ): boolean {
-  if (proof.proof_version !== PROOF_VERSION) return false;
+  if (proof.proof_version !== SEMANTIC_DEPENDENCY_PROOF_VERSION) return false;
   if (proof.output_hash !== hashIntelligenceResult(output)) return false;
-  const ids = [...proof.consumed_dependency_ids].sort();
-  if (ids.length !== Object.keys(proof.consumed_dependency_hashes).length) return false;
+  const ids = [...new Set(proof.consumed_dependency_ids)].sort();
+  const hashIds = Object.keys(proof.consumed_dependency_hashes).sort();
+  if (ids.length !== hashIds.length || ids.some((id, index) => id !== hashIds[index])) return false;
   return ids.every((id) => {
     const dependency = dependencyResults[id];
     return dependency !== undefined && proof.consumed_dependency_hashes[id] === hashIntelligenceResult(dependency);
