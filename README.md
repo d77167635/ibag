@@ -6,6 +6,45 @@ Iris is not a Plaid dashboard, a finite list of intelligence levels, or a featur
 
 **The user products are the reports and analytics that Iris produces from that hierarchy.**
 
+## Two connected experiences — one IRIS
+
+IRIS has two intentionally distinct user-facing experiences over the same underlying governed system. They must never be confused or treated as separate products.
+
+### Priority 1 — Financial Life / Results / User Journey
+
+This is the primary consumer experience. It is where a person encounters their observed financial reality and the results Iris can validly derive from it. It includes the financial-life journey, evidence, user-specific intelligence results, reports and analytics, explanations, comparisons, scenarios, decisions, outcomes, controls, and the large report/product inventory Iris can offer.
+
+The journey is the primary product surface. Iris should be continuously present throughout it as a ready, contextual helper: available on every Financial Life / Results page to explain what the person is seeing, help them navigate, explain reports, clarify evidence, and help them understand supported results. The assistant must remain grounded in the actual governed user evidence and must never manufacture a financial fact.
+
+### Priority 2 — IRIS Intelligence / Education
+
+This is a read-only educational experience for learning how Iris thinks. It contains **no user financial data and no user-specific financial results**. It explains the intelligence hierarchy, graph structure, evidence states, lineage, recursive composition, uncertainty, causal/predictive/scenario boundaries, and other intelligence concepts.
+
+Iris should also be continuously present throughout the Intelligence experience as a ready educational guide. In this mode the assistant must not load, query, display, or infer user financial data. It explains the intelligence model itself.
+
+The two experiences remain connected through one architecture:
+
+```text
+provider evidence
+      ↓
+governed evidence boundary
+      ↓
+canonical financial state
+      ↓
+IRIS intelligence graph
+      ↓
+user-specific intelligence results
+      ↓
+Financial Life / Results / Reports
+
+                 ↕
+
+IRIS Intelligence / Education
+explains the same reasoning machinery without user data
+```
+
+The separation is a **surface/data-boundary distinction**, not an architectural split. The intelligence hierarchy remains the shared reasoning machinery behind the primary Financial Life / Results experience.
+
 ## Product model
 
 ```text
@@ -54,6 +93,8 @@ Level 3 and beyond are **not a predefined list**. Intelligence branches accordin
 There is no final level. Semantic depth is unbounded. Runtime resource/materialization budgets are permitted, but a computational budget is never a semantic hierarchy ceiling.
 
 A conceptual progression may include observed evidence → canonical state → interpretation/classification → temporal/statistical/relational/behavioral intelligence → patterns/baselines/anomalies → causal reasoning where supported → prediction → scenarios/counterfactuals → risk/opportunity → decisions/recommendations → consequences → outcomes → learning → cross-domain synthesis → higher-order intelligence → newly derived intelligence → further recursive reasoning. This is an example of compositional flow, not a finite level list.
+
+The current Sandbox/runtime evidence boundary is **seven executable domains**: Authentication, Transactions, Balance, Identity, Assets, Liabilities, and Investments. **Statements remains architecturally defined but deferred until real banking**; it must not be simulated or presented as current Sandbox evidence.
 
 ## Product model versus intelligence hierarchy
 
@@ -140,6 +181,17 @@ For an intelligence result to become a factual or user-specific claim, Iris must
 
 This distinction is critical to recursive intelligence. Recording that dependency outputs were available is not equivalent to proving that the downstream result was derived from those outputs.
 
+## Persistent Iris assistance boundary
+
+The IRIS assistant is part of the experience shell rather than a page-specific feature. It must be available on **every authenticated Financial Life / Results page and every Intelligence / Education page**, so the person can always ask for help without losing their place in the journey.
+
+Its mode is determined by the surface:
+
+- **Financial Life / Results mode:** may answer user-specific questions through governed IRIS APIs and actual evidence; it must preserve evidence state, uncertainty, provenance, and anti-fabrication rules.
+- **Intelligence / Education mode:** is read-only and educational; it must not load or expose user financial data or user-specific results.
+
+The assistant's presence must not blur the product boundary. On the primary journey it helps the user understand their reality/results. On the educational side it helps the user understand IRIS itself.
+
 ## Source boundary
 
 **Plaid Dashboard:** provider/source observability only. It describes provider products, connection state, observed evidence, freshness, and source lineage.
@@ -164,7 +216,8 @@ The repository contains substantial foundations for:
 - evidence-gated Iris report product catalog;
 - per-user report activation/deactivation persistence;
 - evidence-qualified report publication boundaries;
-- read-only operation with no money movement.
+- read-only operation with no money movement;
+- a shared persistent IRIS assistant surface with separate Financial Life and Intelligence/Education behavior.
 
 The current backend audit identified remaining integrity gaps before the intelligence engine can be called complete. In particular, some declared capability dependencies are not yet proven to be semantically consumed by the corresponding operators; provenance can record dependency context without proving dependency use; and the persisted arbitrary graph is a composition/persistence foundation, not proof of certified unbounded recursive discovery.
 
