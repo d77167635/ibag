@@ -115,7 +115,6 @@ export default function App() {
   const account = (
     <div className="ia-account-control">
       <span aria-label="Signed-in account" className="ia-account-email">{session.user.email ?? "Signed in"}</span>
-      <button aria-label="Open report catalog" type="button" onClick={() => navigate("iris/catalog")}>Report Catalog</button>
       <button aria-label="Sign out" type="button" onClick={() => void signOut()} disabled={signingOut}>
         {signingOut ? "Signing out…" : "Sign out"}
       </button>
@@ -134,6 +133,12 @@ export default function App() {
             ? <IrisConsumerHome go={navigate} />
             : <IrisCommandSurface page={irisPage} go={navigate} />;
 
-  if (irisPage === "iris/connect") return <>{content}{account}</>;
-  return <IrisExperienceShell page={irisPage} go={navigate}><div className="app-workspace app-workspace-iris">{content}{account}</div></IrisExperienceShell>;
+  return (
+    <IrisExperienceShell page={irisPage} go={navigate}>
+      <div className="app-workspace app-workspace-iris">
+        {content}
+        {account}
+      </div>
+    </IrisExperienceShell>
+  );
 }
