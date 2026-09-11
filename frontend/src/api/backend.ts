@@ -13,11 +13,23 @@ async function authedFetch<T = unknown>(path: string, init?: RequestInit): Promi
 }
 
 let intelligenceInFlight: Promise<IrisConsumerIntelligenceResponse> | null = null;
+let summaryInFlight: Promise<IrisConsumerIntelligenceResponse> | null = null;
+
 function getCanonicalIntelligence(): Promise<IrisConsumerIntelligenceResponse> {
-  if (!intelligenceInFlight) intelligenceInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/intelligence").finally(() => { intelligenceInFlight = null; });
+  if (!intelligenceInFlight) {
+    intelligenceInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/intelligence")
+      .finally(() => { intelligenceInFlight = null; });
+  }
   return intelligenceInFlight;
 }
-function getIrisSummary() { if (!intelligenceInFlight) intelligenceInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/summary").finally(() => { intelligenceInFlight = null; }); return intelligenceInFlight; }
+
+function getIrisSummary(): Promise<IrisConsumerIntelligenceResponse> {
+  if (!summaryInFlight) {
+    summaryInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/summary")
+      .finally(() => { summaryInFlight = null; });
+  }
+  return summaryInFlight;
+}
 
 export const api = {
   get: (path: string) => authedFetch(path),
@@ -35,7 +47,7 @@ export const api = {
   askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
   runDecisionLab: (request: { question?: string; amount?: number; horizon_days?: number } = {}) => authedFetch("/iris/decision-lab", { method: "POST", body: JSON.stringify(request) }),
   resync: () => authedFetch("/link/resync", { method: "POST" }),
-  getHierarchy: () => authedFetch("/dashboard/hierarchy"), getRoundups: () => authedFetch("/dashboard/roundups"),
+  getHierarchy: () => authedFetch("/dashboard/hierarchy"); getRoundups: () => authedFetch("/dashboard/roundups"),
   previewTransfer: (accountId: string, amount: number) => authedFetch("/dashboard/roundups/preview-transfer", { method: "POST", body: JSON.stringify({ account_id: accountId, amount }) }),
   getFeatures: () => authedFetch("/features"), toggleFeature: (key: string, enabled: boolean) => authedFetch(`/features/${key}/toggle`, { method: "POST", body: JSON.stringify({ enabled }) }),
   getPlaidProducts: () => authedFetch("/dashboard/plaid"), getPlaidSurface: () => authedFetch("/dashboard/plaid/surface"), getPlaidCapabilities: () => authedFetch("/dashboard/plaid/capabilities"), getPlaidSelection: () => authedFetch("/dashboard/plaid/selection"),
