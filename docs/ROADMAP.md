@@ -109,19 +109,23 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Consumer publication is gated by the governed certification flag.
 - [x] Headline-intelligence binding is represented in the consumer report contract/runtime boundary.
 - [x] Canonical intelligence and summary API requests maintain independent in-flight state; they cannot accidentally share one promise solely because both are typed as the consumer response.
+- [x] Report dependency-definition graph maps report products to authoritative analysis definitions, feature IDs, and required evidence keys without pretending those identifiers are runtime evidence or intelligence nodes.
+- [x] Report runtime lineage resolver binds an executed report to exact persisted intelligence-node IDs, upstream recursive ancestry, and run-bound evidence IDs when those rows actually exist.
+- [x] Governed report publication now receives the exact run/execution IDs and refuses a ready report when its runtime intelligence lineage is unresolved.
+- [x] Consumer contract exposes runtime lineage resolution state, exact intelligence-node IDs, upstream node IDs, and run-evidence IDs.
+- [x] Automated publication-boundary tests cover unresolved versus resolved runtime lineage without creating financial observations or synthetic user data.
 
 ### Not yet certified
 
 - [ ] Persisted product catalog schema.
-- [ ] Product-to-intelligence dependency model.
-- [ ] Headline-intelligence selection runtime.
-- [ ] Evidence-bound report composition runtime.
+- [ ] Persisted product-to-intelligence dependency records as first-class product data.
+- [ ] Semantic sufficiency of report-to-intelligence mappings beyond structural runtime resolution.
+- [ ] Complete evidence → intelligence → report reverse traversal.
 - [ ] Dynamic report-name generation runtime.
 - [ ] Subscription entitlement runtime.
 - [ ] User activation/deactivation end-to-end certification.
 - [ ] Interactive Intelligence Library UI.
-- [ ] Report → intelligence → evidence traversal.
-- [ ] Evidence → intelligence → report traversal.
+- [ ] Report → intelligence → evidence user traversal UI.
 - [ ] Product publication certification.
 - [ ] End-to-end product certification.
 - [ ] Current-commit CI/deployment verification for the latest product-layer changes.
