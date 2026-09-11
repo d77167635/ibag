@@ -1,8 +1,9 @@
 import type { CapabilityPlan } from "./capabilityPlanner.js";
 import { dispatchGovernedCapability } from "./capabilityDispatcher.js";
 import type { CapabilityExecutionContext, CapabilityOperatorResult } from "./capabilityOperators.js";
+import { trackDependencyReads } from "./semanticDependencyTracker.js";
 
-export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v4" as const;
+export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v5" as const;
 
 export type ExecutionBudget = { maxNodes: number; maxEdges: number; maxCompositions: number };
 
@@ -17,15 +18,16 @@ export type RecursiveCapabilityExecutionResult = {
   failed_capability: string | null;
   error: string | null;
   resource_usage: { nodes: number; edges: number; compositions: number };
+  dependency_consumption: Record<string, string[]>;
 };
 
 function finiteNonNegative(value: number): boolean { return Number.isFinite(value) && value >= 0; }
 
-function finish(plan: CapabilityPlan, status: RecursiveCapabilityExecutionResult["status"], executed_capabilities: string[], results: Record<string, CapabilityOperatorResult>, failed_capability: string | null, error: string | null, nodes: number, edges: number, compositions: number): RecursiveCapabilityExecutionResult {
-  return { executor_version: RECURSIVE_CAPABILITY_EXECUTOR_VERSION, status, ordered_capabilities: [...plan.ordered_capabilities], executed_capabilities, results, failed_capability, error, resource_usage: { nodes, edges, compositions } };
+function finish(plan: CapabilityPlan, status: RecursiveCapabilityExecutionResult["status"], executed_capabilities: string[], results: Record<string, CapabilityOperatorResult>, failed_capability: string | null, error: string | null, nodes: number, edges: number, compositions: number, dependency_consumption: Record<string, string[]> = {}): RecursiveCapabilityExecutionResult {
+  return { executor_version: RECURSIVE_CAPABILITY_EXECUTOR_VERSION, status, ordered_capabilities: [...plan.ordered_capabilities], executed_capabilities, results, failed_capability, error, resource_usage: { nodes, edges, compositions }, dependency_consumption };
 }
 
-/** Execute the governed dependency graph with execution budgets, never a semantic depth ceiling. Every dispatched node may persist actual dependency lineage and its produced graph node. */
+/** Execute the governed dependency graph with execution budgets, never a semantic depth ceiling. */
 export async function executeRecursiveCapabilityPlan(
   userId: string,
   plan: CapabilityPlan,
@@ -47,40 +49,48 @@ export async function executeRecursiveCapabilityPlan(
   const contractById = new Map(plan.contracts.map((contract) => [contract.capability_id, contract]));
   const results: Record<string, CapabilityOperatorResult> = {};
   const graphNodeIds: Record<string, string> = {};
+  const dependencyConsumption: Record<string, string[]> = {};
   const executed: string[] = [];
   let edges = 0;
   let compositions = 0;
 
   for (const capabilityId of ordered) {
-    if (executed.length >= budget.maxNodes) return finish(plan, "EXECUTION_BUDGET_EXCEEDED", executed, results, null, "Node execution budget exhausted before the planned graph completed.", executed.length, edges, compositions);
+    if (executed.length >= budget.maxNodes) return finish(plan, "EXECUTION_BUDGET_EXCEEDED", executed, results, null, "Node execution budget exhausted before the planned graph completed.", executed.length, edges, compositions, dependencyConsumption);
     const contract = contractById.get(capabilityId);
-    if (!contract) return finish(plan, "FAILED", executed, results, capabilityId, `CAPABILITY_CONTRACT_MISSING: ${capabilityId}.`, executed.length, edges, compositions);
+    if (!contract) return finish(plan, "FAILED", executed, results, capabilityId, `CAPABILITY_CONTRACT_MISSING: ${capabilityId}.`, executed.length, edges, compositions, dependencyConsumption);
 
     const dependencies = Array.isArray(contract.dependencies) ? contract.dependencies.filter((dependency): dependency is string => typeof dependency === "string" && dependency.length > 0) : [];
     edges += dependencies.length;
     if (contract.recursive || contract.cross_domain) compositions += 1;
-    if (edges > budget.maxEdges || compositions > budget.maxCompositions) return finish(plan, "EXECUTION_BUDGET_EXCEEDED", executed, results, null, "Execution budget exhausted while traversing the governed dependency graph.", executed.length, edges, compositions);
+    if (edges > budget.maxEdges || compositions > budget.maxCompositions) return finish(plan, "EXECUTION_BUDGET_EXCEEDED", executed, results, null, "Execution budget exhausted while traversing the governed dependency graph.", executed.length, edges, compositions, dependencyConsumption);
 
     const dependencyResults: Record<string, CapabilityOperatorResult> = {};
     const dependencyNodeIds: Record<string, string> = {};
     for (const dependency of dependencies) {
-      if (!unique.has(dependency)) return finish(plan, "FAILED", executed, results, capabilityId, `DEPENDENCY_NOT_IN_PLAN: ${capabilityId} requires ${dependency}.`, executed.length, edges, compositions);
+      if (!unique.has(dependency)) return finish(plan, "FAILED", executed, results, capabilityId, `DEPENDENCY_NOT_IN_PLAN: ${capabilityId} requires ${dependency}.`, executed.length, edges, compositions, dependencyConsumption);
       const dependencyResult = results[dependency];
-      if (!dependencyResult) return finish(plan, "FAILED", executed, results, capabilityId, `DEPENDENCY_RESULT_MISSING: ${capabilityId} requires ${dependency}.`, executed.length, edges, compositions);
+      if (!dependencyResult) return finish(plan, "FAILED", executed, results, capabilityId, `DEPENDENCY_RESULT_MISSING: ${capabilityId} requires ${dependency}.`, executed.length, edges, compositions, dependencyConsumption);
       dependencyResults[dependency] = dependencyResult;
       const dependencyNodeId = graphNodeIds[dependency];
       if (dependencyNodeId) dependencyNodeIds[dependency] = dependencyNodeId;
     }
 
     try {
-      const operatorResult = await dispatcher({ userId, capabilityId, context: { ...context, dependencyResults } });
-      if (!operatorResult || operatorResult.capability_id !== capabilityId) return finish(plan, "FAILED", executed, results, capabilityId, `INVALID_OPERATOR_RESULT: ${capabilityId}.`, executed.length, edges, compositions);
+      const tracked = trackDependencyReads(dependencyResults);
+      const operatorResult = await dispatcher({ userId, capabilityId, context: { ...context, dependencyResults: tracked.dependencies } });
+      const consumed = [...tracked.consumed_dependency_ids].sort();
+      dependencyConsumption[capabilityId] = consumed;
+
+      if (!operatorResult || operatorResult.capability_id !== capabilityId) return finish(plan, "FAILED", executed, results, capabilityId, `INVALID_OPERATOR_RESULT: ${capabilityId}.`, executed.length, edges, compositions, dependencyConsumption);
+      const missingReads = dependencies.filter((dependency) => !tracked.consumed_dependency_ids.has(dependency));
+      if (missingReads.length) return finish(plan, "FAILED", executed, results, capabilityId, `SEMANTIC_DEPENDENCY_NOT_READ: ${capabilityId} did not read declared dependency result(s): ${missingReads.join(", ")}.`, executed.length, edges, compositions, dependencyConsumption);
+
       results[capabilityId] = operatorResult;
       executed.push(capabilityId);
 
       if (context.persistGraphNode && context.runId && context.executionId) {
         const graphNode = await context.persistGraphNode({ capabilityId, result: operatorResult, dependencyResults, dependencyNodeIds });
-        if (!graphNode?.id) return finish(plan, "FAILED", executed, results, capabilityId, `INTELLIGENCE_GRAPH_NODE_ID_MISSING: ${capabilityId}.`, executed.length, edges, compositions);
+        if (!graphNode?.id) return finish(plan, "FAILED", executed, results, capabilityId, `INTELLIGENCE_GRAPH_NODE_ID_MISSING: ${capabilityId}.`, executed.length, edges, compositions, dependencyConsumption);
         graphNodeIds[capabilityId] = graphNode.id;
       }
 
@@ -88,10 +98,10 @@ export async function executeRecursiveCapabilityPlan(
         await context.persistLineage({ capabilityId, result: operatorResult, dependencyResults });
       }
     } catch (error) {
-      return finish(plan, "FAILED", executed, results, capabilityId, error instanceof Error ? error.message : String(error), executed.length, edges, compositions);
+      return finish(plan, "FAILED", executed, results, capabilityId, error instanceof Error ? error.message : String(error), executed.length, edges, compositions, dependencyConsumption);
     }
   }
 
-  if (executed.length !== ordered.length) return finish(plan, "PARTIAL", executed, results, null, "CAPABILITY_GRAPH_PARTIAL: not every planned capability executed.", executed.length, edges, compositions);
-  return finish(plan, "COMPLETED", executed, results, null, null, executed.length, edges, compositions);
+  if (executed.length !== ordered.length) return finish(plan, "PARTIAL", executed, results, null, "CAPABILITY_GRAPH_PARTIAL: not every planned capability executed.", executed.length, edges, compositions, dependencyConsumption);
+  return finish(plan, "COMPLETED", executed, results, null, null, executed.length, edges, compositions, dependencyConsumption);
 }
