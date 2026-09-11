@@ -1,18 +1,22 @@
 import { supabase } from "./supabase";
+import type { IrisConsumerIntelligenceResponse } from "../contracts/irisConsumer";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
-async function authedFetch(path: string, init?: RequestInit) {
+async function authedFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const resp = await fetch(`${BASE_URL}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers ?? {}) } });
   if (!resp.ok) { const body = await resp.json().catch(() => ({})); throw new Error(body.error ?? `Request failed: ${resp.status}`); }
-  return resp.json();
+  return resp.json() as Promise<T>;
 }
 
-let intelligenceInFlight: Promise<any> | null = null;
-function getCanonicalIntelligence() { if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/iris/intelligence").finally(() => { intelligenceInFlight = null; }); return intelligenceInFlight; }
-function getIrisSummary() { if (!intelligenceInFlight) intelligenceInFlight = authedFetch("/iris/summary").finally(() => { intelligenceInFlight = null; }); return intelligenceInFlight; }
+let intelligenceInFlight: Promise<IrisConsumerIntelligenceResponse> | null = null;
+function getCanonicalIntelligence(): Promise<IrisConsumerIntelligenceResponse> {
+  if (!intelligenceInFlight) intelligenceInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/intelligence").finally(() => { intelligenceInFlight = null; });
+  return intelligenceInFlight;
+}
+function getIrisSummary() { if (!intelligenceInFlight) intelligenceInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/summary").finally(() => { intelligenceInFlight = null; }); return intelligenceInFlight; }
 
 export const api = {
   get: (path: string) => authedFetch(path),
