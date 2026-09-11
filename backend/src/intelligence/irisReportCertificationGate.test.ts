@@ -29,7 +29,8 @@ const semantic: IrisReportSemanticConsumption = {
   missing_capability_proofs: [],
   missing_dependency_reads: [],
   semantic_sufficiency_certified: false,
-  limitation: "Structural dependency reads are verified; semantic sufficiency is not certified.",
+  semantic_sufficiency_failures: ["capability.test:evidence_state_unresolved"],
+  limitation: "Declared runtime dependency reads are evidenced, but the executable minimum semantic-sufficiency contract is not satisfied.",
 };
 
 test("report certification remains blocked when the exact evidence-key boundary is not satisfied", () => {
