@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
+import { IrisConsumerHome } from "./components/IrisConsumerHome";
 import { IrisCommandSurface } from "./components/IrisCommandSurface";
 import { IrisCatalog } from "./components/IrisCatalog";
 import "./iris-command-deck.css";
@@ -23,5 +24,10 @@ export default function App() {
   if (!session) return <Auth />;
 
   const account = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Open report catalog" style={controlButtonStyle} onClick={() => navigate("iris/catalog")}>Report Catalog</button><button aria-label="Sign out" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
-  return <div className="app-workspace app-workspace-iris">{irisPage === "iris/catalog" ? <IrisCatalog go={navigate} /> : <IrisCommandSurface page={irisPage} go={navigate} />}{account}</div>;
+  const content = irisPage === "iris/catalog"
+    ? <IrisCatalog go={navigate} />
+    : irisPage === "iris"
+      ? <IrisConsumerHome go={navigate} />
+      : <IrisCommandSurface page={irisPage} go={navigate} />;
+  return <div className="app-workspace app-workspace-iris">{content}{account}</div>;
 }
