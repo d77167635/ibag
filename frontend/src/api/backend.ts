@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import type { IrisConsumerIntelligenceResponse } from "../contracts/irisConsumer";
+import type { IrisReportCatalogResponse } from "../contracts/irisReportCatalog";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -28,9 +29,9 @@ export const api = {
   getUnifiedDashboard: () => authedFetch("/dashboard/unified"),
   getIntelligence: getCanonicalIntelligence,
   getIrisSummary,
-  getIrisCatalog: () => authedFetch("/iris/catalog"),
-  saveIrisCatalogSelection: (reportIds: string[]) => authedFetch("/iris/catalog/selection", { method: "PUT", body: JSON.stringify({ report_ids: reportIds }) }),
-  resetIrisCatalog: () => authedFetch("/iris/catalog/reset", { method: "POST" }),
+  getIrisCatalog: (): Promise<IrisReportCatalogResponse> => authedFetch<IrisReportCatalogResponse>("/iris/catalog"),
+  saveIrisCatalogSelection: (reportIds: string[]) => authedFetch<{ activation: { report_ids: string[] } }>("/iris/catalog/selection", { method: "PUT", body: JSON.stringify({ report_ids: reportIds }) }),
+  resetIrisCatalog: () => authedFetch<{ activation: { report_ids: string[] } }>("/iris/catalog/reset", { method: "POST" }),
   askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
   runDecisionLab: (request: { question?: string; amount?: number; horizon_days?: number } = {}) => authedFetch("/iris/decision-lab", { method: "POST", body: JSON.stringify(request) }),
   resync: () => authedFetch("/link/resync", { method: "POST" }),
