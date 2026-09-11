@@ -13,7 +13,7 @@ const ORCHESTRATOR_VERSION = "iris-recursive-orchestrator-v2";
 const CERTIFICATION_POLICY_VERSION = "iris-certification-v3";
 const CAPABILITY_ID = "iris.full_intelligence";
 const EXECUTOR_OPERATOR_ID = "recursiveCapabilityExecutor";
-const EXECUTOR_OPERATOR_VERSION = "iris-recursive-capability-executor-v4";
+const EXECUTOR_OPERATOR_VERSION = "iris-recursive-capability-executor-v5";
 const DEFAULT_REQUESTED_CAPABILITIES = [CAPABILITY_ID];
 
 type RunRequest = { userId: string; requestId?: string; surface?: string; mode?: string; requestedCapabilities?: string[] };
@@ -98,6 +98,7 @@ export async function executeIrisRun(request: RunRequest) {
           userId,
           runId: run.id,
           executionId: execution.id,
+          capabilityNodeIds: recursive.graph_node_ids,
           evidenceBoundary: run.evidence_boundary,
           evidenceManifestHash: run.evidence_manifest_hash,
           runEvidenceIds,
@@ -107,9 +108,9 @@ export async function executeIrisRun(request: RunRequest) {
 
     const result = {
       architecture_version: "IRIS_RECURSIVE_CAPABILITY_GRAPH_V2", execution_status: recursive.status, requested_capabilities: requestedCapabilities,
-      ordered_capabilities: recursive.ordered_capabilities, executed_capabilities: recursive.executed_capabilities, results: recursive.results, resource_usage: recursive.resource_usage, arbitrary_recursive_compositions: arbitraryRecursiveCompositions,
+      ordered_capabilities: recursive.ordered_capabilities, executed_capabilities: recursive.executed_capabilities, results: recursive.results, graph_node_ids: recursive.graph_node_ids, resource_usage: recursive.resource_usage, arbitrary_recursive_compositions: arbitraryRecursiveCompositions,
       evidence_scope: evidenceScope, evidence_boundary: run.evidence_boundary,
-      provenance: { source: "governed_capability_registry_and_run_bound_evidence", run_id: run.id, run_evidence_ids: [...runEvidenceIds].sort(), evidence_manifest_hash: run.evidence_manifest_hash, planner_version: PLANNER_VERSION, executor_version: EXECUTOR_OPERATOR_VERSION, persisted_graph_version: "iris-persisted-intelligence-graph-v3", arbitrary_composition_version: "iris-arbitrary-recursive-composition-v1", financial_values_created: false, provider_observations_created: false, money_movement_executed: false },
+      provenance: { source: "governed_capability_registry_and_run_bound_evidence", run_id: run.id, run_evidence_ids: [...runEvidenceIds].sort(), evidence_manifest_hash: run.evidence_manifest_hash, planner_version: PLANNER_VERSION, executor_version: EXECUTOR_OPERATOR_VERSION, persisted_graph_version: "iris-persisted-intelligence-graph-v5", arbitrary_composition_version: "iris-arbitrary-recursive-composition-v2", financial_values_created: false, provider_observations_created: false, money_movement_executed: false },
     };
     const outputHash = hash(result); const finishedAt = new Date().toISOString();
     const { error: outputError } = await supabaseAdmin.from("iris_execution_outputs").insert({ execution_id: execution.id, output_key: "recursive_intelligence_graph", output_type: "recursive_intelligence_graph", value: result, hash: outputHash, evidence_state: "CALCULATED", uncertainty: null });
