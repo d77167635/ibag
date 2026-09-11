@@ -4,6 +4,7 @@ import { supabase } from "./api/supabase";
 import { Auth } from "./components/Auth";
 import { IrisConsumerHome } from "./components/IrisConsumerHome";
 import { IrisCommandSurface } from "./components/IrisCommandSurface";
+import { IrisIntelligenceSurface } from "./components/IrisIntelligenceSurface";
 import { IrisCatalog } from "./components/IrisCatalog";
 import { IrisActionOutcome } from "./components/IrisActionOutcome";
 import { IrisEvidenceAccess } from "./components/IrisEvidenceAccess";
@@ -131,7 +132,9 @@ export default function App() {
           ? <IrisActionOutcome mode="outcomes" go={navigate} />
           : irisPage === "iris"
             ? <IrisConsumerHome go={navigate} />
-            : <IrisCommandSurface page={irisPage} go={navigate} />;
+            : irisPage === "iris/intelligence"
+              ? <IrisIntelligenceSurface go={navigate} />
+              : <IrisCommandSurface page={irisPage} go={navigate} />;
 
   return (
     <IrisExperienceShell page={irisPage} go={navigate}>
