@@ -20,6 +20,8 @@ export interface ConsumerReportProduct {
   evidence_coverage: number;
   blockers: string[];
   missing_evidence: string[];
+  headline_intelligence_node_id: string | null;
+  headline_reason: string | null;
   qualification: string | null;
   provenance: {
     source: "Iris analysis atlas";
