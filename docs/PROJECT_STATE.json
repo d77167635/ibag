@@ -2,8 +2,8 @@
   "project": "Iris",
   "repository": "d77167635/iris",
   "branch": "main",
-  "head": "fa1c423b3a2e78533028fb2edbe81410b9c561aa",
-  "generated_at": "2026-09-11T23:05:31.399Z",
+  "head": "6b5f3d5a5c4c50d737ed14b51d736a94faef5f98",
+  "generated_at": "2026-09-11T23:06:15.202Z",
   "continuity": {
     "master_state": "docs/MASTER_STATE.md",
     "architecture": "docs/ARCHITECTURE.md",
@@ -13,8 +13,8 @@
     "source_of_truth": "current GitHub main commit; continuity documents describe verified state and must not override live repository state"
   },
   "roadmap": {
-    "completed_items": 70,
-    "open_items": 39
+    "completed_items": 66,
+    "open_items": 79
   },
   "environment_transition": {
     "status": "in_transition",
