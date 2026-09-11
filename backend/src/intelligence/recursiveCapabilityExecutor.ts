@@ -6,11 +6,27 @@ import { buildSemanticDependencyProof } from "./semanticDependencyProof.js";
 import { persistSemanticDependencyProof } from "./semanticDependencyPersistence.js";
 import { validateSemanticDependencyPaths } from "./semanticDependencyContract.js";
 
-export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v8" as const;
+export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v9" as const;
 export type ExecutionBudget = { maxNodes: number; maxEdges: number; maxCompositions: number };
 type CapabilityDispatcher = (request: { userId: string; capabilityId: string; context?: CapabilityExecutionContext }) => Promise<CapabilityOperatorResult>;
 export type RecursiveCapabilityExecutionResult = { executor_version: typeof RECURSIVE_CAPABILITY_EXECUTOR_VERSION; status: "COMPLETED" | "PARTIAL" | "BLOCKED" | "EXECUTION_BUDGET_EXCEEDED" | "FAILED"; ordered_capabilities: string[]; executed_capabilities: string[]; results: Record<string, CapabilityOperatorResult>; failed_capability: string | null; error: string | null; resource_usage: { nodes: number; edges: number; compositions: number }; dependency_consumption: Record<string, string[]> };
 function finiteNonNegative(value: number): boolean { return Number.isFinite(value) && value >= 0; }
+function hasDependencyCycle(contracts: CapabilityPlan["contracts"]): boolean {
+  const dependencies = new Map(contracts.map((contract) => [contract.capability_id, Array.isArray(contract.dependencies) ? contract.dependencies.filter((id): id is string => typeof id === "string" && id.length > 0) : []]));
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (visiting.has(id)) return true;
+    if (visited.has(id)) return false;
+    visiting.add(id);
+    for (const dependency of dependencies.get(id) ?? []) if (dependencies.has(dependency) && visit(dependency)) return true;
+    visiting.delete(id);
+    visited.add(id);
+    return false;
+  };
+  for (const id of dependencies.keys()) if (visit(id)) return true;
+  return false;
+}
 function finish(plan: CapabilityPlan, status: RecursiveCapabilityExecutionResult["status"], executed_capabilities: string[], results: Record<string, CapabilityOperatorResult>, failed_capability: string | null, error: string | null, nodes: number, edges: number, compositions: number, dependency_consumption: Record<string, string[]> = {}): RecursiveCapabilityExecutionResult { return { executor_version: RECURSIVE_CAPABILITY_EXECUTOR_VERSION, status, ordered_capabilities: [...plan.ordered_capabilities], executed_capabilities, results, failed_capability, error, resource_usage: { nodes, edges, compositions }, dependency_consumption }; }
 
 /** Execute the governed dependency graph with execution budgets, never a semantic depth ceiling. */
@@ -20,6 +36,7 @@ export async function executeRecursiveCapabilityPlan(userId: string, plan: Capab
   const ordered = plan.ordered_capabilities;
   const unique = new Set(ordered);
   if (unique.size !== ordered.length) return finish(plan, "FAILED", [], {}, null, "INVALID_CAPABILITY_GRAPH: duplicate capability path detected.", 0, 0, 0);
+  if (hasDependencyCycle(plan.contracts)) return finish(plan, "FAILED", [], {}, null, "INVALID_CAPABILITY_GRAPH: dependency cycle detected; execution stopped without imposing a semantic depth ceiling.", 0, 0, 0);
   if (plan.resource_estimate.nodes > budget.maxNodes || plan.resource_estimate.edges > budget.maxEdges || plan.resource_estimate.compositions > budget.maxCompositions) return finish(plan, "EXECUTION_BUDGET_EXCEEDED", [], {}, null, "The planned capability graph exceeds the execution budget; semantic hierarchy depth remains unbounded.", plan.resource_estimate.nodes, plan.resource_estimate.edges, plan.resource_estimate.compositions);
 
   const contractById = new Map(plan.contracts.map((contract) => [contract.capability_id, contract]));
