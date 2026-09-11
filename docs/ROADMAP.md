@@ -116,11 +116,18 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Consumer contract/API exposes exact runtime lineage and governed evidence reverse-lineage traversal.
 - [x] Governed evidence → intelligence → report reverse traversal endpoint implemented for an exact user/run/execution/evidence boundary.
 - [x] Report detail UI surfaces exact runtime nodes/evidence and allows an evidence record to be traced in reverse to mapped reports.
+- [x] Cycle-safe bidirectional runtime graph traversal foundation implemented with explicit user/run/execution boundary checks and no semantic depth ceiling.
+- [x] Report-level semantic dependency-consumption evaluator implemented against declared runtime dependency contracts; it explicitly distinguishes structural read proof from semantic sufficiency.
+- [x] Recursive multi-report composition foundation implemented using exact runtime node IDs and derived depth when supplied, without imposing an artificial maximum.
+- [x] Exact report evidence-boundary evaluator implemented; required evidence keys are never treated as observations, and missing/unknown evidence remains explicit.
+- [x] Conjunctive report certification-gate foundation implemented across execution status, runtime lineage, declared dependency-read proof, and evidence boundary.
+- [x] Regression coverage added for recursive traversal, cycle safety, report semantic consumption, recursive composition, evidence boundaries, and conjunctive certification.
 
 ### Not yet certified
 
 - [ ] Persisted product catalog schema.
 - [ ] Persisted product-to-intelligence dependency records as first-class product data.
+- [ ] Runtime integration of report-level semantic-consumption proofs into the publication resolver.
 - [ ] Semantic sufficiency of report-to-intelligence mappings beyond structural runtime resolution.
 - [ ] Complete evidence → intelligence → report reverse traversal across every evidence domain and every recursive graph relationship.
 - [ ] Dynamic report-name generation runtime.
@@ -132,6 +139,7 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [ ] Product publication certification.
 - [ ] End-to-end product certification.
 - [ ] Current-commit CI/deployment verification for the latest product-layer changes.
+- [ ] Reconciliation of repository migration history with the currently referenced semantic-proof/transformation tables before those tables are treated as deployable schema. The current repository visibly contains migration `081_arbitrary_derived_intelligence_graph.sql`, while the expected later migration files were not found at their previously assumed paths; no new schema is being invented until this discrepancy is resolved against the actual source of truth.
 
 These unchecked states are intentional. Documentation does not count as runtime implementation or certification.
 
