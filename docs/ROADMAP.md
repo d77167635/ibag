@@ -107,25 +107,28 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Catalog UI surfaces backend-governed product/provider boundary metadata.
 - [x] Consumer home consumes the canonical governed intelligence endpoint.
 - [x] Consumer publication is gated by the governed certification flag.
-- [x] Headline-intelligence binding is represented in the consumer report contract/runtime boundary.
+- [x] Headline-intelligence binding is represented in the consumer contract/runtime boundary.
 - [x] Canonical intelligence and summary API requests maintain independent in-flight state; they cannot accidentally share one promise solely because both are typed as the consumer response.
 - [x] Report dependency-definition graph maps report products to authoritative analysis definitions, feature IDs, and required evidence keys without pretending those identifiers are runtime evidence or intelligence nodes.
 - [x] Report runtime lineage resolver binds an executed report to exact persisted intelligence-node IDs, upstream recursive ancestry, and run-bound evidence IDs when those rows actually exist.
-- [x] Governed report publication now receives the exact run/execution IDs and refuses a ready report when its runtime intelligence lineage is unresolved.
-- [x] Consumer contract exposes runtime lineage resolution state, exact intelligence-node IDs, upstream node IDs, and run-evidence IDs.
-- [x] Automated publication-boundary tests cover unresolved versus resolved runtime lineage without creating financial observations or synthetic user data.
+- [x] Governed report publication receives the exact run/execution boundary and requires resolved runtime lineage for a ready report.
+- [x] Report headline binding requires an actual persisted runtime intelligence-node ID; an analysis-definition ID is no longer sufficient.
+- [x] Consumer contract/API exposes exact runtime lineage and governed evidence reverse-lineage traversal.
+- [x] Governed evidence → intelligence → report reverse traversal endpoint implemented for an exact user/run/execution/evidence boundary.
+- [x] Report detail UI surfaces exact runtime nodes/evidence and allows an evidence record to be traced in reverse to mapped reports.
 
 ### Not yet certified
 
 - [ ] Persisted product catalog schema.
 - [ ] Persisted product-to-intelligence dependency records as first-class product data.
 - [ ] Semantic sufficiency of report-to-intelligence mappings beyond structural runtime resolution.
-- [ ] Complete evidence → intelligence → report reverse traversal.
+- [ ] Complete evidence → intelligence → report reverse traversal across every evidence domain and every recursive graph relationship.
 - [ ] Dynamic report-name generation runtime.
 - [ ] Subscription entitlement runtime.
 - [ ] User activation/deactivation end-to-end certification.
 - [ ] Interactive Intelligence Library UI.
-- [ ] Report → intelligence → evidence user traversal UI.
+- [ ] Report → intelligence → evidence traversal certification.
+- [ ] Evidence → intelligence → report traversal certification.
 - [ ] Product publication certification.
 - [ ] End-to-end product certification.
 - [ ] Current-commit CI/deployment verification for the latest product-layer changes.
