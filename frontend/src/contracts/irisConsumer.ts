@@ -148,6 +148,7 @@ export interface IrisConsumerIntelligenceResponse {
     generatedAt: string;
   } | null;
   maximum_intelligence: unknown;
+  feature_flags: Record<string, boolean>;
   selected_report_ids: string[];
   report_catalog: unknown[];
   feature_runtime: unknown;
