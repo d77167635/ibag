@@ -97,6 +97,17 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Product activation/deactivation semantics defined.
 - [x] Evidence/product availability state distinctions defined.
 
+### Implemented but not certified
+
+- [x] Frontend report-catalog API contract typed.
+- [x] Frontend report catalog loads live catalog/activation state through the governed API boundary.
+- [x] Catalog search and family filtering implemented.
+- [x] Report activation/deactivation UI connected to the existing catalog selection API.
+- [x] Report product detail/exploration surface implemented from the live catalog definition.
+- [x] Consumer home consumes the canonical governed intelligence endpoint.
+- [x] Consumer publication is gated by the governed certification flag.
+- [x] Headline-intelligence binding is represented in the consumer report contract/runtime boundary.
+
 ### Not yet certified
 
 - [ ] Persisted product catalog schema.
@@ -105,13 +116,13 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [ ] Evidence-bound report composition runtime.
 - [ ] Dynamic report-name generation runtime.
 - [ ] Subscription entitlement runtime.
-- [ ] User activation/deactivation runtime.
-- [ ] Interactive Library UI.
-- [ ] Interactive Report Catalog UI.
+- [ ] User activation/deactivation end-to-end certification.
+- [ ] Interactive Intelligence Library UI.
 - [ ] Report → intelligence → evidence traversal.
 - [ ] Evidence → intelligence → report traversal.
 - [ ] Product publication certification.
 - [ ] End-to-end product certification.
+- [ ] Current-commit CI/deployment verification for the latest product-layer changes.
 
 These unchecked states are intentional. Documentation does not count as runtime implementation or certification.
 
