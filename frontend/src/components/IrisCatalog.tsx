@@ -64,6 +64,9 @@ export function IrisCatalog({ go }: { go?: (page: string) => void }) {
 
   if (selected) return <IrisReportDetail report={selected} active={active.includes(selected.reportId)} saving={saving} onToggle={() => void toggle(selected.reportId)} onBack={() => setSelectedId(null)} />;
 
+  const catalogTotal = metadata?.catalog_counts.total ?? catalog.length;
+  const familyTotal = metadata?.catalog_counts.families ?? families.length;
+
   return <div className="iis-screen">
     <div className="iis-hero">
       <div className="iis-hero-top"><span>IRIS · REPORT PRODUCT CATALOG</span>{go && <button type="button" className="iis-back" onClick={() => go("iris")}>← Iris Command</button>}</div>
@@ -73,8 +76,8 @@ export function IrisCatalog({ go }: { go?: (page: string) => void }) {
 
     <div className="iis-metric-grid">
       <div className="iis-metric"><span>Active reports</span><strong>{active.length}</strong><small>{saving ? "Saving…" : message || "Your active Iris products"}</small></div>
-      <div className="iis-metric"><span>Catalog products</span><strong>{metadata?.catalog_counts.total ?? catalog.length || "—"}</strong><small>{metadata?.catalog_version ?? "Defined from the Iris analytical catalog"}</small></div>
-      <div className="iis-metric"><span>Families</span><strong>{metadata?.catalog_counts.families ?? families.length || "—"}</strong><small>Analytical product families</small></div>
+      <div className="iis-metric"><span>Catalog products</span><strong>{catalogTotal || "—"}</strong><small>{metadata?.catalog_version ?? "Defined from the Iris analytical catalog"}</small></div>
+      <div className="iis-metric"><span>Families</span><strong>{familyTotal || "—"}</strong><small>Analytical product families</small></div>
       <div className="iis-metric"><span>Evidence rule</span><strong>Required</strong><small>No evidence means no fabricated report</small></div>
     </div>
 
