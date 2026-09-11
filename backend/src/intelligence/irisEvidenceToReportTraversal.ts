@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "../config/supabase.js";
 import { buildIrisReportDependencyGraph, type IrisReportDependency } from "./irisReportDependencyGraph.js";
 
+type IrisDatabase = Pick<typeof supabaseAdmin, "from">;
+
 type LineageRow = {
   lineage_role: string;
   source_type: string;
@@ -55,6 +57,9 @@ function uniqueSorted(values: string[]): string[] {
  * The result distinguishes definition-level report matching from runtime
  * evidence resolution. It does not certify a report, prove mathematical
  * sufficiency, or publish a report.
+ *
+ * The database dependency is injectable only for deterministic read-only tests.
+ * Production callers use the connected Supabase client by default.
  */
 export async function resolveIrisEvidenceToReports(input: {
   userId: string;
@@ -62,9 +67,11 @@ export async function resolveIrisEvidenceToReports(input: {
   executionId: string;
   evidenceIds: string[];
   reportDependencyGraph?: IrisReportDependency[];
+  database?: IrisDatabase;
 }): Promise<IrisEvidenceToReportResult> {
   const evidenceIds = uniqueSorted(input.evidenceIds);
   const reportDependencyGraph = input.reportDependencyGraph ?? buildIrisReportDependencyGraph();
+  const database = input.database ?? supabaseAdmin;
 
   if (!evidenceIds.length) {
     return {
@@ -85,7 +92,7 @@ export async function resolveIrisEvidenceToReports(input: {
     };
   }
 
-  const { data: lineageRows, error: lineageError } = await supabaseAdmin
+  const { data: lineageRows, error: lineageError } = await database
     .from("iris_execution_lineage")
     .select("lineage_role,source_type,source_id,destination_type,destination_id,evidence_state")
     .eq("user_id", input.userId)
@@ -100,7 +107,7 @@ export async function resolveIrisEvidenceToReports(input: {
       .map((row) => row.destination_id),
   );
 
-  const { data: nodes, error: nodeError } = await supabaseAdmin
+  const { data: nodes, error: nodeError } = await database
     .from("iris_user_intelligence_nodes")
     .select("id,capability_id,intelligence_key,recursive_ancestry,upstream_node_ids")
     .eq("user_id", input.userId)
@@ -120,9 +127,6 @@ export async function resolveIrisEvidenceToReports(input: {
     downstreamByNode.set(row.source_id, destinations);
   }
 
-  // Persisted upstream references are authoritative even when a corresponding
-  // execution-lineage edge is absent; the reachable result remains bounded to
-  // nodes belonging to the exact supplied execution.
   for (const node of runtimeNodes) {
     for (const upstreamId of node.upstream_node_ids ?? []) {
       if (!nodeById.has(upstreamId)) continue;
