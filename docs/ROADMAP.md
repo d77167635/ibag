@@ -126,6 +126,10 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Report certification consumes the authoritative run-bound evidence mapping instead of the former intentionally-unmapped evidence boundary.
 - [x] Repository certification gate reconciled with the current recursive graph architecture version (`IRIS_RECURSIVE_CAPABILITY_GRAPH_V2`).
 - [x] Report certification gate aligned with the actual governed execution states (`EXECUTED`/`CERTIFIED`, while retaining compatibility with `SUCCEEDED`).
+- [x] Recursive executor now returns the exact persisted graph-node ID for every executed capability within the run/execution boundary.
+- [x] Arbitrary recursive composition now consumes only those exact execution-scoped graph-node IDs; missing or cross-execution references fail closed instead of selecting a node by capability name.
+- [x] Arbitrary recursive composition provenance records the exact upstream node IDs and upstream node hashes used for the derived composition.
+- [x] Automated backend test covers propagation of exact upstream graph-node IDs through recursive execution.
 
 ### Not yet certified
 
