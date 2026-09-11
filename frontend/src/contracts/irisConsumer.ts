@@ -29,3 +29,16 @@ export interface IrisConsumerIntelligenceResponse {
   intelligence_output_runtime: { outputs: ConsumerReportProduct[]; publishable: ConsumerReportProduct[]; ready_outputs: ConsumerReportProduct[]; limited_outputs: ConsumerReportProduct[]; suppressed_outputs: ConsumerReportProduct[] };
   publication_boundary: unknown; [key: string]: unknown;
 }
+
+export interface IrisReverseLineageResponse {
+  resolution_state: "resolved" | "unresolved";
+  evidence_id: string;
+  run_id: string;
+  execution_id: string;
+  intelligence_node_ids: string[];
+  capability_ids: string[];
+  report_ids: string[];
+  limitation: string | null;
+  traversal: "evidence -> intelligence -> report";
+  catalog_metadata_is_not_evidence: true;
+}
