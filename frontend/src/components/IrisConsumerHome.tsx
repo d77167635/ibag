@@ -28,7 +28,7 @@ export function IrisConsumerHome({ go }: Props) {
   useEffect(() => {
     let mounted = true;
     api.getIntelligence()
-      .then((value) => { if (mounted) setData(value as IrisConsumerIntelligenceResponse); })
+      .then((value) => { if (mounted) setData(value); })
       .catch((reason) => { if (mounted) setError(reason instanceof Error ? reason.message : "IRIS could not load a completed governed run."); })
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
@@ -73,6 +73,7 @@ export function IrisConsumerHome({ go }: Props) {
             {report.qualification && <small>{report.qualification}</small>}
           </article>)}
         </div>
+        <div style={{ marginTop: 18 }}><button type="button" onClick={() => go?.("iris/catalog")}>Manage report products →</button></div>
       </section>}
 
       <section className="iris-surface">
