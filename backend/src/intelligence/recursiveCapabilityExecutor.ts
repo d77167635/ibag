@@ -4,8 +4,9 @@ import type { CapabilityExecutionContext, CapabilityOperatorResult } from "./cap
 import { trackDependencyReads } from "./semanticDependencyTracker.js";
 import { buildSemanticDependencyProof } from "./semanticDependencyProof.js";
 import { persistSemanticDependencyProof } from "./semanticDependencyPersistence.js";
+import { validateSemanticDependencyPaths } from "./semanticDependencyContract.js";
 
-export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v7" as const;
+export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v8" as const;
 export type ExecutionBudget = { maxNodes: number; maxEdges: number; maxCompositions: number };
 type CapabilityDispatcher = (request: { userId: string; capabilityId: string; context?: CapabilityExecutionContext }) => Promise<CapabilityOperatorResult>;
 export type RecursiveCapabilityExecutionResult = { executor_version: typeof RECURSIVE_CAPABILITY_EXECUTOR_VERSION; status: "COMPLETED" | "PARTIAL" | "BLOCKED" | "EXECUTION_BUDGET_EXCEEDED" | "FAILED"; ordered_capabilities: string[]; executed_capabilities: string[]; results: Record<string, CapabilityOperatorResult>; failed_capability: string | null; error: string | null; resource_usage: { nodes: number; edges: number; compositions: number }; dependency_consumption: Record<string, string[]> };
@@ -57,15 +58,16 @@ export async function executeRecursiveCapabilityPlan(userId: string, plan: Capab
       if (!operatorResult || operatorResult.capability_id !== capabilityId) return finish(plan, "FAILED", executed, results, capabilityId, `INVALID_OPERATOR_RESULT: ${capabilityId}.`, executed.length, edges, compositions, dependencyConsumption);
       const missingReads = dependencies.filter((dependency) => !tracked.consumed_dependency_ids.has(dependency));
       if (missingReads.length) return finish(plan, "FAILED", executed, results, capabilityId, `SEMANTIC_DEPENDENCY_NOT_READ: ${capabilityId} did not read declared dependency result(s): ${missingReads.join(", ")}.`, executed.length, edges, compositions, dependencyConsumption);
+      const missingSemanticPaths = validateSemanticDependencyPaths(capabilityId, tracked.consumed_dependency_paths);
+      if (missingSemanticPaths.length) return finish(plan, "FAILED", executed, results, capabilityId, `SEMANTIC_TRANSFORMATION_REQUIREMENT_NOT_MET: ${capabilityId} did not access required dependency path(s): ${missingSemanticPaths.join(", ")}.`, executed.length, edges, compositions, dependencyConsumption);
 
       results[capabilityId] = operatorResult;
       executed.push(capabilityId);
-      const proof = buildSemanticDependencyProof(capabilityId, consumed, dependencyResults, operatorResult);
+      const proof = buildSemanticDependencyProof(capabilityId, consumed, dependencyResults, tracked.consumed_dependency_paths, operatorResult);
       if (context.runId && context.executionId) {
         if (context.persistSemanticDependencyProof) await context.persistSemanticDependencyProof({ capabilityId, dependencyResults, consumedDependencyIds: consumed, result: operatorResult, proof });
         else await persistSemanticDependencyProof({ userId, runId: context.runId, executionId: context.executionId, capabilityId, dependencyResults, consumedDependencyIds: consumed, result: operatorResult, proof });
       }
-
       if (context.persistGraphNode && context.runId && context.executionId) {
         const graphNode = await context.persistGraphNode({ capabilityId, result: operatorResult, dependencyResults, dependencyNodeIds });
         if (!graphNode?.id) return finish(plan, "FAILED", executed, results, capabilityId, `INTELLIGENCE_GRAPH_NODE_ID_MISSING: ${capabilityId}.`, executed.length, edges, compositions, dependencyConsumption);
