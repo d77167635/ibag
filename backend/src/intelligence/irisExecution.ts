@@ -13,7 +13,7 @@ const ORCHESTRATOR_VERSION = "iris-recursive-orchestrator-v2";
 const CERTIFICATION_POLICY_VERSION = "iris-certification-v3";
 const CAPABILITY_ID = "iris.full_intelligence";
 const EXECUTOR_OPERATOR_ID = "recursiveCapabilityExecutor";
-const EXECUTOR_OPERATOR_VERSION = "iris-recursive-capability-executor-v5";
+const EXECUTOR_OPERATOR_VERSION = "iris-recursive-capability-executor-v11";
 const DEFAULT_REQUESTED_CAPABILITIES = [CAPABILITY_ID];
 
 type RunRequest = { userId: string; requestId?: string; surface?: string; mode?: string; requestedCapabilities?: string[] };
