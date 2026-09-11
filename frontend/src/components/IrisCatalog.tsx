@@ -7,6 +7,26 @@ import "./IrisIntelligenceScreens.css";
 type Props = { go?: (page: string) => void };
 type RuntimeReport = { report_id?: string; runtime_lineage?: unknown };
 
+type ProductState = "runtime" | "active" | "defined";
+
+function productState(report: IrisReportCatalogProduct, active: boolean, runtime: boolean): ProductState {
+  if (runtime) return "runtime";
+  if (active) return "active";
+  return "defined";
+}
+
+function stateLabel(state: ProductState) {
+  if (state === "runtime") return "Runtime output observed";
+  if (state === "active") return "Active definition";
+  return "Defined · inspect";
+}
+
+function stateDescription(state: ProductState) {
+  if (state === "runtime") return "A governed runtime output was returned for this product.";
+  if (state === "active") return "You have activated this product; activation does not create evidence or intelligence.";
+  return "A catalog definition exists; no produced result is being claimed here.";
+}
+
 export function IrisCatalog({ go }: Props) {
   const [catalog, setCatalog] = useState<IrisReportCatalogProduct[]>([]);
   const [active, setActive] = useState<string[]>([]);
@@ -53,6 +73,42 @@ export function IrisCatalog({ go }: Props) {
   const dependencyCount = dependencies.length;
   const familyCounts = useMemo(() => families.map((name) => ({ name, count: catalog.filter((r) => r.family === name).length })), [catalog, families]);
 
+  const selectedFamilyProducts = useMemo(() => {
+    if (!selected) return [];
+    return catalog.filter((candidate) => candidate.reportId !== selected.reportId && candidate.family === selected.family).slice(0, 6);
+  }, [catalog, selected]);
+
+  const relatedProducts = useMemo(() => {
+    if (!selected) return [];
+    const selectedInputs = new Set(selected.requiredEvidenceInputs);
+    return catalog
+      .filter((candidate) => candidate.reportId !== selected.reportId)
+      .map((candidate) => {
+        const sharedInputs = candidate.requiredEvidenceInputs.filter((input) => selectedInputs.has(input)).length;
+        const sameOutput = candidate.outputType === selected.outputType ? 1 : 0;
+        const sameFamily = candidate.family === selected.family ? 2 : 0;
+        return { candidate, score: sharedInputs * 3 + sameOutput + sameFamily };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.candidate.name.localeCompare(b.candidate.name))
+      .slice(0, 8)
+      .map((item) => item.candidate);
+  }, [catalog, selected]);
+
+  const discoverySuggestions = useMemo(() => {
+    const prompts = [
+      "cash flow",
+      "spending changes",
+      "financial position",
+      "debt",
+      "behavior",
+      "forecast",
+      "evidence",
+      "risk",
+    ];
+    return prompts.filter((prompt) => !query.trim() || prompt.includes(query.trim().toLowerCase())).slice(0, 6);
+  }, [query]);
+
   const toggle = async (reportId: string) => {
     if (saving) return;
     const previous = active;
@@ -80,7 +136,36 @@ export function IrisCatalog({ go }: Props) {
     } finally { setSaving(false); }
   };
 
-  if (selected) return <IrisReportDetail report={selected} dependency={selectedDependency} active={active.includes(selected.reportId)} saving={saving} onToggle={() => void toggle(selected.reportId)} onBack={() => setSelectedId(null)} />;
+  if (selected) return (
+    <>
+      <IrisReportDetail
+        report={selected}
+        dependency={selectedDependency}
+        active={active.includes(selected.reportId)}
+        saving={saving}
+        onToggle={() => void toggle(selected.reportId)}
+        onBack={() => setSelectedId(null)}
+      />
+      <section className="iis-panel" aria-label="Related report products">
+        <header><div><span>CONTINUE EXPLORING</span><h2>Related products</h2></div></header>
+        <p className="iis-note">These relationships are catalog-level discovery signals. They do not prove that the related products have runtime outputs or that their dependencies were consumed.</p>
+        <div className="iis-catalog-grid">
+          {[...selectedFamilyProducts, ...relatedProducts.filter((r) => !selectedFamilyProducts.some((x) => x.reportId === r.reportId))].slice(0, 8).map((r) => (
+            <button type="button" key={r.reportId} className="iis-catalog-card" onClick={() => setSelectedId(r.reportId)}>
+              <div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div>
+              <small>{r.description}</small>
+              <em>Open related product →</em>
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className="iis-panel">
+        <header><div><span>RETURN PATH</span><h2>Keep the financial-life context</h2></div></header>
+        <div className="iis-boundary"><p>From a report, IRIS can move toward reasoning and evidence when those routes are available, then return to the report universe without treating navigation as proof.</p></div>
+        <div className="iis-catalog-toolbar"><button type="button" onClick={() => go?.("iris")}>← Financial Life</button><button type="button" onClick={() => go?.("iris/reasoning")}>Understand the reasoning</button><button type="button" onClick={() => go?.("iris/evidence")}>Verify evidence</button><button type="button" onClick={() => setSelectedId(null)}>Report library</button></div>
+      </section>
+    </>
+  );
 
   return (
     <div className="iis-screen">
@@ -107,6 +192,12 @@ export function IrisCatalog({ go }: Props) {
       </section>
 
       <section className="iis-panel">
+        <header><div><span>QUESTION-DRIVEN DISCOVERY</span><h2>Start with what you want to understand</h2></div></header>
+        <p className="iis-note">These prompts search the registered product definitions. They do not claim that IRIS has already answered the question.</p>
+        <div className="iis-catalog-toolbar"><input aria-label="Search Iris report products" placeholder="What do you want to understand?" value={query} onChange={(e) => setQuery(e.target.value)} />{discoverySuggestions.map((prompt) => <button type="button" key={prompt} onClick={() => setQuery(prompt)}>{prompt}</button>)}</div>
+      </section>
+
+      <section className="iis-panel">
         <header><div><span>YOUR PUBLICATION PREFERENCES</span><h2>Active reports</h2></div><button type="button" onClick={() => void reset()} disabled={saving}>Restore available reports</button></header>
         <p className="iis-note">Activation controls what you choose to receive and prioritize. It does not turn a provider product on or off, create evidence, create intelligence, or limit the underlying IRIS hierarchy.</p>
         <div className="iis-catalog-grid">
@@ -119,8 +210,14 @@ export function IrisCatalog({ go }: Props) {
         <header><div><span>COMPLETE REGISTERED INVENTORY</span><h2>{visible.length} report products shown</h2></div></header>
         <div className="iis-catalog-toolbar"><input aria-label="Search Iris report products" placeholder="Search reports, analyses, evidence inputs…" value={query} onChange={(e) => setQuery(e.target.value)} /><select aria-label="Filter report family" value={family} onChange={(e) => setFamily(e.target.value)}><option value="all">All families</option>{families.map((f) => <option key={f} value={f}>{f}</option>)}</select><select aria-label="Filter report output type" value={outputType} onChange={(e) => setOutputType(e.target.value)}><option value="all">All output types</option>{outputTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></div>
         <div className="iis-catalog-grid">
-          {visible.map((r) => { const isActive = active.includes(r.reportId); const isRuntime = runtimeReportIds.has(r.reportId); const dependency = dependencies.find((item) => item.report_id === r.reportId); return <button type="button" key={r.reportId} className={`iis-catalog-card${isActive ? " selected" : ""}`} onClick={() => setSelectedId(r.reportId)}><div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><small>{r.requiredEvidenceInputs.length} declared evidence input{r.requiredEvidenceInputs.length === 1 ? "" : "s"} · {dependency?.feature_ids.length ?? 0} feature mapping{(dependency?.feature_ids.length ?? 0) === 1 ? "" : "s"}</small><em>{isRuntime ? "Runtime output observed" : isActive ? "Active definition" : "Defined · inspect"}</em></button>; })}
-          {visible.length === 0 && <p className="iis-note">No report products match the current filters.</p>}
+          {visible.map((r) => {
+            const isActive = active.includes(r.reportId);
+            const isRuntime = runtimeReportIds.has(r.reportId);
+            const dependency = dependencies.find((item) => item.report_id === r.reportId);
+            const state = productState(r, isActive, isRuntime);
+            return <button type="button" key={r.reportId} className={`iis-catalog-card${isActive ? " selected" : ""}`} onClick={() => setSelectedId(r.reportId)}><div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><small>{r.requiredEvidenceInputs.length} declared evidence input{r.requiredEvidenceInputs.length === 1 ? "" : "s"} · {dependency?.feature_ids.length ?? 0} feature mapping{(dependency?.feature_ids.length ?? 0) === 1 ? "" : "s"}</small><em>{stateLabel(state)}</em><small>{stateDescription(state)}</small></button>;
+          })}
+          {visible.length === 0 && <p className="iis-note">No report products match the current discovery terms or filters.</p>}
         </div>
       </section>
 
