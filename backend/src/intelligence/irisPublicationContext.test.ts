@@ -3,14 +3,15 @@ import test from "node:test";
 import { buildIrisPublicationRuntime } from "./irisPublicationContext.js";
 import { getIrisFeatureByCapability } from "../contracts/irisFeatureRegistry.js";
 
-test("publication runtime publishes only evidence-ready active reports", () => {
+test("publication runtime suppresses ready atlas output without exact runtime lineage", () => {
   const runtime = buildIrisPublicationRuntime([
     { id: "state.financial-state", family: "state", name: "Financial State", purpose: "Current financial state", output: "state", evidence_ready: true, missing_inputs: [] },
     { id: "state.liquidity-position", family: "state", name: "Liquidity position", purpose: "Current liquid-resource position", output: "state", evidence_ready: false, missing_inputs: ["cash_flow_safety"] },
   ], ["report.state.financial-state", "report.state.liquidity-position"]);
   const ready = runtime.intelligence_output_runtime.ready_outputs;
   const suppressed = runtime.intelligence_output_runtime.suppressed_outputs;
-  assert.equal(ready.some((output) => output.analysis_id === "state.financial-state"), true);
+  assert.equal(ready.some((output) => output.analysis_id === "state.financial-state"), false);
+  assert.equal(suppressed.some((output) => output.analysis_id === "state.financial-state"), true);
   assert.equal(suppressed.some((output) => output.analysis_id === "state.liquidity-position"), true);
 });
 
