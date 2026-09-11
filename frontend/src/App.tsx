@@ -5,7 +5,9 @@ import { Auth } from "./components/Auth";
 import { IrisConsumerHome } from "./components/IrisConsumerHome";
 import { IrisCommandSurface } from "./components/IrisCommandSurface";
 import { IrisCatalog } from "./components/IrisCatalog";
+import { IrisExperienceShell } from "./components/IrisExperienceShell";
 import "./iris-command-deck.css";
+import "./components/IrisExperienceShell.css";
 
 const accountControlStyle: React.CSSProperties = { position: "fixed", right: 20, bottom: 18, zIndex: 120, display: "flex", alignItems: "center", gap: 9, padding: "7px 9px 7px 11px", border: "1px solid rgba(255,255,255,.11)", borderRadius: 10, background: "rgba(7,9,14,.92)", boxShadow: "0 10px 30px rgba(0,0,0,.28)" };
 const accountEmailStyle: React.CSSProperties = { maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#778198", font: "600 8px/1 Inter,system-ui,sans-serif" };
@@ -29,5 +31,5 @@ export default function App() {
     : irisPage === "iris"
       ? <IrisConsumerHome go={navigate} />
       : <IrisCommandSurface page={irisPage} go={navigate} />;
-  return <div className="app-workspace app-workspace-iris">{content}{account}</div>;
+  return <IrisExperienceShell page={irisPage} go={navigate}><div className="app-workspace app-workspace-iris">{content}{account}</div></IrisExperienceShell>;
 }
