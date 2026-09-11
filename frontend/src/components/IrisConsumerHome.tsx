@@ -35,7 +35,7 @@ export function IrisConsumerHome({ go }: Props) {
   }, []);
 
   const runtime = data?.intelligence_output_runtime;
-  const publishable = runtime?.publishable ?? [];
+  const publishable = data?.certified ? (runtime?.publishable ?? []) : [];
   const active = new Set(data?.selected_report_ids ?? []);
 
   return <main className="iris4-screen">
@@ -57,7 +57,7 @@ export function IrisConsumerHome({ go }: Props) {
 
       {!loading && !error && !data?.certified && <section className="iris-surface"><span className="eyebrow">CERTIFICATION STATUS</span><h2>This run is not certified for completed consumer intelligence</h2><p>IRIS can expose the execution boundary and evidence limitations, but it will not present an uncertified result as a completed financial conclusion.</p><p>Run status: <strong>{data?.run_status ?? "unknown"}</strong></p></section>}
 
-      {!loading && !error && publishable.length === 0 && <section className="iris-surface"><span className="eyebrow">REPORTS & ANALYTICS</span><h2>No evidence-qualified report is currently publishable.</h2><p>This is an evidence state, not a zero-result financial conclusion. Connect an authorized provider or supply another permitted evidence source before IRIS can publish supported financial intelligence.</p></section>}
+      {!loading && !error && data?.certified && publishable.length === 0 && <section className="iris-surface"><span className="eyebrow">REPORTS & ANALYTICS</span><h2>No evidence-qualified report is currently publishable.</h2><p>This is an evidence state, not a zero-result financial conclusion. Connect an authorized provider or supply another permitted evidence source before IRIS can publish supported financial intelligence.</p></section>}
 
       {publishable.length > 0 && <section className="iris-surface">
         <span className="eyebrow">YOUR IRIS PRODUCTS</span>
@@ -68,6 +68,8 @@ export function IrisConsumerHome({ go }: Props) {
             <div><span>{report.family} · {stateLabel(report.state)}</span><b>{report.analysis_name}</b></div>
             <small>{report.purpose}</small>
             <em>{evidenceLabel[report.evidence_publication_state] ?? report.evidence_publication_state}{active.has(report.report_id) ? " · Active" : " · Not active"}</em>
+            {report.headline_intelligence_node_id && <small>Headline intelligence: {report.headline_intelligence_node_id}</small>}
+            {report.headline_reason && <small>{report.headline_reason}</small>}
             {report.qualification && <small>{report.qualification}</small>}
           </article>)}
         </div>
