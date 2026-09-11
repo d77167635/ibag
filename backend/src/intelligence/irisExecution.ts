@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../config/supabase.js";
 import { planCapabilities } from "./capabilityPlanner.js";
 import { executeRecursiveCapabilityPlan } from "./recursiveCapabilityExecutor.js";
 import { persistRecursiveLineage } from "./recursiveLineage.js";
+import { persistUserIntelligenceGraph } from "./persistedIntelligenceGraph.js";
 import { evaluateCertificationGate } from "./certificationGate.js";
 import { resolveCanonicalProviderItem, IRIS_CANONICAL_PROVIDER_DOMAINS, type IrisEvidenceScope } from "./evidenceScope.js";
 
@@ -11,14 +12,14 @@ const ORCHESTRATOR_VERSION = "iris-recursive-orchestrator-v2";
 const CERTIFICATION_POLICY_VERSION = "iris-certification-v3";
 const CAPABILITY_ID = "iris.full_intelligence";
 const EXECUTOR_OPERATOR_ID = "recursiveCapabilityExecutor";
-const EXECUTOR_OPERATOR_VERSION = "iris-recursive-capability-executor-v3";
+const EXECUTOR_OPERATOR_VERSION = "iris-recursive-capability-executor-v4";
 const DEFAULT_REQUESTED_CAPABILITIES = [CAPABILITY_ID];
 
 type RunRequest = { userId: string; requestId?: string; surface?: string; mode?: string; requestedCapabilities?: string[] };
 function hash(value: unknown): string { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 function errorText(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
-/** The single governed Iris execution boundary. A full-intelligence request expands through the persisted capability registry and executes the resulting dependency graph; no aggregate intelligence operator is authoritative here. */
+/** The single governed Iris execution boundary. A full-intelligence request expands through the persisted capability registry and executes the resulting dependency graph; produced outputs are also materialized as a durable user intelligence graph without imposing a semantic depth ceiling. */
 export async function executeIrisRun(request: RunRequest) {
   const userId = request.userId;
   const requestId = request.requestId?.trim() || randomUUID();
@@ -43,7 +44,7 @@ export async function executeIrisRun(request: RunRequest) {
   const { data: run, error: runError } = await supabaseAdmin.from("iris_runs").insert({
     request_id: requestId, user_id: userId, request_surface: surface, request_mode: mode, requested_capabilities: requestedCapabilities,
     status: "PLANNED", as_of: asOf, evidence_boundary: asOf, evidence_version: "provider-observation-boundary-v3",
-    resource_budget: { max_execution_time_ms: 120000, max_graph_nodes: 10000, max_graph_edges: 30000, max_compositions: 5000, max_investigations: 500 },
+    resource_budget: { max_execution_time_ms: 120000, max_graph_nodes: 10000, max_graph_edges: 30000, max_compositions: 5000 },
     execution_policy: { evidence_gated: true, certify_only_after_validation: true, server_authoritative: true, capability_plan_status: plan.status, evidence_scope_kind: evidenceScope.kind, selected_item_id: selectedItemId, canonical_provider_domains: [...IRIS_CANONICAL_PROVIDER_DOMAINS], recursive_executor: EXECUTOR_OPERATOR_ID, recursive_executor_version: EXECUTOR_OPERATOR_VERSION },
     planner_version: PLANNER_VERSION, orchestrator_version: ORCHESTRATOR_VERSION, certification_policy_version: CERTIFICATION_POLICY_VERSION,
     financial_context_hash: hash({ user_id: userId, as_of: asOf, evidence_scope: evidenceScope }), evidence_manifest_hash: hash(initialManifest), started_at: asOf, updated_at: asOf,
@@ -76,6 +77,7 @@ export async function executeIrisRun(request: RunRequest) {
   try {
     const recursive = await executeRecursiveCapabilityPlan(userId, plan, {
       runId: run.id, executionId: execution.id, asOf, evidenceBoundary: run.evidence_boundary, evidenceManifestHash: run.evidence_manifest_hash, runEvidenceIds,
+      persistGraphNode: ({ capabilityId, result, dependencyResults, dependencyNodeIds }) => persistUserIntelligenceGraph({ userId, runId: run.id, executionId: execution.id, capabilityId, result, dependencyResults, dependencyNodeIds }),
       persistLineage: ({ capabilityId, result, dependencyResults }) => persistRecursiveLineage({ userId, runId: run.id, executionId: execution.id, capabilityId, result, dependencyResults, runEvidenceIds }),
     }, { maxNodes: 10000, maxEdges: 30000, maxCompositions: 5000 });
 
@@ -87,10 +89,10 @@ export async function executeIrisRun(request: RunRequest) {
     }
 
     const result = {
-      architecture_version: "IRIS_RECURSIVE_CAPABILITY_GRAPH_V1", execution_status: recursive.status, requested_capabilities: requestedCapabilities,
+      architecture_version: "IRIS_RECURSIVE_CAPABILITY_GRAPH_V2", execution_status: recursive.status, requested_capabilities: requestedCapabilities,
       ordered_capabilities: recursive.ordered_capabilities, executed_capabilities: recursive.executed_capabilities, results: recursive.results, resource_usage: recursive.resource_usage,
       evidence_scope: evidenceScope, evidence_boundary: run.evidence_boundary,
-      provenance: { source: "governed_capability_registry_and_run_bound_evidence", run_id: run.id, run_evidence_ids: [...runEvidenceIds].sort(), evidence_manifest_hash: run.evidence_manifest_hash, planner_version: PLANNER_VERSION, executor_version: EXECUTOR_OPERATOR_VERSION, financial_values_created: false, provider_observations_created: false, money_movement_executed: false },
+      provenance: { source: "governed_capability_registry_and_run_bound_evidence", run_id: run.id, run_evidence_ids: [...runEvidenceIds].sort(), evidence_manifest_hash: run.evidence_manifest_hash, planner_version: PLANNER_VERSION, executor_version: EXECUTOR_OPERATOR_VERSION, persisted_graph_version: "iris-persisted-intelligence-graph-v1", financial_values_created: false, provider_observations_created: false, money_movement_executed: false },
     };
     const outputHash = hash(result); const finishedAt = new Date().toISOString();
     const { error: outputError } = await supabaseAdmin.from("iris_execution_outputs").insert({ execution_id: execution.id, output_key: "recursive_intelligence_graph", output_type: "recursive_intelligence_graph", value: result, hash: outputHash, evidence_state: "CALCULATED", uncertainty: null });
