@@ -26,6 +26,16 @@ export type SemanticDependencyContract = {
  * the additional contract-level sufficiency rules are also satisfied.
  */
 export const SEMANTIC_DEPENDENCY_CONTRACTS: SemanticDependencyContract[] = [
+  {
+    capability_id: "temporal",
+    requirements: [],
+    proof_required: false,
+    sufficiency: {
+      require_dependency_evidence: false,
+      disallow_insufficient_dependency_evidence: true,
+      disallow_insufficient_output_evidence: true,
+    },
+  },
   { capability_id: "analysis", requirements: [{ dependency_id: "temporal", required_paths: ["root.result"], rationale: "Analysis must incorporate temporal output." }], proof_required: true, sufficiency: { require_dependency_evidence: true, disallow_insufficient_dependency_evidence: true, disallow_insufficient_output_evidence: true } },
   { capability_id: "behavioral", requirements: [{ dependency_id: "analysis", required_paths: ["root.result"], rationale: "Behavioral derivation must consume analysis output." }], proof_required: true, sufficiency: { require_dependency_evidence: true, disallow_insufficient_dependency_evidence: true, disallow_insufficient_output_evidence: true } },
   { capability_id: "pattern", requirements: [{ dependency_id: "analysis", required_paths: ["root.result.spending"], rationale: "Pattern derivation must consume an analysis field." }, { dependency_id: "behavioral", required_paths: ["root.result.merchant_frequency"], rationale: "Pattern derivation must consume behavioral frequency evidence." }], proof_required: true, sufficiency: { require_dependency_evidence: true, disallow_insufficient_dependency_evidence: true, disallow_insufficient_output_evidence: true } },
