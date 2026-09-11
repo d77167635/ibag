@@ -32,7 +32,7 @@ export async function buildIrisPublicationContext(userId: string, atlasDefinitio
   let runtimeLineage: Record<string, IrisReportRuntimeLineage> = {};
   let reportCertificationRuntime: Record<string, ReportCertificationRuntime> = {};
   if (executionContext.runId && executionContext.executionId) {
-    const dependencies = buildIrisReportDependencyGraph(atlasDefinitions.map((definition) => ({ id: definition.id })));
+    const dependencies = buildIrisReportDependencyGraph();
     runtimeLineage = await resolveIrisReportRuntimeLineage({ userId, runId: executionContext.runId, executionId: executionContext.executionId, dependencies });
     const { data: proofRows, error: proofError } = await supabaseAdmin.from("iris_semantic_dependency_proofs").select("capability_id,consumed_dependency_ids,consumed_dependency_hashes,consumed_dependency_paths,output_hash,proof_version").eq("user_id", userId).eq("run_id", executionContext.runId).eq("execution_id", executionContext.executionId);
     if (proofError) throw new Error(`IRIS_REPORT_SEMANTIC_PROOF_LOOKUP_FAILED: ${proofError.message}`);
