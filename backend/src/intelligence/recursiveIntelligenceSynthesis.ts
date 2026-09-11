@@ -32,7 +32,7 @@ export type RecursiveSynthesis = {
   }>;
   unresolved_evidence: string[];
   provenance: {
-    source: "certified_capability_outputs";
+    source: "governed_run_capability_outputs";
     provider_observations_created: false;
     financial_values_created: false;
     money_movement_executed: false;
@@ -83,8 +83,6 @@ function walk(results: Record<string, CapabilityOperatorResult>): RecursiveNode[
     }
   };
 
-  // Every node is a possible root. Using a path-local cycle guard rather than
-  // a global visited set makes computed depth independent of object ordering.
   for (const [capabilityId, result] of Object.entries(results).sort(([a], [b]) => a.localeCompare(b))) {
     visit(capabilityId, result, 1, new Set());
   }
@@ -110,10 +108,6 @@ function buildGenericRecursiveFindings(nodes: RecursiveNode[], maxFindings: numb
 
   const findings: RecursiveSynthesis["higher_order_findings"] = [];
   const seenPaths = new Set<string>();
-  // The execution graph itself is the finite boundary for this pure synthesis
-  // call. There is deliberately no hard-coded semantic depth ceiling here.
-  // Runtime resource budgets may limit how many nodes/compositions are executed;
-  // they must not redefine Iris's intelligence hierarchy.
   const maxPathDepth = Math.max(2, nodes.length);
   const visit = (path: string[]) => {
     if (findings.length >= maxFindings) return;
@@ -151,14 +145,6 @@ function buildGenericRecursiveFindings(nodes: RecursiveNode[], maxFindings: numb
   return findings;
 }
 
-/**
- * Composes already-certified capability outputs into deeper intelligence.
- * Named high-value relationships are retained, while the dependency graph is
- * also explored generically so new governed capabilities can participate in
- * higher-order reasoning without requiring a new hard-coded pair/triple rule.
- * Recursion is bounded by execution resources outside this pure synthesis step,
- * not by a semantic maximum hierarchy depth.
- */
 export function buildRecursiveIntelligenceSynthesis(
   results: Record<string, CapabilityOperatorResult>,
   context?: CapabilityExecutionContext,
@@ -176,39 +162,17 @@ export function buildRecursiveIntelligenceSynthesis(
     findings.push({ id, kind, capabilities, statement, evidence_states: capabilities.map(capability => results[capability]?.evidence_state ?? "INSUFFICIENT_EVIDENCE"), limitation });
   };
 
-  if (has(results, "financial_life_state") && has(results, "relational_ontology")) {
-    add("life-state-ontology-foundation", "chain", ["financial_life_state", "relational_ontology"], "Canonical financial-life state can feed relational ontology expansion so individual facts and their observed relationships remain part of the same governed intelligence graph.", "Relationships are calculated from available evidence and do not establish causation, intent, necessity, or future behavior.");
-  }
-  if (has(results, "causal") && has(results, "relationship") && has(results, "causal", ["INFERRED"])) {
-    add("causal-relationship-chain", "chain", ["relationship", "causal"], "Observed relationships can be passed into observational causal-candidate analysis without converting association into causation.", "The causal capability remains observational and does not establish a causal effect.");
-  }
-  if (has(results, "behavioral") && has(results, "anomaly") && has(results, "anomaly", ["CALCULATED"])) {
-    add("behavior-anomaly-interaction", "interaction", ["behavioral", "anomaly"], "Behavioral concentration and transaction-level anomaly evidence can be jointly inspected to distinguish repeated activity from unusual activity.", "The interaction does not establish why an unusual transaction occurred.");
-  }
-  if (has(results, "predictive") && has(results, "scenario")) {
-    add("prediction-scenario-chain", "chain", ["predictive", "scenario"], "A constrained forward projection can serve as the baseline context for explicitly modeled counterfactual scenarios.", "Scenario results remain assumptions applied to evidence and are not forecasts of behavior change.");
-  }
-  if (has(results, "scenario") && has(results, "decision") && has(results, "decision", ["INFERRED"])) {
-    add("scenario-decision-chain", "chain", ["scenario", "decision"], "Scenario outputs can inform analytical decision options while keeping the decision separate from any executed action.", "No financial action is executed and the analytical option is not a guaranteed outcome.");
-  }
-  if (has(results, "decision") && has(results, "recommendation")) {
-    add("decision-recommendation-chain", "chain", ["decision", "recommendation"], "Decision alternatives can be transformed into user-reviewable recommendations while preserving the upstream analytical context.", "A recommendation is advisory and does not imply authorization or execution.");
-  }
-  if (has(results, "risk") && has(results, "opportunity")) {
-    add("risk-opportunity-interaction", "interaction", ["risk", "opportunity"], "Risk signals and opportunity candidates can be jointly inspected so Iris can evaluate improvement possibilities in the context of observed pressure signals.", "Risk and opportunity signals are analytical and do not establish that a proposed change will produce a particular outcome.");
-  }
-  if (has(results, "risk") && has(results, "opportunity") && has(results, "consequence")) {
-    add("risk-opportunity-consequence-chain", "chain", ["risk", "opportunity", "consequence"], "Risk signals and opportunity candidates can feed conditional consequence analysis, preserving the distinction between observed evidence, analytical options, and modeled implications.", "Consequences are conditional analytical implications, not guaranteed future outcomes.");
-  }
-  if (has(results, "outcome") && has(results, "learning")) {
-    add("outcome-learning-chain", "chain", ["outcome", "learning"], "Validated outcomes are the required evidence bridge for future learning rather than inferred learning from activity alone.", "Current learning remains evidence-limited until durable observed outcomes exist.");
-  }
-  if (has(results, "temporal") && has(results, "analysis")) {
-    add("temporal-analysis-cross-domain", "cross_domain", ["temporal", "analysis"], "Temporal windows can be combined with canonical semantic analysis so changes are interpreted against the same evidence boundary.", "A temporal relationship does not by itself establish a cause.");
-  }
-  if (nodes.length >= 4) {
-    add("multi-capability-synthesis", "interaction", nodes.slice(0, Math.min(nodes.length, 8)).map(node => node.capability_id), "Multiple governed capability outputs are available as a recursively composable evidence graph rather than isolated analytical cards.", "Only capability outputs present in the current run can be composed; missing evidence remains explicit.");
-  }
+  if (has(results, "financial_life_state") && has(results, "relational_ontology")) add("life-state-ontology-foundation", "chain", ["financial_life_state", "relational_ontology"], "Canonical financial-life state can feed relational ontology expansion so individual facts and their observed relationships remain part of the same governed intelligence graph.", "Relationships are calculated from available evidence and do not establish causation, intent, necessity, or future behavior.");
+  if (has(results, "causal") && has(results, "relationship") && has(results, "causal", ["INFERRED"])) add("causal-relationship-chain", "chain", ["relationship", "causal"], "Observed relationships can be passed into observational causal-candidate analysis without converting association into causation.", "The causal capability remains observational and does not establish a causal effect.");
+  if (has(results, "behavioral") && has(results, "anomaly") && has(results, "anomaly", ["CALCULATED"])) add("behavior-anomaly-interaction", "interaction", ["behavioral", "anomaly"], "Behavioral concentration and transaction-level anomaly evidence can be jointly inspected to distinguish repeated activity from unusual activity.", "The interaction does not establish why an unusual transaction occurred.");
+  if (has(results, "predictive") && has(results, "scenario")) add("prediction-scenario-chain", "chain", ["predictive", "scenario"], "A constrained forward projection can serve as the baseline context for explicitly modeled counterfactual scenarios.", "Scenario results remain assumptions applied to evidence and are not forecasts of behavior change.");
+  if (has(results, "scenario") && has(results, "decision") && has(results, "decision", ["INFERRED"])) add("scenario-decision-chain", "chain", ["scenario", "decision"], "Scenario outputs can inform analytical decision options while keeping the decision separate from any executed action.", "No financial action is executed and the analytical option is not a guaranteed outcome.");
+  if (has(results, "decision") && has(results, "recommendation")) add("decision-recommendation-chain", "chain", ["decision", "recommendation"], "Decision alternatives can be transformed into user-reviewable recommendations while preserving the upstream analytical context.", "A recommendation is advisory and does not imply authorization or execution.");
+  if (has(results, "risk") && has(results, "opportunity")) add("risk-opportunity-interaction", "interaction", ["risk", "opportunity"], "Risk signals and opportunity candidates can be jointly inspected so Iris can evaluate improvement possibilities in the context of observed pressure signals.", "Risk and opportunity signals are analytical and do not establish that a proposed change will produce a particular outcome.");
+  if (has(results, "risk") && has(results, "opportunity") && has(results, "consequence")) add("risk-opportunity-consequence-chain", "chain", ["risk", "opportunity", "consequence"], "Risk signals and opportunity candidates can feed conditional consequence analysis, preserving the distinction between observed evidence, analytical options, and modeled implications.", "Consequences are conditional analytical implications, not guaranteed future outcomes.");
+  if (has(results, "outcome") && has(results, "learning")) add("outcome-learning-chain", "chain", ["outcome", "learning"], "Validated outcomes are the required evidence bridge for future learning rather than inferred learning from activity alone.", "Current learning remains evidence-limited until durable observed outcomes exist.");
+  if (has(results, "temporal") && has(results, "analysis")) add("temporal-analysis-cross-domain", "cross_domain", ["temporal", "analysis"], "Temporal windows can be combined with canonical semantic analysis so changes are interpreted against the same evidence boundary.", "A temporal relationship does not by itself establish a cause.");
+  if (nodes.length >= 4) add("multi-capability-synthesis", "interaction", nodes.slice(0, Math.min(nodes.length, 8)).map(node => node.capability_id), "Multiple governed capability outputs are available as a recursively composable evidence graph rather than isolated analytical cards.", "Only capability outputs present in the current run can be composed; missing evidence remains explicit.");
 
   const genericFindings = buildGenericRecursiveFindings(nodes, 256);
   const existingKeys = new Set(findings.map(f => `${f.kind}:${f.capabilities.join("->")}`));
@@ -218,15 +182,9 @@ export function buildRecursiveIntelligenceSynthesis(
     if (findings.length >= 320) break;
   }
 
-  const expected = [
-    "financial_life_state", "relational_ontology", "temporal", "analysis", "behavioral", "pattern",
-    "relationship", "anomaly", "causal", "predictive", "scenario", "decision", "recommendation",
-    "risk", "opportunity", "consequence", "outcome", "learning",
-  ];
+  const expected = ["financial_life_state", "relational_ontology", "temporal", "analysis", "behavioral", "pattern", "relationship", "anomaly", "causal", "predictive", "scenario", "decision", "recommendation", "risk", "opportunity", "consequence", "outcome", "learning"];
   for (const capability of expected) {
-    if (!results[capability] || results[capability].evidence_state === "INSUFFICIENT_EVIDENCE") {
-      findings.push({ id: `evidence-gap-${capability}`, kind: "evidence_gap", capabilities: [capability], statement: `${capability} cannot contribute a fully evidenced higher-order conclusion in this run until its required evidence is available.`, evidence_states: [results[capability]?.evidence_state ?? "INSUFFICIENT_EVIDENCE"], limitation: "Iris does not convert missing evidence into a zero, observed fact, or inferred conclusion." });
-    }
+    if (!results[capability] || results[capability].evidence_state === "INSUFFICIENT_EVIDENCE") findings.push({ id: `evidence-gap-${capability}`, kind: "evidence_gap", capabilities: [capability], statement: `${capability} cannot contribute a fully evidenced higher-order conclusion in this run until its required evidence is available.`, evidence_states: [results[capability]?.evidence_state ?? "INSUFFICIENT_EVIDENCE"], limitation: "Iris does not convert missing evidence into a zero, observed fact, or inferred conclusion." });
   }
 
   const maxDepth = nodes.reduce((max, node) => Math.max(max, node.depth), 0);
@@ -239,7 +197,7 @@ export function buildRecursiveIntelligenceSynthesis(
     higher_order_findings: findings.sort((a, b) => a.id.localeCompare(b.id)).slice(0, 320),
     unresolved_evidence: [...new Set(findings.filter(f => f.kind === "evidence_gap").map(f => f.statement))].slice(0, 64),
     provenance: {
-      source: "certified_capability_outputs",
+      source: "governed_run_capability_outputs",
       provider_observations_created: false,
       financial_values_created: false,
       money_movement_executed: false,
