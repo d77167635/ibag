@@ -115,7 +115,7 @@ dashboardRouter.get("/dashboard/intelligence", requireAuth, async (req: AuthedRe
       adversarial_reasoning: full.adversarial_reasoning,
       counterfactual_intelligence: full.counterfactual_intelligence,
       meta_intelligence: full.meta_intelligence,
-      selected_capability_ids: publication.selected_capability_ids,
+      selected_report_ids: publication.selected_report_ids,
       feature_runtime: publication.feature_runtime,
       intelligence_output_runtime: publication.intelligence_output_runtime,
       publication_boundary: publication.publication_boundary,
