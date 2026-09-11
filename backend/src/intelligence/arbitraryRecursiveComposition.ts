@@ -6,7 +6,6 @@ import type { RecursiveSynthesis } from "./recursiveIntelligenceSynthesis.js";
 export const ARBITRARY_RECURSIVE_COMPOSITION_VERSION = "iris-arbitrary-recursive-composition-v1" as const;
 
 type GraphNodeRow = { id: string; capability_id: string | null; node_hash: string };
-
 type EvidenceState = ArbitraryDerivedIntelligenceDefinition["evidenceState"];
 
 function hash(value: unknown): string {
@@ -22,17 +21,18 @@ function deriveEvidenceState(states: string[]): EvidenceState {
 }
 
 /**
- * Turns the recursively discovered higher-order findings into durable graph nodes
+ * Turns recursively discovered higher-order findings into durable graph nodes
  * without requiring a capability-registry entry for each new composition.
- *
- * Only findings whose complete upstream capability path resolves to actual graph
- * node UUIDs are materialized. Evidence-gap findings for absent capabilities remain
- * in the execution result rather than being converted into unsupported graph nodes.
+ * Only findings whose complete upstream path resolves to actual persisted graph
+ * node UUIDs are materialized.
  */
 export async function materializeArbitraryRecursiveCompositions(input: {
   userId: string;
   runId: string;
   executionId: string;
+  evidenceBoundary?: string | null;
+  evidenceManifestHash?: string | null;
+  runEvidenceIds?: string[];
   synthesis: RecursiveSynthesis;
 }): Promise<{ materializedNodeIds: string[]; skippedFindingIds: string[] }> {
   const findings = input.synthesis.higher_order_findings.filter((finding) => finding.kind !== "evidence_gap");
@@ -91,13 +91,16 @@ export async function materializeArbitraryRecursiveCompositions(input: {
           limitation: finding.limitation,
         }),
       },
-      evidenceBoundary: null,
+      evidenceBoundary: input.evidenceBoundary ?? null,
       provenance: {
         source: "recursive_intelligence_synthesis",
         composition_version: ARBITRARY_RECURSIVE_COMPOSITION_VERSION,
         finding_id: finding.id,
         finding_kind: finding.kind,
         upstream_capability_ids: [...finding.capabilities],
+        evidence_manifest_hash: input.evidenceManifestHash ?? null,
+        run_evidence_ids: [...(input.runEvidenceIds ?? [])].sort(),
+        evidence_boundary: input.evidenceBoundary ?? null,
       },
       upstream: resolvedUpstream,
     };
