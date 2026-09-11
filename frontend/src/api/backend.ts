@@ -4,7 +4,9 @@ import type { IrisReportCatalogResponse } from "../contracts/irisReportCatalog";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
-async function authedFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+// Legacy endpoints remain runtime-JSON APIs until their individual response
+// contracts are defined. Governed Iris endpoints below are explicitly typed.
+async function authedFetch<T = any>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const resp = await fetch(`${BASE_URL}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers ?? {}) } });
