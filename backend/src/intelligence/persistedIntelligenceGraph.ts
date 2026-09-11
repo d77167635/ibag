@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { supabaseAdmin } from "../config/supabase.js";
 import type { CapabilityOperatorResult } from "./capabilityOperators.js";
 
-export const PERSISTED_INTELLIGENCE_GRAPH_VERSION = "iris-persisted-intelligence-graph-v2" as const;
+export const PERSISTED_INTELLIGENCE_GRAPH_VERSION = "iris-persisted-intelligence-graph-v3" as const;
 
 type PersistedNode = {
   id: string;
@@ -19,10 +19,12 @@ type UpstreamNodeReference = {
 };
 
 export type ArbitraryDerivedIntelligenceDefinition = {
-  /** Stable semantic identity. It is deliberately independent of capability_id. */
+  /** Stable semantic identity, independent of the finite capability registry. */
   intelligenceKey: string;
-  /** Human-readable semantic name. This is metadata, never evidence. */
+  /** Human-readable semantic name; metadata only, never evidence. */
   intelligenceName: string;
+  /** Optional registry association. Arbitrary nodes do not require one. */
+  capabilityId?: string | null;
   /** Operator/transformation identity that produced the node. */
   derivationOperator: string;
   derivationVersion: string;
@@ -60,10 +62,11 @@ function normalizeUpstream(upstream: UpstreamNodeReference[]): UpstreamNodeRefer
  * that allows recursive/cross-domain synthesis to create new derived intelligence
  * from already persisted intelligence nodes.
  *
- * The caller must provide exact persisted upstream node UUIDs. The function
- * verifies ownership, records those UUIDs on the destination node, creates typed
- * graph edges, records a composition, and writes field-level execution lineage.
- * It creates no provider observations, financial observations, or money movement.
+ * Exact persisted upstream node UUIDs are mandatory. Ownership is verified before
+ * persistence. Every upstream reference is retained on the destination node,
+ * represented as a typed graph edge, and bound into execution lineage with the
+ * supplied source field path. No provider observation, financial observation, or
+ * money movement is created here.
  */
 export async function persistArbitraryDerivedIntelligenceNode(input: {
   userId: string;
@@ -99,6 +102,7 @@ export async function persistArbitraryDerivedIntelligenceNode(input: {
     graph_version: PERSISTED_INTELLIGENCE_GRAPH_VERSION,
     intelligence_key: input.definition.intelligenceKey,
     intelligence_name: input.definition.intelligenceName,
+    capability_id: input.definition.capabilityId ?? null,
     derivation_operator: input.definition.derivationOperator,
     derivation_version: input.definition.derivationVersion,
     evidence_state: input.definition.evidenceState,
@@ -118,6 +122,7 @@ export async function persistArbitraryDerivedIntelligenceNode(input: {
     graph_version: PERSISTED_INTELLIGENCE_GRAPH_VERSION,
     intelligence_key: input.definition.intelligenceKey,
     intelligence_name: input.definition.intelligenceName,
+    capability_id: input.definition.capabilityId ?? null,
     derivation_operator: input.definition.derivationOperator,
     derivation_version: input.definition.derivationVersion,
     upstream_node_ids: upstreamIds,
@@ -134,7 +139,7 @@ export async function persistArbitraryDerivedIntelligenceNode(input: {
     execution_id: input.executionId,
     node_type: "derived_intelligence",
     domain_key: null,
-    capability_id: null,
+    capability_id: input.definition.capabilityId ?? null,
     intelligence_key: input.definition.intelligenceKey,
     intelligence_name: input.definition.intelligenceName,
     derivation_operator: input.definition.derivationOperator,
@@ -209,7 +214,7 @@ export async function persistArbitraryDerivedIntelligenceNode(input: {
       composition_depth: 1,
       input_node_ids: upstreamIds,
       output_node_id: node.id,
-      dependency_capability_ids: [],
+      dependency_capability_ids: input.definition.capabilityId ? [input.definition.capabilityId] : [],
       evidence_state: graphEvidenceState(input.definition.evidenceState),
       contract_version: input.definition.derivationVersion,
       composition_hash: compositionHash,
@@ -255,7 +260,7 @@ export async function persistArbitraryDerivedIntelligenceNode(input: {
 
   const { error: lineageError } = await supabaseAdmin
     .from("iris_execution_lineage")
-    .upsert(lineageRows, { onConflict: "user_id,run_id,execution_id,lineage_role,source_type,source_id,destination_type,destination_id,lineage_hash" , ignoreDuplicates: true });
+    .upsert(lineageRows, { onConflict: "user_id,execution_id,lineage_role,source_type,source_id,source_field_path,destination_type,destination_id,destination_field_path,lineage_hash", ignoreDuplicates: true });
   if (lineageError) throw new Error(`DERIVED_INTELLIGENCE_LINEAGE_PERSIST_FAILED: ${lineageError.message}`);
 
   return {
@@ -268,9 +273,9 @@ export async function persistArbitraryDerivedIntelligenceNode(input: {
 }
 
 /**
- * Materializes registry-backed intelligence. Registry-backed nodes and arbitrary
- * derived nodes share the same persisted graph; this wrapper preserves the
- * existing execution path while keeping the arbitrary layer independent.
+ * Materializes registry-backed intelligence through the same graph layer while
+ * retaining its capability identity. The arbitrary API above remains available
+ * for future derived intelligence that has no registry entry at all.
  */
 export async function persistUserIntelligenceGraph(input: {
   userId: string;
@@ -296,6 +301,7 @@ export async function persistUserIntelligenceGraph(input: {
     definition: {
       intelligenceKey: `capability:${input.capabilityId}`,
       intelligenceName: input.capabilityId,
+      capabilityId: input.capabilityId,
       derivationOperator: input.result.operator_id,
       derivationVersion: input.result.operator_version,
       evidenceState: input.result.evidence_state,
