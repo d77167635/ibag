@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { supabaseAdmin } from "../config/supabase.js";
 import { IRIS_AUTHORITATIVE_DOMAINS } from "./irisAuthoritativeDomainCoverage.js";
-import { auditIrisAuthoritativeDomainGates } from "./irisAuthoritativeDomainGates.js";
+import { auditIrisAuthoritativeDomainGates, type IrisAuthoritativeDomainGateDatabase } from "./irisAuthoritativeDomainGates.js";
 import type { IrisReportDependency } from "./irisReportDependencyGraph.js";
 
 type FixtureRow = Record<string, unknown>;
@@ -71,31 +70,26 @@ function buildSnapshot(options: FixtureOptions = {}) {
   return { familyRows, sourceFields, observations, runEvidence, lineage, runtimeNodes, proofs };
 }
 
-function installReadOnlySupabaseFixture(snapshot: ReturnType<typeof buildSnapshot>) {
-  const client = supabaseAdmin as unknown as { from: (table: string) => unknown };
-  const originalFrom = client.from;
-  client.from = ((table: string) => {
-    const dataByTable: Record<string, FixtureRow[]> = { iris_intelligence_nodes: snapshot.familyRows, iris_intelligence_source_fields: snapshot.sourceFields, iris_source_field_observations: snapshot.observations, iris_run_evidence: snapshot.runEvidence, iris_execution_lineage: snapshot.lineage, iris_user_intelligence_nodes: snapshot.runtimeNodes, iris_semantic_dependency_proofs: snapshot.proofs };
-    let data = [...(dataByTable[table] ?? [])];
-    const builder: Record<string, unknown> = {};
-    builder.select = () => builder;
-    builder.in = (column: string, values: unknown[]) => { data = data.filter((row) => values.includes(row[column])); return builder; };
-    builder.eq = (column: string, value: unknown) => { data = data.filter((row) => row[column] === value); return builder; };
-    builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve(resolve({ data, error: null }));
-    return builder;
-  }) as typeof client.from;
-  return () => { client.from = originalFrom; };
+function createReadOnlySupabaseFixture(snapshot: ReturnType<typeof buildSnapshot>): IrisAuthoritativeDomainGateDatabase {
+  const database = {
+    from(table: string) {
+      const dataByTable: Record<string, FixtureRow[]> = { iris_intelligence_nodes: snapshot.familyRows, iris_intelligence_source_fields: snapshot.sourceFields, iris_source_field_observations: snapshot.observations, iris_run_evidence: snapshot.runEvidence, iris_execution_lineage: snapshot.lineage, iris_user_intelligence_nodes: snapshot.runtimeNodes, iris_semantic_dependency_proofs: snapshot.proofs };
+      let data = [...(dataByTable[table] ?? [])];
+      const builder: Record<string, unknown> = {};
+      builder.select = () => builder;
+      builder.in = (column: string, values: unknown[]) => { data = data.filter((row) => values.includes(row[column])); return builder; };
+      builder.eq = (column: string, value: unknown) => { data = data.filter((row) => row[column] === value); return builder; };
+      builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve(resolve({ data, error: null }));
+      return builder;
+    },
+  } as unknown as IrisAuthoritativeDomainGateDatabase;
+  return database;
 }
 
 const reportDependencyGraph: IrisReportDependency[] = [{ report_id: "fixture-report", analysis_definition_id: "fixture-analysis", feature_ids: [], required_evidence_keys: ["behavioral"], resolution_state: "definition_only", upstream_intelligence_node_ids: [] }];
 
 async function audit(options: FixtureOptions = {}, userId = USER_ID) {
-  const restore = installReadOnlySupabaseFixture(buildSnapshot(options));
-  try {
-    return await auditIrisAuthoritativeDomainGates({ userId, runId: RUN_ID, executionId: EXECUTION_ID, reportDependencyGraph });
-  } finally {
-    restore();
-  }
+  return await auditIrisAuthoritativeDomainGates({ userId, runId: RUN_ID, executionId: EXECUTION_ID, reportDependencyGraph, database: createReadOnlySupabaseFixture(buildSnapshot(options)) });
 }
 
 test("runs the actual eight-domain gate evaluator through forward, recursive, semantic, and reverse proof paths", async () => {
