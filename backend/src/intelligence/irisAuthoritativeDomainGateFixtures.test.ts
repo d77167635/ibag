@@ -52,8 +52,8 @@ test("every domain fixture proves reverse reachability from intelligence back to
 });
 
 test("domain fixtures cannot accidentally cross provider domains", () => {
-  const products = new Set(IRIS_AUTHORITATIVE_DOMAINS.map((domain) => domain.product));
-  const nodeKeys = new Set(IRIS_AUTHORITATIVE_DOMAINS.map((domain) => domain.nodeKey));
+  const products = new Set<string>(IRIS_AUTHORITATIVE_DOMAINS.map((domain) => domain.product));
+  const nodeKeys = new Set<string>(IRIS_AUTHORITATIVE_DOMAINS.map((domain) => domain.nodeKey));
 
   for (const fixture of IRIS_AUTHORITATIVE_DOMAIN_GATE_FIXTURES) {
     assert.ok(products.has(fixture.product));
