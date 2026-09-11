@@ -4,7 +4,7 @@ import { composeRecursiveReports } from "./irisRecursiveReportComposition.js";
 import { evaluateReportEvidenceBoundary } from "./irisReportEvidenceBoundary.js";
 import { evaluateIrisReportCertificationGate } from "./irisReportCertificationGate.js";
 
-const lineage = { resolution_state: "resolved" as const, report_id: "r", analysis_definition_id: "a", feature_ids: [], capability_ids: ["analysis"], intelligence_node_ids: ["n2"], upstream_intelligence_node_ids: ["n1"], run_evidence_ids: ["e1"], evidence_lineage_present: true, run_id: "run", execution_id: "exec", limitation: null };
+const lineage = { resolution_state: "resolved" as const, report_id: "r", analysis_definition_id: "a", feature_ids: [], capability_ids: ["analysis"], intelligence_node_ids: ["n2"], upstream_intelligence_node_ids: ["n1"], transformation_edge_ids: [], run_evidence_ids: ["e1"], evidence_lineage_present: true, run_id: "run", execution_id: "exec", limitation: null };
 const semantic = { report_id: "r", state: "verified" as const, capability_ids: ["analysis"], proof_capability_ids: ["analysis"], missing_capability_proofs: [], missing_dependency_reads: [], semantic_sufficiency_certified: false as const, limitation: "structural proof only" };
 
 test("composes multiple report products without imposing a depth ceiling", () => {
