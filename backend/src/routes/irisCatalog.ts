@@ -3,6 +3,7 @@ import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { IRIS_DEFAULT_ACTIVE_REPORT_IDS, IRIS_REPORT_CATALOG, IRIS_REPORT_CATALOG_VERSION } from "../intelligence/irisReportCatalog.js";
 import { buildIrisReportDependencyGraph } from "../intelligence/irisReportDependencyGraph.js";
+import { persistIrisReportCatalog } from "../intelligence/irisReportCatalogPersistence.js";
 
 export const irisCatalogRouter = Router();
 const REPORT_IDS = new Set(IRIS_REPORT_CATALOG.map((report) => report.reportId));
@@ -15,6 +16,7 @@ function cleanReportIds(value: unknown): string[] {
 
 irisCatalogRouter.get("/iris/catalog", requireAuth, async (req: AuthedRequest, res) => {
   try {
+    await persistIrisReportCatalog();
     const { data, error } = await supabaseAdmin.from("iris_user_report_preferences").select("catalog_version, selected_report_ids, activation_mode, updated_at").eq("user_id", req.userId!).maybeSingle();
     if (error) throw error;
     const hasStoredPreference = !!data;
