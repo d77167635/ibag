@@ -98,6 +98,9 @@ export async function executeIrisRun(request: RunRequest) {
           userId,
           runId: run.id,
           executionId: execution.id,
+          evidenceBoundary: run.evidence_boundary,
+          evidenceManifestHash: run.evidence_manifest_hash,
+          runEvidenceIds,
           synthesis: { ...(emergentResult as object), higher_order_findings: higherOrderFindings } as Parameters<typeof materializeArbitraryRecursiveCompositions>[0]["synthesis"],
         })
       : { materializedNodeIds: [], skippedFindingIds: [] };
