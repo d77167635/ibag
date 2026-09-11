@@ -69,21 +69,18 @@ export const EXECUTABLE_CAPABILITY_OPERATORS: CapabilityOperator[] = [
   op("analysis", executeAnalysis, "CALCULATED", "canonical_semantic_analysis"),
   op("behavioral", executeBehavioral, "CALCULATED", "category_behavior"),
   op("pattern", executePattern, "CALCULATED", "pattern_composition"),
-  op("relationship", executeRelationship, "CALCULATED", "relational_composition"),
-  op("anomaly", executeAnomaly, "CALCULATED", "anomaly_detection"),
-  op("causal", executeCausal, "INFERRED", "causal_boundary_analysis"),
-  op("predictive", executePredictive, "PREDICTED", "predictive_modeling"),
-  op("scenario", executeScenario, "SCENARIO", "counterfactual_scenario"),
-  op("decision", executeDecision, "INFERRED", "decision_analysis"),
-  op("recommendation", executeRecommendation, "INFERRED", "recommendation_composition"),
-  op("risk", executeRisk, "INFERRED", "risk_composition"),
-  op("opportunity", executeOpportunity, "INFERRED", "opportunity_composition"),
-  op("consequence", executeConsequence, "INFERRED", "consequence_propagation"),
-  op("outcome", executeOutcome, "INFERRED", "outcome_feedback"),
-  op("learning", executeLearning, "INFERRED", "learning_feedback"),
+  op("relationship", executeRelationship, "INFERRED", "financial_relationship_analysis"),
+  op("anomaly", executeAnomaly, "CALCULATED", "canonical_anomaly_detection"),
+  op("causal", executeCausal, "INFERRED", "observational_candidate_analysis"),
+  op("predictive", executePredictive, "PREDICTED", "constrained_forward_projection"),
+  op("scenario", executeScenario, "SCENARIO", "counterfactual_spending_analysis"),
+  op("decision", executeDecision, "INFERRED", "decision_intelligence"),
+  op("recommendation", executeRecommendation, "INFERRED", "review_recommendations"),
+  op("risk", executeRisk, "INFERRED", "risk_signal_synthesis"),
+  op("opportunity", executeOpportunity, "INFERRED", "opportunity_investigation_synthesis"),
+  op("consequence", executeConsequence, "INFERRED", "conditional_consequence_propagation"),
+  op("outcome", executeOutcome, "CALCULATED", "durable_outcome_loop"),
+  op("learning", executeLearning, "INFERRED", "validated_outcome_learning", "1.1.0"),
   emergentOperator,
 ];
-
-export const CAPABILITY_OPERATOR_REGISTRY = new Map(EXECUTABLE_CAPABILITY_OPERATORS.map((operator) => [operator.capability_id, operator]));
-export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null { return CAPABILITY_OPERATOR_REGISTRY.get(capabilityId) ?? null; }
-export async function dispatchCapabilityOperator(userId: string, capabilityId: string, context?: CapabilityExecutionContext): Promise<CapabilityOperatorResult> { const operator = getCapabilityOperator(capabilityId); if (!operator?.execute) throw new Error(`CAPABILITY_OPERATOR_UNAVAILABLE: ${capabilityId}`); return operator.execute(userId, context); }
+export function getCapabilityOperator(capabilityId: string): CapabilityOperator | null { return EXECUTABLE_CAPABILITY_OPERATORS.find((operator) => operator.capability_id === capabilityId) ?? null; }
