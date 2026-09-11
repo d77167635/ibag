@@ -78,6 +78,14 @@ IRIS
 
 A report product is a governed publication surface over intelligence. Activating a report does not activate a Plaid product, create observations, manufacture financial values, or constrain the underlying intelligence graph.
 
+## Arbitrary derived-intelligence graph
+
+The persisted graph now has a schema/runtime foundation for intelligence nodes whose semantic identity is **not required to exist in the finite capability registry**. A derived node can carry a stable intelligence key/name, derivation operator/version, exact upstream node UUIDs, recursive ancestry, deterministic output hash, graph edges, and execution lineage.
+
+This foundation is intentionally **not** treated as proof that arbitrary recursive intelligence is already certified. Persistence of upstream references proves that references were recorded and ownership was checked; it does not by itself prove that an operator semantically transformed those upstream values. Recursive composition certification therefore remains gated on actual dependency consumption, reproducible transformation, exact lineage, validation, and real evidence.
+
+No artificial graph-depth column or maximum semantic depth is introduced. Materialization/resource limits may exist operationally, but they must never be interpreted as an intelligence-depth ceiling.
+
 ## Iris Report Product Catalog
 
 The report catalog is generated from governed analytical definitions and, as the intelligence system expands, from valid higher-order compositions. A report product has stable identity/versioning, a name, purpose, family, output type, evidence requirements, and publication rules.
@@ -151,13 +159,14 @@ The repository contains substantial foundations for:
 - robust statistics and adaptive baselines;
 - governed capability contracts and recursive planning;
 - independently executable intelligence operators;
+- persisted arbitrary derived-intelligence graph nodes and recursive ancestry metadata;
 - recursive higher-order synthesis foundations;
 - evidence-gated Iris report product catalog;
 - per-user report activation/deactivation persistence;
 - evidence-qualified report publication boundaries;
 - read-only operation with no money movement.
 
-The current backend audit identified remaining integrity gaps before the intelligence engine can be called complete. In particular, some declared capability dependencies are not yet proven to be semantically consumed by the corresponding operators; provenance can therefore record dependency context without proving dependency use; and the current finite persisted capability graph is not yet sufficient by itself to establish truly unbounded recursive discovery/composition.
+The current backend audit identified remaining integrity gaps before the intelligence engine can be called complete. In particular, some declared capability dependencies are not yet proven to be semantically consumed by the corresponding operators; provenance can record dependency context without proving dependency use; and the persisted arbitrary graph is a composition/persistence foundation, not proof of certified unbounded recursive discovery.
 
 The connected Supabase project currently has **zero `iris_run_evidence` rows**. Therefore no real provider-evidence intelligence result is currently end-to-end certified from that project. This is a live database observation and must be rechecked after material runtime/evidence changes.
 
