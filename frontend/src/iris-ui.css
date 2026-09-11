@@ -26,7 +26,6 @@ button { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--iris-cyan); outline-offset: 2px; }
 button:disabled { cursor: not-allowed; opacity: .55; }
 
-/* All authenticated non-connection surfaces share one visual foundation. */
 .ies-content { background: var(--iris-bg); }
 .ies-content > .iris-consumer-experience,
 .ies-content > .iris4-screen,
@@ -40,7 +39,6 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   font-family: var(--iris-font) !important;
 }
 
-/* Remove the second application chrome rendered inside the global shell. */
 .iris-consumer-experience { padding: 24px 28px !important; }
 .ice-shell { max-width: 1480px !important; margin: 0 auto !important; }
 .ice-topbar { display: none !important; }
@@ -51,10 +49,12 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .ice-trust { padding: 22px !important; }
 .ice-journey { gap: 8px !important; }
 .ice-journey button, .ice-report, .ice-transparency article { border-color: var(--iris-line) !important; background: var(--iris-panel-2) !important; border-radius: var(--iris-radius-sm) !important; }
+.ice-journey button { font: inherit; }
+.ice-report { width: 100%; min-height: 145px; display: flex; flex-direction: column; gap: 9px; text-align: left; color: inherit; padding: 15px; cursor: pointer; }
+.ice-report:hover { border-color: var(--iris-cyan) !important; }
 .ice-section { padding: 20px !important; }
 .ice-top-actions { display: none !important; }
 
-/* Command/data surfaces use the same geometry as the shell and catalog. */
 .iris4-screen, .iis-screen { padding: 24px 28px !important; }
 .iris4-hero, .iis-hero { background: transparent !important; border-color: var(--iris-line) !important; }
 .iris4-layout { display: block !important; }
@@ -80,18 +80,16 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .iris-surface { border: 1px solid var(--iris-line) !important; border-radius: var(--iris-radius) !important; background: linear-gradient(145deg, var(--iris-panel-2), var(--iris-panel)) !important; box-shadow: var(--iris-shadow) !important; }
 .iris-surface-card, .iis-metric { border-color: var(--iris-line) !important; background: var(--iris-panel-2) !important; border-radius: var(--iris-radius-sm) !important; }
 
-/* Catalog/report surfaces are products, never provider products. */
 .iis-metric-grid { grid-template-columns: repeat(3, minmax(0,1fr)) !important; }
 .iis-screen { max-width: 1480px; margin: 0 auto; }
 .iis-panel { background: var(--iris-panel) !important; border-color: var(--iris-line) !important; border-radius: var(--iris-radius) !important; box-shadow: var(--iris-shadow) !important; }
 .iis-panel header { border-color: var(--iris-line) !important; }
 
-/* Account controls use the same component language instead of inline styling. */
 .ia-account-control { border: 1px solid var(--iris-line) !important; border-radius: var(--iris-radius-sm) !important; background: rgba(9,12,18,.96) !important; box-shadow: var(--iris-shadow) !important; }
+.ia-account-email { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--iris-dim); font: 600 9px/1 var(--iris-font); }
 .ia-account-control button { border-color: var(--iris-line-strong) !important; background: var(--iris-panel-2) !important; color: #cbd4e2 !important; }
 .ia-account-control button:hover { border-color: var(--iris-cyan) !important; color: #fff !important; }
 
-/* Connection center remains a distinct arrival flow but keeps IRIS typography/tokens. */
 .iea-shell { font-family: var(--iris-font) !important; }
 
 @media (max-width: 900px) {
@@ -101,6 +99,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .iris-consumer-experience, .iris4-screen, .iis-screen { padding: 12px 10px !important; }
   .ice-hero { grid-template-columns: 1fr !important; }
   .iis-metric-grid { grid-template-columns: 1fr !important; }
+  .ia-account-email { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
