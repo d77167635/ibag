@@ -21,7 +21,7 @@ test("named universal intelligence stages contain real architectural names", () 
     assert.ok(stage.name.length > 0);
     assert.ok(stage.purpose.length > 0);
   }
-  assert.equal(IRIS_UNIVERSAL_INTELLIGENCE_STAGES.some(x => x.name === "Maximum Intelligence"), false);
+  assert.equal(IRIS_UNIVERSAL_INTELLIGENCE_STAGES.some(x => (x.name as string) === "Maximum Intelligence"), false);
 });
 
 test("named domain paths materialize recursively without creating financial data", () => {
