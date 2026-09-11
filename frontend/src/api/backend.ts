@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { IrisConsumerIntelligenceResponse } from "../contracts/irisConsumer";
+import type { IrisConsumerIntelligenceResponse, IrisReverseLineageResponse } from "../contracts/irisConsumer";
 import type { IrisReportCatalogResponse } from "../contracts/irisReportCatalog";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
@@ -14,20 +14,12 @@ async function authedFetch<T = unknown>(path: string, init?: RequestInit): Promi
 
 let intelligenceInFlight: Promise<IrisConsumerIntelligenceResponse> | null = null;
 let summaryInFlight: Promise<IrisConsumerIntelligenceResponse> | null = null;
-
 function getCanonicalIntelligence(): Promise<IrisConsumerIntelligenceResponse> {
-  if (!intelligenceInFlight) {
-    intelligenceInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/intelligence")
-      .finally(() => { intelligenceInFlight = null; });
-  }
+  if (!intelligenceInFlight) intelligenceInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/intelligence").finally(() => { intelligenceInFlight = null; });
   return intelligenceInFlight;
 }
-
 function getIrisSummary(): Promise<IrisConsumerIntelligenceResponse> {
-  if (!summaryInFlight) {
-    summaryInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/summary")
-      .finally(() => { summaryInFlight = null; });
-  }
+  if (!summaryInFlight) summaryInFlight = authedFetch<IrisConsumerIntelligenceResponse>("/iris/summary").finally(() => { summaryInFlight = null; });
   return summaryInFlight;
 }
 
@@ -37,13 +29,12 @@ export const api = {
   createLinkToken: () => authedFetch("/link/token", { method: "POST" }),
   createUpgradeLinkToken: (itemId: string, stage: "consent" | "assets" | "statements") => authedFetch("/link/upgrade-token", { method: "POST", body: JSON.stringify({ item_id: itemId, stage }) }),
   exchangePublicToken: (publicToken: string) => authedFetch("/link/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken }) }),
-  getOverview: () => authedFetch("/dashboard/overview"),
-  getUnifiedDashboard: () => authedFetch("/dashboard/unified"),
-  getIntelligence: getCanonicalIntelligence,
-  getIrisSummary,
+  getOverview: () => authedFetch("/dashboard/overview"), getUnifiedDashboard: () => authedFetch("/dashboard/unified"),
+  getIntelligence: getCanonicalIntelligence, getIrisSummary,
   getIrisCatalog: (): Promise<IrisReportCatalogResponse> => authedFetch<IrisReportCatalogResponse>("/iris/catalog"),
   saveIrisCatalogSelection: (reportIds: string[]) => authedFetch<{ activation: { report_ids: string[] } }>("/iris/catalog/selection", { method: "PUT", body: JSON.stringify({ report_ids: reportIds }) }),
   resetIrisCatalog: () => authedFetch<{ activation: { report_ids: string[] } }>("/iris/catalog/reset", { method: "POST" }),
+  getIrisEvidenceReverseLineage: (evidenceId: string, runId: string, executionId: string): Promise<IrisReverseLineageResponse> => authedFetch<IrisReverseLineageResponse>(`/iris/lineage/evidence/${encodeURIComponent(evidenceId)}?run_id=${encodeURIComponent(runId)}&execution_id=${encodeURIComponent(executionId)}`),
   askIris: (question: string, context?: Record<string, unknown>) => authedFetch("/iris/ask", { method: "POST", body: JSON.stringify({ question, context }) }),
   runDecisionLab: (request: { question?: string; amount?: number; horizon_days?: number } = {}) => authedFetch("/iris/decision-lab", { method: "POST", body: JSON.stringify(request) }),
   resync: () => authedFetch("/link/resync", { method: "POST" }),
@@ -52,6 +43,6 @@ export const api = {
   getFeatures: () => authedFetch("/features"), toggleFeature: (key: string, enabled: boolean) => authedFetch(`/features/${key}/toggle`, { method: "POST", body: JSON.stringify({ enabled }) }),
   getPlaidProducts: () => authedFetch("/dashboard/plaid"), getPlaidSurface: () => authedFetch("/dashboard/plaid/surface"), getPlaidCapabilities: () => authedFetch("/dashboard/plaid/capabilities"), getPlaidSelection: () => authedFetch("/dashboard/plaid/selection"),
   getSourceTruth: (limit = 200) => authedFetch(`/dashboard/source?limit=${limit}`), runScenario: (type: string, amount: number) => authedFetch("/dashboard/scenario", { method: "POST", body: JSON.stringify({ type, amount }) }),
-  toggleAccountRoundup: (accountId: string, enabled: boolean) => authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, { method: "POST", body: JSON.stringify({ enabled } ) }),
+  toggleAccountRoundup: (accountId: string, enabled: boolean) => authedFetch(`/dashboard/accounts/${accountId}/roundup-toggle`, { method: "POST", body: JSON.stringify({ enabled }) }),
   getGoals: () => authedFetch("/goals"), createGoal: (goal: Record<string, unknown>) => authedFetch("/goals", { method: "POST", body: JSON.stringify(goal) }), updateGoal: (goalId: string, goal: Record<string, unknown>) => authedFetch(`/goals/${goalId}`, { method: "PATCH", body: JSON.stringify(goal) }), deleteGoal: (goalId: string) => authedFetch(`/goals/${goalId}`, { method: "DELETE" }),
 };
