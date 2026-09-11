@@ -22,11 +22,6 @@ export function IrisEvidenceAccess({ go }: Props) {
 
   return (
     <main className="iea-shell">
-      <div className="iea-atmosphere" aria-hidden="true" />
-      <header className="iea-header">
-        <button type="button" className="iea-brand" onClick={() => go?.("iris")} aria-label="Return to IRIS"><IrisMark size={25} color="currentColor" /><span><strong>IRIS</strong><small>RELATIONAL FINANCIAL INTELLIGENCE</small></span></button>
-        <span className="iea-state"><i /> EVIDENCE ACCESS</span>
-      </header>
       <section className="iea-content">
         <div className="iea-intro">
           <span className="iea-kicker">EVIDENCE FORMATION</span>
@@ -51,7 +46,6 @@ export function IrisEvidenceAccess({ go }: Props) {
         <div><span className="iea-kicker">CONNECTED ITEMS</span><h2>Complete the evidence boundary that is available now</h2><p>Statements are intentionally deferred until IRIS is connected to real banking. Sandbox Statements consent, simulated Statements evidence, and placeholder Statements data are not part of this build.</p></div>
         {loadingItems ? <div className="iea-item-empty">Reading connected Items…</div> : items.length === 0 ? <div className="iea-item-empty">No connected Plaid Items are currently persisted.</div> : items.map((item: any) => <article className="iea-item" key={item.item_id}><div><strong>{item.institution_name ?? "Institution"}</strong><span>{item.status ?? "status unavailable"}{item.last_synced_at ? ` · last synced ${new Date(item.last_synced_at).toLocaleString()}` : ""}</span></div><b>Statements deferred until real banking</b></article>)}
       </section>
-      <footer className="iea-footer"><span>IRIS / EVIDENCE FORMATION</span><span>Truth before completion · Unknown remains unknown</span></footer>
     </main>
   );
 }
