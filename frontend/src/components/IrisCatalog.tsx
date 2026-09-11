@@ -46,7 +46,7 @@ export function IrisCatalog({ go }: Props) {
   const selected = selectedId ? catalog.find((r) => r.reportId === selectedId) ?? null : null;
   const selectedDependency = selected ? dependencies.find((item) => item.report_id === selected.reportId) : undefined;
   const runtimeReportIds = useMemo(() => new Set(runtimeReports.map((item) => item.report_id).filter((id): id is string => typeof id === "string")), [runtimeReports]);
-  const definedCount = catalog.length;
+  const definedCount = metadata?.catalog_counts.total ?? catalog.length;
   const runtimeCount = runtimeReportIds.size;
   const activeCount = active.length;
   const familyCount = metadata?.catalog_counts.families ?? families.length;
@@ -85,47 +85,53 @@ export function IrisCatalog({ go }: Props) {
   return (
     <div className="iis-screen">
       <div className="iis-hero">
-        <div className="iis-hero-top"><span>IRIS · REPORT PRODUCT LIBRARY</span>{go && <button type="button" className="iis-back" onClick={() => go("iris")}>← Financial Life</button>}</div>
-        <h1>Your financial-life library</h1>
-        <p>This is the user-facing inventory of Iris report products. Every entry is a governed product definition; a product is only presented as runtime-produced when an actual executed Iris output exists.</p>
+        <div className="iis-hero-top"><span>IRIS · FINANCIAL LIFE / RESULTS · REPORT LIBRARY</span>{go && <button type="button" className="iis-back" onClick={() => go("iris")}>← Financial Life</button>}</div>
+        <h1>Your IRIS financial-life library</h1>
+        <p>This is the publication inventory for your Financial Life experience. It is intentionally larger than a dashboard: report products can organize, explain, compare and expose qualified intelligence across the financial life IRIS can actually observe.</p>
+        <div className="iis-boundary"><p><strong>The catalog can exist before your Plaid evidence does.</strong> A definition is a product description—not a financial observation and not a produced report.</p><p><strong>Your results are evidence-gated.</strong> IRIS only presents user-specific factual output when the governed evidence, intelligence, lineage and applicable publication requirements are satisfied.</p></div>
       </div>
 
       <div className="iis-metric-grid">
-        <div className="iis-metric"><span>Defined report products</span><strong>{definedCount}</strong><small>{metadata?.catalog_version ?? "Governed catalog"}</small></div>
-        <div className="iis-metric"><span>Active for you</span><strong>{activeCount}</strong><small>{saving ? "Saving…" : message || "Publication preference"}</small></div>
-        <div className="iis-metric"><span>Runtime-produced</span><strong>{runtimeCount}</strong><small>Observed in the latest readable Iris runtime output</small></div>
-        <div className="iis-metric"><span>Families / dependencies</span><strong>{familyCount} / {dependencyCount}</strong><small>Catalog relationships, not financial evidence</small></div>
+        <div className="iis-metric"><span>Defined today</span><strong>{definedCount}</strong><small>{metadata?.catalog_version ?? "Governed catalog"} · product definitions</small></div>
+        <div className="iis-metric"><span>Active for you</span><strong>{activeCount}</strong><small>{saving ? "Saving…" : message || "Your publication preference"}</small></div>
+        <div className="iis-metric"><span>Runtime outputs observed</span><strong>{runtimeCount}</strong><small>Actual readable Iris runtime output only</small></div>
+        <div className="iis-metric"><span>Families / mappings</span><strong>{familyCount} / {dependencyCount}</strong><small>Catalog relationships, not financial evidence</small></div>
       </div>
 
       <section className="iis-panel">
-        <header><div><span>LIBRARY MAP</span><h2>Browse the full report universe</h2></div></header>
-        <p className="iis-note">The library is intentionally inventory-first: definitions, families, dependencies, activation state, and runtime presence are kept separate. A catalog entry does not become a financial fact merely because it exists.</p>
+        <header><div><span>THE PRODUCT UNIVERSE</span><h2>Discover what IRIS can offer</h2></div></header>
+        <p className="iis-note">The persisted count is the number of currently registered definitions. It is <strong>not</strong> IRIS's intelligence capacity, not the maximum number of reports, and not the number of reports produced for you. The universe can expand as new governed intelligence and valid compositions become available.</p>
         <div className="iis-catalog-grid">
-          {familyCounts.map((item) => <button type="button" key={item.name} className="iis-catalog-card" onClick={() => { setFamily(item.name); setQuery(""); }}><div><span>REPORT FAMILY</span><b>{item.name}</b></div><small>{item.count} defined report products</small><em>Browse family →</em></button>)}
+          {familyCounts.map((item) => <button type="button" key={item.name} className="iis-catalog-card" onClick={() => { setFamily(item.name); setQuery(""); }}><div><span>REPORT FAMILY</span><b>{item.name}</b></div><small>{item.count} currently defined product{item.count === 1 ? "" : "s"}</small><em>Browse family →</em></button>)}
         </div>
       </section>
 
       <section className="iis-panel">
-        <header><div><span>YOUR ACTIVE REPORTS</span><h2>Active publications</h2></div><button type="button" onClick={() => void reset()} disabled={saving}>Restore available reports</button></header>
-        <p className="iis-note">Activation controls publication preference only. It does not turn a provider product on or off, create evidence, or limit the underlying intelligence hierarchy.</p>
+        <header><div><span>YOUR PUBLICATION PREFERENCES</span><h2>Active reports</h2></div><button type="button" onClick={() => void reset()} disabled={saving}>Restore available reports</button></header>
+        <p className="iis-note">Activation controls what you choose to receive and prioritize. It does not turn a provider product on or off, create evidence, create intelligence, or limit the underlying IRIS hierarchy.</p>
         <div className="iis-catalog-grid">
-          {catalog.filter((r) => active.includes(r.reportId)).map((r) => <button type="button" key={r.reportId} className="iis-catalog-card selected" onClick={() => setSelectedId(r.reportId)}><div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><em>{runtimeReportIds.has(r.reportId) ? "Runtime-produced · Open" : "Active definition · Open"}</em></button>)}
+          {catalog.filter((r) => active.includes(r.reportId)).map((r) => <button type="button" key={r.reportId} className="iis-catalog-card selected" onClick={() => setSelectedId(r.reportId)}><div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><em>{runtimeReportIds.has(r.reportId) ? "Runtime output observed · Open" : "Definition only · Open"}</em></button>)}
         </div>
-        {active.length === 0 && <p className="iis-note">No report products are active. Iris may still retain and reason over governed evidence, but no user report product is published until one is activated.</p>}
+        {active.length === 0 && <p className="iis-note">No report products are active. IRIS may still retain and reason over governed evidence, but no user report product is published until one is activated and the applicable evidence/publication gates are satisfied.</p>}
       </section>
 
       <section className="iis-panel">
-        <header><div><span>COMPLETE INVENTORY</span><h2>{visible.length} report products shown</h2></div></header>
+        <header><div><span>COMPLETE REGISTERED INVENTORY</span><h2>{visible.length} report products shown</h2></div></header>
         <div className="iis-catalog-toolbar"><input aria-label="Search Iris report products" placeholder="Search reports, analyses, evidence inputs…" value={query} onChange={(e) => setQuery(e.target.value)} /><select aria-label="Filter report family" value={family} onChange={(e) => setFamily(e.target.value)}><option value="all">All families</option>{families.map((f) => <option key={f} value={f}>{f}</option>)}</select><select aria-label="Filter report output type" value={outputType} onChange={(e) => setOutputType(e.target.value)}><option value="all">All output types</option>{outputTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></div>
         <div className="iis-catalog-grid">
-          {visible.map((r) => { const isActive = active.includes(r.reportId); const isRuntime = runtimeReportIds.has(r.reportId); const dependency = dependencies.find((item) => item.report_id === r.reportId); return <button type="button" key={r.reportId} className={`iis-catalog-card${isActive ? " selected" : ""}`} onClick={() => setSelectedId(r.reportId)}><div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><small>{r.requiredEvidenceInputs.length} declared evidence input{r.requiredEvidenceInputs.length === 1 ? "" : "s"} · {dependency?.feature_ids.length ?? 0} feature mapping{(dependency?.feature_ids.length ?? 0) === 1 ? "" : "s"}</small><em>{isRuntime ? "Runtime-produced" : isActive ? "Active definition" : "Defined · inspect"}</em></button>; })}
+          {visible.map((r) => { const isActive = active.includes(r.reportId); const isRuntime = runtimeReportIds.has(r.reportId); const dependency = dependencies.find((item) => item.report_id === r.reportId); return <button type="button" key={r.reportId} className={`iis-catalog-card${isActive ? " selected" : ""}`} onClick={() => setSelectedId(r.reportId)}><div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><small>{r.requiredEvidenceInputs.length} declared evidence input{r.requiredEvidenceInputs.length === 1 ? "" : "s"} · {dependency?.feature_ids.length ?? 0} feature mapping{(dependency?.feature_ids.length ?? 0) === 1 ? "" : "s"}</small><em>{isRuntime ? "Runtime output observed" : isActive ? "Active definition" : "Defined · inspect"}</em></button>; })}
           {visible.length === 0 && <p className="iis-note">No report products match the current filters.</p>}
         </div>
       </section>
 
       <section className="iis-panel">
-        <header><div><span>PRODUCT BOUNDARY</span><h2>How the library connects to Iris</h2></div></header>
-        <div className="iis-boundary"><p><strong>Financial reality → governed evidence → intelligence → report product.</strong> The report library is the publication surface over that connected system. It is not a second source of truth.</p><p><strong>Forward:</strong> observed evidence can support intelligence and eligible report products.</p><p><strong>Reverse:</strong> a report can be inspected back through runtime intelligence lineage toward its governed evidence when that exact execution has persisted the required lineage.</p><p className="iis-note"><strong>Provider boundary:</strong> {metadata?.provider_boundary ?? "Provider products and observations remain separate from Iris report definitions and activation."}</p></div>
+        <header><div><span>REPORT → INTELLIGENCE → EVIDENCE</span><h2>Understand every published result</h2></div></header>
+        <div className="iis-boundary"><p><strong>Forward:</strong> governed observations can support canonical state, intelligence, and eligible report products.</p><p><strong>Reverse:</strong> a published result can be inspected back through its exact runtime intelligence lineage toward governed evidence when that lineage exists.</p><p><strong>Limit:</strong> catalog definitions and dependency mappings are not proof that a user-specific result was produced or that every declared dependency was semantically consumed.</p><p className="iis-note"><strong>Provider boundary:</strong> {metadata?.provider_boundary ?? "Plaid supplies provider observations; report definitions, consent, availability, entitlement and activation remain separate from provider evidence."}</p></div>
+      </section>
+
+      <section className="iis-panel">
+        <header><div><span>THE IRIS PROMISE</span><h2>More products without more fiction</h2></div></header>
+        <div className="iis-boundary"><p><strong>No evidence → no factual value.</strong></p><p><strong>Unknown ≠ zero.</strong></p><p><strong>Prediction ≠ observation.</strong></p><p><strong>Scenario ≠ observation.</strong></p><p><strong>Correlation ≠ causation.</strong></p><p><strong>Persistence ≠ semantic proof.</strong></p><p>IRIS can make the user experience enormous without pretending that an unqualified product is a completed financial result.</p></div>
       </section>
     </div>
   );
