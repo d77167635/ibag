@@ -6,6 +6,7 @@ import { IrisConsumerHome } from "./components/IrisConsumerHome";
 import { IrisCommandSurface } from "./components/IrisCommandSurface";
 import { IrisCatalog } from "./components/IrisCatalog";
 import { IrisActionOutcome } from "./components/IrisActionOutcome";
+import { IrisEvidenceAccess } from "./components/IrisEvidenceAccess";
 import { IrisExperienceShell } from "./components/IrisExperienceShell";
 import "./iris-command-deck.css";
 import "./components/IrisExperienceShell.css";
@@ -27,14 +28,16 @@ export default function App() {
   if (!session) return <Auth />;
 
   const account = <div className="ia-account-control" style={accountControlStyle}><span aria-label="Signed-in account" style={accountEmailStyle}>{session.user.email ?? "Signed in"}</span><button aria-label="Open report catalog" style={controlButtonStyle} onClick={() => navigate("iris/catalog")}>Report Catalog</button><button aria-label="Sign out" style={signOutStyle} onClick={() => void signOut()} disabled={signingOut}>{signingOut ? "Signing out…" : "Sign out"}</button></div>;
-  const content = irisPage === "iris/catalog"
-    ? <IrisCatalog go={navigate} />
-    : irisPage === "iris/action"
-      ? <IrisActionOutcome mode="action" go={navigate} />
-      : irisPage === "iris/outcomes"
-        ? <IrisActionOutcome mode="outcomes" go={navigate} />
-        : irisPage === "iris"
-          ? <IrisConsumerHome go={navigate} />
-          : <IrisCommandSurface page={irisPage} go={navigate} />;
+  const content = irisPage === "iris/connect"
+    ? <IrisEvidenceAccess go={navigate} />
+    : irisPage === "iris/catalog"
+      ? <IrisCatalog go={navigate} />
+      : irisPage === "iris/action"
+        ? <IrisActionOutcome mode="action" go={navigate} />
+        : irisPage === "iris/outcomes"
+          ? <IrisActionOutcome mode="outcomes" go={navigate} />
+          : irisPage === "iris"
+            ? <IrisConsumerHome go={navigate} />
+            : <IrisCommandSurface page={irisPage} go={navigate} />;
   return <IrisExperienceShell page={irisPage} go={navigate}><div className="app-workspace app-workspace-iris">{content}{account}</div></IrisExperienceShell>;
 }

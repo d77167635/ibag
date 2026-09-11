@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { api } from "../api/backend";
 import { PlaidLinkButton } from "./PlaidLink";
 import { IrisMark } from "./IrisMark";
 import "./IrisEvidenceAccess.css";
