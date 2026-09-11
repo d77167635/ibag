@@ -5,6 +5,7 @@ import { IRIS_DEFAULT_ACTIVE_REPORT_IDS, IRIS_REPORT_CATALOG, IRIS_REPORT_CATALO
 import { buildIrisReportDependencyGraph } from "../intelligence/irisReportDependencyGraph.js";
 import { persistIrisReportCatalog } from "../intelligence/irisReportCatalogPersistence.js";
 import { resolveIrisEvidenceToReports } from "../intelligence/irisEvidenceToReportTraversal.js";
+import { auditIrisAuthoritativeDomainCoverage } from "../intelligence/irisAuthoritativeDomainCoverage.js";
 
 export const irisCatalogRouter = Router();
 const REPORT_IDS = new Set(IRIS_REPORT_CATALOG.map((report) => report.reportId));
@@ -57,6 +58,19 @@ irisCatalogRouter.get("/iris/catalog/evidence-to-reports", requireAuth, async (r
   } catch (error) {
     console.error("iris/catalog/evidence-to-reports error:", error);
     res.status(500).json({ error: "Unable to resolve evidence to Iris reports" });
+  }
+});
+
+irisCatalogRouter.get("/iris/catalog/domain-coverage", requireAuth, async (_req: AuthedRequest, res) => {
+  try {
+    const coverage = await auditIrisAuthoritativeDomainCoverage();
+    res.json({
+      boundary: "Architecture and persisted-evidence coverage only. This endpoint never creates nodes, observations, evidence, or user-specific intelligence.",
+      ...coverage,
+    });
+  } catch (error) {
+    console.error("iris/catalog/domain-coverage error:", error);
+    res.status(500).json({ error: "Unable to audit Iris authoritative domain coverage" });
   }
 });
 
