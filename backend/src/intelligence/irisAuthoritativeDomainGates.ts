@@ -156,22 +156,12 @@ export async function auditIrisAuthoritativeDomainGates(input: {
   const reportDependencyGraph = input.reportDependencyGraph ?? buildIrisReportDependencyGraph();
   const database = input.database ?? supabaseAdmin;
 
-  const { data: familyRows, error: familyError } = await database
-    .from("iris_intelligence_nodes")
-    .select("id,key,node_type,active")
-    .in("key", IRIS_AUTHORITATIVE_DOMAINS.map((definition) => definition.nodeKey));
+  const { data: familyRows, error: familyError } = await database.from("iris_intelligence_nodes").select("id,key,node_type,active").in("key", IRIS_AUTHORITATIVE_DOMAINS.map((definition) => definition.nodeKey));
   if (familyError) throw new Error(`IRIS_DOMAIN_GATE_FAMILY_LOOKUP_FAILED: ${familyError.message}`);
 
-  const activeFamilyByKey = new Map(
-    (familyRows ?? [])
-      .filter((row: { node_type: string; active: boolean }) => row.node_type === "data_family" && row.active)
-      .map((row: { id: string; key: string }) => [row.key, row.id]),
-  );
+  const activeFamilyByKey = new Map((familyRows ?? []).filter((row: { node_type: string; active: boolean }) => row.node_type === "data_family" && row.active).map((row: { id: string; key: string }) => [row.key, row.id]));
 
-  const { data: sourceFields, error: sourceFieldError } = await database
-    .from("iris_intelligence_source_fields")
-    .select("id,family_node_id,product,active")
-    .eq("active", true);
+  const { data: sourceFields, error: sourceFieldError } = await database.from("iris_intelligence_source_fields").select("id,family_node_id,product,active").eq("active", true);
   if (sourceFieldError) throw new Error(`IRIS_DOMAIN_GATE_SOURCE_FIELD_LOOKUP_FAILED: ${sourceFieldError.message}`);
 
   const registeredFieldsByFamily = new Map<string, string[]>();
@@ -181,42 +171,19 @@ export async function auditIrisAuthoritativeDomainGates(input: {
     registeredFieldsByFamily.set(row.family_node_id, values);
   }
 
-  const { data: observations, error: observationError } = await database
-    .from("iris_source_field_observations")
-    .select("id,product,evidence_state,raw_observation_id")
-    .eq("user_id", input.userId)
-    .eq("evidence_state", "observed");
+  const { data: observations, error: observationError } = await database.from("iris_source_field_observations").select("id,product,evidence_state,raw_observation_id").eq("user_id", input.userId).eq("evidence_state", "observed");
   if (observationError) throw new Error(`IRIS_DOMAIN_GATE_SOURCE_OBSERVATION_LOOKUP_FAILED: ${observationError.message}`);
 
-  const { data: runEvidenceRows, error: runEvidenceError } = await database
-    .from("iris_run_evidence")
-    .select("id,product,raw_observation_id,source_field_id")
-    .eq("user_id", input.userId)
-    .eq("run_id", input.runId);
+  const { data: runEvidenceRows, error: runEvidenceError } = await database.from("iris_run_evidence").select("id,product,raw_observation_id,source_field_id").eq("user_id", input.userId).eq("run_id", input.runId);
   if (runEvidenceError) throw new Error(`IRIS_DOMAIN_GATE_RUN_EVIDENCE_LOOKUP_FAILED: ${runEvidenceError.message}`);
 
-  const { data: lineageRows, error: lineageError } = await database
-    .from("iris_execution_lineage")
-    .select("lineage_role,source_type,source_id,destination_type,destination_id")
-    .eq("user_id", input.userId)
-    .eq("run_id", input.runId)
-    .eq("execution_id", input.executionId);
+  const { data: lineageRows, error: lineageError } = await database.from("iris_execution_lineage").select("lineage_role,source_type,source_id,destination_type,destination_id").eq("user_id", input.userId).eq("run_id", input.runId).eq("execution_id", input.executionId);
   if (lineageError) throw new Error(`IRIS_DOMAIN_GATE_LINEAGE_LOOKUP_FAILED: ${lineageError.message}`);
 
-  const { data: runtimeNodeRows, error: runtimeNodeError } = await database
-    .from("iris_user_intelligence_nodes")
-    .select("id,capability_id,intelligence_key,evidence_state")
-    .eq("user_id", input.userId)
-    .eq("run_id", input.runId)
-    .eq("execution_id", input.executionId);
+  const { data: runtimeNodeRows, error: runtimeNodeError } = await database.from("iris_user_intelligence_nodes").select("id,capability_id,intelligence_key,evidence_state").eq("user_id", input.userId).eq("run_id", input.runId).eq("execution_id", input.executionId);
   if (runtimeNodeError) throw new Error(`IRIS_DOMAIN_GATE_RUNTIME_NODE_LOOKUP_FAILED: ${runtimeNodeError.message}`);
 
-  const { data: proofRows, error: proofError } = await database
-    .from("iris_semantic_dependency_proofs")
-    .select("capability_id,consumed_dependency_ids,consumed_dependency_hashes,consumed_dependency_paths,output_hash,proof_version")
-    .eq("user_id", input.userId)
-    .eq("run_id", input.runId)
-    .eq("execution_id", input.executionId);
+  const { data: proofRows, error: proofError } = await database.from("iris_semantic_dependency_proofs").select("capability_id,consumed_dependency_ids,consumed_dependency_hashes,consumed_dependency_paths,output_hash,proof_version").eq("user_id", input.userId).eq("run_id", input.runId).eq("execution_id", input.executionId);
   if (proofError) throw new Error(`IRIS_DOMAIN_GATE_SEMANTIC_PROOF_LOOKUP_FAILED: ${proofError.message}`);
 
   const observationsByProduct = new Map<string, number>();
@@ -239,11 +206,7 @@ export async function auditIrisAuthoritativeDomainGates(input: {
     const domainRunEvidence = runEvidence.filter((row) => row.product === definition.product);
     const domainRunEvidenceIds = uniqueSorted(domainRunEvidence.map((row) => row.id));
     const domainRunEvidenceSet = new Set(domainRunEvidenceIds);
-    const boundNodeIds = uniqueSorted(
-      lineage
-        .filter((row) => row.lineage_role === "SOURCE_EVIDENCE" && row.source_type === "run_evidence" && domainRunEvidenceSet.has(row.source_id) && row.destination_type === "intelligence_node" && nodeById.has(row.destination_id))
-        .map((row) => row.destination_id),
-    );
+    const boundNodeIds = uniqueSorted(lineage.filter((row) => row.lineage_role === "SOURCE_EVIDENCE" && row.source_type === "run_evidence" && domainRunEvidenceSet.has(row.source_id) && row.destination_type === "intelligence_node" && nodeById.has(row.destination_id)).map((row) => row.destination_id));
     const boundNodes = boundNodeIds.map((id) => nodeById.get(id)).filter((node): node is RuntimeNodeRow => !!node);
     const capabilityIds = uniqueSorted(boundNodes.map((node) => node.capability_id).filter((id): id is string => typeof id === "string" && id.length > 0));
     const evidenceStates = Object.fromEntries(boundNodes.filter((node): node is RuntimeNodeRow & { capability_id: string } => typeof node.capability_id === "string").map((node) => [node.capability_id, node.evidence_state]));
@@ -269,14 +232,7 @@ export async function auditIrisAuthoritativeDomainGates(input: {
     let reachableReports: string[] = [];
     let satisfiedReports: string[] = [];
     if (domainRunEvidenceIds.length > 0) {
-      const traversal = await resolveIrisEvidenceToReports({
-        userId: input.userId,
-        runId: input.runId,
-        executionId: input.executionId,
-        evidenceIds: domainRunEvidenceIds,
-        reportDependencyGraph,
-        database,
-      });
+      const traversal = await resolveIrisEvidenceToReports({ userId: input.userId, runId: input.runId, executionId: input.executionId, evidenceIds: domainRunEvidenceIds, reportDependencyGraph, database });
       reachableReports = traversal.reports.filter((report) => report.state !== "unresolved").map((report) => report.report_id).sort();
       satisfiedReports = traversal.reports.filter((report) => report.state === "satisfied").map((report) => report.report_id).sort();
     }
@@ -287,7 +243,8 @@ export async function auditIrisAuthoritativeDomainGates(input: {
     if (!states.REVERSE_TRAVERSAL_PROVEN) failures.push("reverse_intelligence_traversal_not_proven");
     if (!states.REPORT_TRAVERSAL_PROVEN) failures.push("report_dependency_traversal_not_proven");
 
-    states.CERTIFICATION_ELIGIBLE = Object.values(states).every(Boolean);
+    const requiredGateStates = Object.entries(states).filter(([state]) => state !== "CERTIFICATION_ELIGIBLE").map(([, value]) => value);
+    states.CERTIFICATION_ELIGIBLE = requiredGateStates.every(Boolean);
     if (!states.CERTIFICATION_ELIGIBLE) failures.push("runtime_gate_requirements_incomplete");
 
     domains.push({
@@ -295,16 +252,7 @@ export async function auditIrisAuthoritativeDomainGates(input: {
       product: definition.product,
       node_key: definition.nodeKey,
       states,
-      counts: {
-        family_nodes: familyNodeId ? 1 : 0,
-        registered_source_fields: registeredSourceFields.length,
-        observed_source_observations: observedSourceObservations,
-        run_evidence: domainRunEvidenceIds.length,
-        evidence_bound_runtime_nodes: boundNodeIds.length,
-        semantic_proofs: domainProofs.length,
-        reachable_reports: reachableReports.length,
-        satisfied_reports: satisfiedReports.length,
-      },
+      counts: { family_nodes: familyNodeId ? 1 : 0, registered_source_fields: registeredSourceFields.length, observed_source_observations: observedSourceObservations, run_evidence: domainRunEvidenceIds.length, evidence_bound_runtime_nodes: boundNodeIds.length, semantic_proofs: domainProofs.length, reachable_reports: reachableReports.length, satisfied_reports: satisfiedReports.length },
       runtime_node_ids: boundNodeIds,
       run_evidence_ids: domainRunEvidenceIds,
       reachable_report_ids: reachableReports,
@@ -324,10 +272,6 @@ export async function auditIrisAuthoritativeDomainGates(input: {
     run_id: input.runId,
     execution_id: input.executionId,
     domains,
-    completeness: {
-      domain_count: domains.length,
-      runtime_gates_passed: runtimeGatesPassed,
-      all_runtime_gates_passed: runtimeGatesPassed === domains.length,
-    },
+    completeness: { domain_count: domains.length, runtime_gates_passed: runtimeGatesPassed, all_runtime_gates_passed: runtimeGatesPassed === domains.length },
   };
 }
