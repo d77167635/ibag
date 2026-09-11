@@ -72,9 +72,9 @@ function buildSnapshot(options: FixtureOptions = {}) {
 }
 
 function installReadOnlySupabaseFixture(snapshot: ReturnType<typeof buildSnapshot>) {
-  const prototype = Object.getPrototypeOf(supabaseAdmin) as { from: (table: string) => unknown };
-  const originalFrom = prototype.from;
-  prototype.from = ((table: string) => {
+  const client = supabaseAdmin as unknown as { from: (table: string) => unknown };
+  const originalFrom = client.from;
+  client.from = ((table: string) => {
     const dataByTable: Record<string, FixtureRow[]> = { iris_intelligence_nodes: snapshot.familyRows, iris_intelligence_source_fields: snapshot.sourceFields, iris_source_field_observations: snapshot.observations, iris_run_evidence: snapshot.runEvidence, iris_execution_lineage: snapshot.lineage, iris_user_intelligence_nodes: snapshot.runtimeNodes, iris_semantic_dependency_proofs: snapshot.proofs };
     let data = [...(dataByTable[table] ?? [])];
     const builder: Record<string, unknown> = {};
@@ -83,8 +83,8 @@ function installReadOnlySupabaseFixture(snapshot: ReturnType<typeof buildSnapsho
     builder.eq = (column: string, value: unknown) => { data = data.filter((row) => row[column] === value); return builder; };
     builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve(resolve({ data, error: null }));
     return builder;
-  }) as typeof prototype.from;
-  return () => { prototype.from = originalFrom; };
+  }) as typeof client.from;
+  return () => { client.from = originalFrom; };
 }
 
 const reportDependencyGraph: IrisReportDependency[] = [{ report_id: "fixture-report", analysis_definition_id: "fixture-analysis", feature_ids: [], required_evidence_keys: ["behavioral"], resolution_state: "definition_only", upstream_intelligence_node_ids: [] }];
