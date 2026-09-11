@@ -6,161 +6,26 @@ type Props = { go?: (page: string) => void };
 type Overview = { accounts?: any[]; recent_transactions?: any[] };
 type Intelligence = any;
 type PlaidSurface = { products?: any[]; items?: any[]; accounts?: any[]; provider_evidence_counts?: Record<string, number> };
-
 const DOMAINS = ["auth", "transactions", "balance", "identity", "assets", "liabilities", "investments", "statements"] as const;
-
-function money(value: unknown) {
-  if (value === null || value === undefined || value === "") return "—";
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
-  return `${n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-function dateLabel(value: unknown) {
-  if (!value) return "Date unavailable";
-  const date = new Date(String(value));
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-function domainStatus(surface: PlaidSurface | null, domain: string) {
-  const product = (surface?.products ?? []).find((p: any) => p.key === domain || p.product === domain);
-  if (!product) return "unknown";
-  return product.status ?? "unknown";
-}
-function statusLabel(status: string) {
-  return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
+function money(value: unknown) { if (value === null || value === undefined || value === "") return "—"; const n = Number(value); if (!Number.isFinite(n)) return "—"; return `${n < 0 ? "−" : ""}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
+function dateLabel(value: unknown) { if (!value) return "Date unavailable"; const date = new Date(String(value)); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+function domainStatus(surface: PlaidSurface | null, domain: string) { const product = (surface?.products ?? []).find((p: any) => p.key === domain || p.product === domain); return product?.status ?? "unknown"; }
+function statusLabel(status: string) { return status.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 
 export function IrisConsumerHome({ go }: Props) {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [surface, setSurface] = useState<PlaidSurface | null>(null);
-  const [intelligence, setIntelligence] = useState<Intelligence | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const [overviewResult, surfaceResult, intelligenceResult] = await Promise.allSettled([
-      api.getOverview(),
-      api.getPlaidSurface(),
-      api.getIntelligence(),
-    ]);
-    if (overviewResult.status === "fulfilled") setOverview(overviewResult.value);
-    else setError(overviewResult.reason instanceof Error ? overviewResult.reason.message : "IRIS could not read your financial life.");
-    if (surfaceResult.status === "fulfilled") setSurface(surfaceResult.value);
-    if (intelligenceResult.status === "fulfilled") setIntelligence(intelligenceResult.value);
-    setLoading(false);
-  }, []);
-
+  const [overview, setOverview] = useState<Overview | null>(null); const [surface, setSurface] = useState<PlaidSurface | null>(null); const [intelligence, setIntelligence] = useState<Intelligence | null>(null); const [loading, setLoading] = useState(true); const [running, setRunning] = useState(false); const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => { setLoading(true); setError(null); const [overviewResult, surfaceResult, intelligenceResult] = await Promise.allSettled([api.getOverview(), api.getPlaidSurface(), api.getIntelligence()]); if (overviewResult.status === "fulfilled") setOverview(overviewResult.value); else setError(overviewResult.reason instanceof Error ? overviewResult.reason.message : "IRIS could not read your financial life."); if (surfaceResult.status === "fulfilled") setSurface(surfaceResult.value); if (intelligenceResult.status === "fulfilled") setIntelligence(intelligenceResult.value); setLoading(false); }, []);
   useEffect(() => { void load(); }, [load]);
-
-  const run = async () => {
-    if (running) return;
-    setRunning(true);
-    setError(null);
-    try {
-      await api.runIris({ surface: "iris_home", mode: "full_intelligence" });
-      await load();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "IRIS could not complete the governed intelligence run.");
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const accounts = overview?.accounts ?? [];
-  const transactions = overview?.recent_transactions ?? [];
-  const depository = accounts.filter((a: any) => a.type === "depository" && a.current_balance != null);
-  const credit = accounts.filter((a: any) => a.type === "credit" && a.current_balance != null);
-  const liquid = depository.length ? depository.reduce((sum: number, a: any) => sum + Number(a.current_balance), 0) : null;
-  const debt = credit.length ? credit.reduce((sum: number, a: any) => sum + Number(a.current_balance), 0) : null;
-  const observedDomains = DOMAINS.filter((domain) => domainStatus(surface, domain) === "observed").length;
-  const narrative = typeof intelligence?.narrative === "string" ? intelligence.narrative.trim() : "";
-  const certified = intelligence?.certified === true;
-  const latestRunStatus = intelligence?.run_status ?? "not run";
-  const findings = useMemo(() => {
-    const higher = intelligence?.higher_order_synthesis?.findings;
-    if (Array.isArray(higher) && higher.length) return higher.slice(0, 4);
-    const anomalies = intelligence?.anomalies;
-    if (Array.isArray(anomalies) && anomalies.length) return anomalies.slice(0, 4);
-    return [];
-  }, [intelligence]);
-
-  return (
-    <main className="iris-consumer-experience">
-      <div className="ice-shell">
-        <header className="ice-topbar">
-          <div className="ice-mark"><span className="ice-mark-symbol">I</span><span><strong>IRIS</strong><small>YOUR FINANCIAL LIFE · RELATIONAL INTELLIGENCE</small></span></div>
-          <div className="ice-top-actions">
-            <button type="button" onClick={() => go?.("iris/evidence")}>Evidence</button>
-            <button type="button" onClick={() => go?.("iris/reasoning")}>Understand</button>
-            <button type="button" onClick={() => go?.("iris/catalog")}>Reports</button>
-            <button className="ice-primary" type="button" onClick={() => void run()} disabled={running}>{running ? "IRIS is reasoning…" : "Run IRIS"}</button>
-          </div>
-        </header>
-
-        <section className="ice-hero">
-          <div className="ice-hero-main">
-            <span className="ice-kicker">YOUR FINANCIAL LIFE</span>
-            <h1>See your money as a connected living system.</h1>
-            <p>IRIS starts with the financial life actually observed from your connected institutions. Intelligence sits on top of that reality—explaining movement, relationships, patterns, possibilities and decisions without replacing evidence with guesses.</p>
-            {error && <div className="ice-alert"><strong>IRIS is constrained</strong><span>{error}</span></div>}
-            {narrative && <div className="ice-narrative"><span className="ice-narrative-label">CURRENT IRIS READOUT</span>{narrative}</div>}
-            <div className="ice-actions">
-              <button className="ice-primary" type="button" onClick={() => go?.("iris/behavior")}>What changed →</button>
-              <button className="ice-secondary" type="button" onClick={() => go?.("iris/reasoning")}>Understand the relationships</button>
-              <button className="ice-secondary" type="button" onClick={() => go?.("iris/evidence")}>Verify the evidence</button>
-            </div>
-          </div>
-          <aside className="ice-trust">
-            <span className="ice-kicker">IRIS STATE</span>
-            <h2>{loading ? "Reading your connected financial life" : certified ? "Evidence-qualified intelligence" : "Financial life available; intelligence remains evidence-gated"}</h2>
-            <div className="ice-trust-list">
-              <div className="ice-trust-item"><i className={accounts.length ? "" : "limited"}/><span><strong>Accounts:</strong> {accounts.length || "—"}</span></div>
-              <div className="ice-trust-item"><i className={transactions.length ? "" : "limited"}/><span><strong>Recent observed activity:</strong> {transactions.length || "—"}</span></div>
-              <div className="ice-trust-item"><i className={observedDomains === 8 ? "" : "limited"}/><span><strong>Authoritative domains observed:</strong> {observedDomains}/8</span></div>
-              <div className="ice-trust-item"><i className={certified ? "" : "limited"}/><span><strong>Latest intelligence run:</strong> {statusLabel(String(latestRunStatus))}</span></div>
-            </div>
-          </aside>
-        </section>
-
-        <section className="ice-section">
-          <div className="ice-section-head"><div><span className="ice-kicker">FINANCIAL LIFE STATE</span><h2>Your actual financial position</h2></div><p>Provider observations first. Intelligence explains them.</p></div>
-          <div className="ice-life-grid">
-            <article className="ice-life-card ice-life-primary"><span>LIQUID POSITION</span><strong>{money(liquid)}</strong><small>{depository.length ? `${depository.length} depository account${depository.length === 1 ? "" : "s"} with an observed current balance` : "No observed depository balance available"}</small></article>
-            <article className="ice-life-card"><span>REVOLVING DEBT</span><strong>{money(debt)}</strong><small>{credit.length ? `${credit.length} credit account${credit.length === 1 ? "" : "s"} with an observed current balance` : "No observed revolving-debt balance available"}</small></article>
-            <article className="ice-life-card"><span>CONNECTED ACCOUNTS</span><strong>{accounts.length || "—"}</strong><small>Accounts actually persisted for this signed-in user</small></article>
-            <article className="ice-life-card"><span>RECENT ACTIVITY</span><strong>{transactions.length || "—"}</strong><small>Current transaction observations surfaced in this view</small></article>
-          </div>
-        </section>
-
-        <section className="ice-section">
-          <div className="ice-section-head"><div><span className="ice-kicker">ACCOUNTS</span><h2>The places your financial life lives</h2></div><p>Names, balances and states come from persisted provider data.</p></div>
-          {accounts.length ? <div className="ice-account-grid">{accounts.map((account: any) => <article className="ice-account" key={account.id}><div className="ice-account-head"><strong>{account.name ?? account.official_name ?? "Account"}</strong><span>{account.mask ? `••${account.mask}` : "Account number unavailable"}</span></div><small>{[account.type, account.subtype].filter(Boolean).join(" · ") || "Account type unavailable"}</small><b>{money(account.current_balance)}</b><div className="ice-account-meta"><span>Available {money(account.available_balance)}</span><span>{account.balance_updated_at ? `Updated ${dateLabel(account.balance_updated_at)}` : "Balance update time unavailable"}</span></div></article>)}</div> : <div className="ice-empty"><h3>No persisted accounts are available to display.</h3><p>IRIS will not substitute zeros, examples or inferred accounts for missing provider evidence.</p></div>}
-        </section>
-
-        <section className="ice-section">
-          <div className="ice-section-head"><div><span className="ice-kicker">EIGHT AUTHORITATIVE DOMAINS</span><h2>What IRIS can actually observe</h2></div><p>Availability, authorization and observation remain different states.</p></div>
-          <div className="ice-domain-grid">{DOMAINS.map((domain) => { const status = domainStatus(surface, domain); const count = surface?.provider_evidence_counts?.[domain]; return <button className={`ice-domain ${status}`} type="button" key={domain} onClick={() => go?.("iris/evidence")}><span>{domain}</span><strong>{statusLabel(status)}</strong><small>{count != null ? `${count} provider observation${count === 1 ? "" : "s"}` : "Observation count unavailable"}</small></button>; })}</div>
-        </section>
-
-        <section className="ice-section">
-          <div className="ice-section-head"><div><span className="ice-kicker">RECENT FINANCIAL ACTIVITY</span><h2>What actually happened</h2></div><p>Transactions remain visible as financial facts, not merely intelligence inputs.</p></div>
-          {transactions.length ? <div className="ice-activity">{transactions.slice(0, 20).map((tx: any) => <article className="ice-transaction" key={tx.id}><div><strong>{tx.merchants?.canonical_name ?? tx.merchant_name ?? "Transaction"}</strong><small>{dateLabel(tx.posted_date)} · {tx.plaid_category_detailed ?? tx.plaid_category_primary ?? "Category unavailable"}</small></div><b className={Number(tx.amount) < 0 ? "inflow" : "outflow"}>{money(tx.amount)}</b></article>)}</div> : <div className="ice-empty"><h3>No current transaction observations are available.</h3><p>IRIS will not manufacture activity to make the financial life appear complete.</p></div>}
-        </section>
-
-        <section className="ice-section ice-intelligence-section">
-          <div className="ice-section-head"><div><span className="ice-kicker">INTELLIGENCE OVERLAY</span><h2>Now let IRIS connect the life together.</h2></div><p>The hierarchy is the reasoning layer over the financial world above.</p></div>
-          {!intelligence && <div className="ice-empty"><h3>Intelligence has not produced a persisted output yet.</h3><p>Your financial life remains visible above. Run IRIS when you want a new governed intelligence execution. If evidence is incomplete, IRIS will show the exact boundary rather than inventing conclusions.</p></div>}
-          {intelligence && <><div className="ice-intelligence-grid"><article><span>RUN</span><strong>{statusLabel(String(latestRunStatus))}</strong><small>{certified ? "Certified execution" : "Not certified for completed consumer publication"}</small></article><article><span>HIGHER-ORDER</span><strong>{Array.isArray(intelligence.higher_order_synthesis?.findings) ? intelligence.higher_order_synthesis.findings.length : "—"}</strong><small>Persisted findings when evidence permits</small></article><article><span>ANOMALIES</span><strong>{Array.isArray(intelligence.anomalies) ? intelligence.anomalies.length : "—"}</strong><small>Detected structures, not explanations by themselves</small></article></div>{findings.length > 0 && <div className="ice-findings">{findings.map((finding: any, index: number) => <article key={finding.id ?? index}><span>{finding.kind ?? "INTELLIGENCE"}</span><strong>{finding.statement ?? finding.merchant ?? "Supported intelligence finding"}</strong><small>{finding.limitation ?? "Trace this finding through the Intelligence and Evidence surfaces."}</small></article>)}</div>}</>}
-          <div className="ice-actions"><button className="ice-primary" type="button" onClick={() => go?.("iris/intelligence")}>Explore the intelligence graph →</button><button className="ice-secondary" type="button" onClick={() => go?.("iris/reasoning")}>Ask / understand</button><button className="ice-secondary" type="button" onClick={() => go?.("iris/simulation")}>Explore scenarios</button></div>
-        </section>
-
-        <section className="ice-section">
-          <div className="ice-section-head"><div><span className="ice-kicker">THE RELATIONSHIP</span><h2>From fact to understanding to empowerment.</h2></div></div>
-          <div className="ice-transparency"><article><span>YOUR LIFE</span><p>Accounts, balances, transactions, obligations, assets and other observed financial domains remain the visible substrate.</p></article><article><span>IRIS INTELLIGENCE</span><p>Interpretation, relationships, patterns, projections, scenarios, risks, opportunities and decisions are derived from governed evidence.</p></article><article><span>YOUR CONTROL</span><p>You can inspect evidence, traverse reasoning, activate reports, explore scenarios and decide what to do. Unknown remains unknown.</p></article></div>
-        </section>
-      </div>
-    </main>
-  );
+  const run = async () => { if (running) return; setRunning(true); setError(null); try { await api.runIris({ surface: "iris_home", mode: "full_intelligence" }); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : "IRIS could not complete the governed intelligence run."); } finally { setRunning(false); } };
+  const accounts = overview?.accounts ?? []; const transactions = overview?.recent_transactions ?? []; const depository = accounts.filter((a: any) => a.type === "depository" && a.current_balance != null); const credit = accounts.filter((a: any) => a.type === "credit" && a.current_balance != null); const liquid = depository.length ? depository.reduce((sum: number, a: any) => sum + Number(a.current_balance), 0) : null; const debt = credit.length ? credit.reduce((sum: number, a: any) => sum + Number(a.current_balance), 0) : null; const observedDomains = DOMAINS.filter((domain) => domainStatus(surface, domain) === "observed").length; const narrative = typeof intelligence?.narrative === "string" ? intelligence.narrative.trim() : ""; const certified = intelligence?.certified === true; const latestRunStatus = intelligence?.run_status ?? "not run";
+  const findings = useMemo(() => { const higher = intelligence?.higher_order_synthesis?.findings; if (Array.isArray(higher) && higher.length) return higher.slice(0, 4); const anomalies = intelligence?.anomalies; if (Array.isArray(anomalies) && anomalies.length) return anomalies.slice(0, 4); return []; }, [intelligence]);
+  return <main className="iris-consumer-experience"><div className="ice-shell">
+    <section className="ice-hero"><div className="ice-hero-main"><span className="ice-kicker">YOUR FINANCIAL LIFE</span><h1>See your money as a connected living system.</h1><p>IRIS starts with the financial life actually observed from your connected institutions. Intelligence sits on top of that reality—explaining movement, relationships, patterns, possibilities and decisions without replacing evidence with guesses.</p>{error && <div className="ice-alert"><strong>IRIS is constrained</strong><span>{error}</span></div>}{narrative && <div className="ice-narrative"><span className="ice-narrative-label">CURRENT IRIS READOUT</span>{narrative}</div>}<div className="ice-actions"><button className="ice-primary" type="button" onClick={() => go?.("iris/behavior")}>What changed →</button><button className="ice-secondary" type="button" onClick={() => go?.("iris/reasoning")}>Understand the relationships</button><button className="ice-secondary" type="button" onClick={() => go?.("iris/evidence")}>Verify the evidence</button></div></div><aside className="ice-trust"><span className="ice-kicker">IRIS STATE</span><h2>{loading ? "Reading your connected financial life" : certified ? "Evidence-qualified intelligence" : "Financial life available; intelligence remains evidence-gated"}</h2><div className="ice-trust-list"><div className="ice-trust-item"><i className={accounts.length ? "" : "limited"}/><span><strong>Accounts:</strong> {accounts.length || "—"}</span></div><div className="ice-trust-item"><i className={transactions.length ? "" : "limited"}/><span><strong>Recent observed activity:</strong> {transactions.length || "—"}</span></div><div className="ice-trust-item"><i className={observedDomains === 8 ? "" : "limited"}/><span><strong>Authoritative domains observed:</strong> {observedDomains}/8</span></div><div className="ice-trust-item"><i className={certified ? "" : "limited"}/><span><strong>Latest intelligence run:</strong> {statusLabel(String(latestRunStatus))}</span></div></div></aside></section>
+    <section className="ice-section"><div className="ice-section-head"><div><span className="ice-kicker">FINANCIAL LIFE STATE</span><h2>Your actual financial position</h2></div><p>Provider observations first. Intelligence explains them.</p></div><div className="ice-life-grid"><article className="ice-life-card ice-life-primary"><span>LIQUID POSITION</span><strong>{money(liquid)}</strong><small>{depository.length ? `${depository.length} depository account${depository.length === 1 ? "" : "s"} with an observed current balance` : "No observed depository balance available"}</small></article><article className="ice-life-card"><span>REVOLVING DEBT</span><strong>{money(debt)}</strong><small>{credit.length ? `${credit.length} credit account${credit.length === 1 ? "" : "s"} with an observed current balance` : "No observed revolving-debt balance available"}</small></article><article className="ice-life-card"><span>CONNECTED ACCOUNTS</span><strong>{accounts.length || "—"}</strong><small>Accounts actually persisted for this signed-in user</small></article><article className="ice-life-card"><span>RECENT ACTIVITY</span><strong>{transactions.length || "—"}</strong><small>Current transaction observations surfaced in this view</small></article></div></section>
+    <section className="ice-section"><div className="ice-section-head"><div><span className="ice-kicker">ACCOUNTS</span><h2>The places your financial life lives</h2></div><p>Names, balances and states come from persisted provider data.</p></div>{accounts.length ? <div className="ice-account-grid">{accounts.map((account: any) => <article className="ice-account" key={account.id}><div className="ice-account-head"><strong>{account.name ?? account.official_name ?? "Account"}</strong><span>{account.mask ? `••${account.mask}` : "Account number unavailable"}</span></div><small>{[account.type, account.subtype].filter(Boolean).join(" · ") || "Account type unavailable"}</small><b>{money(account.current_balance)}</b><div className="ice-account-meta"><span>Available {money(account.available_balance)}</span><span>{account.balance_updated_at ? `Updated ${dateLabel(account.balance_updated_at)}` : "Balance update time unavailable"}</span></div></article>)}</div> : <div className="ice-empty"><h3>No persisted accounts are available to display.</h3><p>IRIS will not substitute zeros, examples or inferred accounts for missing provider evidence.</p></div>}</section>
+    <section className="ice-section"><div className="ice-section-head"><div><span className="ice-kicker">EIGHT AUTHORITATIVE DOMAINS</span><h2>What IRIS can actually observe</h2></div><p>Availability, authorization and observation remain different states.</p></div><div className="ice-domain-grid">{DOMAINS.map((domain) => { const status = domainStatus(surface, domain); const count = surface?.provider_evidence_counts?.[domain]; return <button className={`ice-domain ${status}`} type="button" key={domain} onClick={() => go?.("iris/evidence")}><span>{domain}</span><strong>{statusLabel(status)}</strong><small>{count != null ? `${count} provider observation${count === 1 ? "" : "s"}` : "Observation count unavailable"}</small></button>; })}</div></section>
+    <section className="ice-section"><div className="ice-section-head"><div><span className="ice-kicker">RECENT FINANCIAL ACTIVITY</span><h2>What actually happened</h2></div><p>Transactions remain visible as financial facts, not merely intelligence inputs.</p></div>{transactions.length ? <div className="ice-activity">{transactions.slice(0, 20).map((tx: any) => <article className="ice-transaction" key={tx.id}><div><strong>{tx.merchants?.canonical_name ?? tx.merchant_name ?? "Transaction"}</strong><small>{dateLabel(tx.posted_date)} · {tx.plaid_category_detailed ?? tx.plaid_category_primary ?? "Category unavailable"}</small></div><b className={Number(tx.amount) < 0 ? "inflow" : "outflow"}>{money(tx.amount)}</b></article>)}</div> : <div className="ice-empty"><h3>No current transaction observations are available.</h3><p>IRIS will not manufacture activity to make the financial life appear complete.</p></div>}</section>
+    <section className="ice-section ice-intelligence-section"><div className="ice-section-head"><div><span className="ice-kicker">INTELLIGENCE OVERLAY</span><h2>Now let IRIS connect the life together.</h2></div><p>The hierarchy is the reasoning layer over the financial world above.</p></div>{!intelligence && <div className="ice-empty"><h3>Intelligence has not produced a persisted output yet.</h3><p>Your financial life remains visible above. Run IRIS when you want a new governed intelligence execution. If evidence is incomplete, IRIS will show the exact boundary rather than inventing conclusions.</p></div>}{intelligence && <><div className="ice-intelligence-grid"><article><span>RUN</span><strong>{statusLabel(String(latestRunStatus))}</strong><small>{certified ? "Certified execution" : "Not certified for completed consumer publication"}</small></article><article><span>HIGHER-ORDER</span><strong>{Array.isArray(intelligence.higher_order_synthesis?.findings) ? intelligence.higher_order_synthesis.findings.length : "—"}</strong><small>Persisted findings when evidence permits</small></article><article><span>ANOMALIES</span><strong>{Array.isArray(intelligence.anomalies) ? intelligence.anomalies.length : "—"}</strong><small>Detected structures, not explanations by themselves</small></article></div>{findings.length > 0 && <div className="ice-findings">{findings.map((finding: any, index: number) => <article key={finding.id ?? index}><span>{finding.kind ?? "INTELLIGENCE"}</span><strong>{finding.statement ?? finding.merchant ?? "Supported intelligence finding"}</strong><small>{finding.limitation ?? "Trace this finding through the Intelligence and Evidence surfaces."}</small></article>)}</div>}</>}<div className="ice-actions"><button className="ice-primary" type="button" onClick={() => go?.("iris/intelligence")}>Explore the intelligence graph →</button><button className="ice-secondary" type="button" onClick={() => go?.("iris/reasoning")}>Ask / understand</button><button className="ice-secondary" type="button" onClick={() => go?.("iris/simulation")}>Explore scenarios</button></div></section>
+    <section className="ice-section"><div className="ice-section-head"><div><span className="ice-kicker">THE RELATIONSHIP</span><h2>From fact to understanding to empowerment.</h2></div></div><div className="ice-transparency"><article><span>YOUR LIFE</span><p>Accounts, balances, transactions, obligations, assets and other observed financial domains remain the visible substrate.</p></article><article><span>IRIS INTELLIGENCE</span><p>Interpretation, relationships, patterns, projections, scenarios, risks, opportunities and decisions are derived from governed evidence.</p></article><article><span>YOUR CONTROL</span><p>You can inspect evidence, traverse reasoning, activate reports, explore scenarios and decide what to do. Unknown remains unknown.</p></article></div></section>
+  </div></main>;
 }
