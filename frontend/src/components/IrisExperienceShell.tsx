@@ -27,6 +27,7 @@ const journey = [
   { page: "iris", label: "What matters" },
   { page: "iris/behavior", label: "What changed" },
   { page: "iris/reasoning", label: "Understand" },
+  { page: "iris/evidence", label: "Verify" },
   { page: "iris/intelligence", label: "Explore" },
   { page: "iris/simulation", label: "Scenario" },
   { page: "iris/decisions", label: "Decide" },
@@ -73,7 +74,7 @@ export function IrisExperienceShell({ page, go, children }: Props) {
           <span className="ies-journey-label">JOURNEY</span>
           {journey.map((item, index) => (
             <span key={item.page} className={page === item.page ? "active" : ""}>
-              <button type="button" onClick={() => go(item.page)}>{item.label}</button>{index < journey.length - 1 && <i aria-hidden="true">→</i>}
+              <button type="button" onClick={() => go(item.page)} aria-current={page === item.page ? "step" : undefined}>{item.label}</button>{index < journey.length - 1 && <i aria-hidden="true">→</i>}
             </span>
           ))}
         </div>
