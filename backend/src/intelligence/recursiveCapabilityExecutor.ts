@@ -2,7 +2,7 @@ import type { CapabilityPlan } from "./capabilityPlanner.js";
 import { dispatchGovernedCapability } from "./capabilityDispatcher.js";
 import type { CapabilityExecutionContext, CapabilityOperatorResult } from "./capabilityOperators.js";
 
-export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v2" as const;
+export const RECURSIVE_CAPABILITY_EXECUTOR_VERSION = "iris-recursive-capability-executor-v3" as const;
 
 export type ExecutionBudget = { maxNodes: number; maxEdges: number; maxCompositions: number };
 
@@ -25,7 +25,7 @@ function finish(plan: CapabilityPlan, status: RecursiveCapabilityExecutionResult
   return { executor_version: RECURSIVE_CAPABILITY_EXECUTOR_VERSION, status, ordered_capabilities: [...plan.ordered_capabilities], executed_capabilities, results, failed_capability, error, resource_usage: { nodes, edges, compositions } };
 }
 
-/** Execute the governed dependency graph with execution budgets, never a semantic depth ceiling. */
+/** Execute the governed dependency graph with execution budgets, never a semantic depth ceiling. Every dispatched node may persist its actual dependency lineage. */
 export async function executeRecursiveCapabilityPlan(
   userId: string,
   plan: CapabilityPlan,
@@ -73,6 +73,9 @@ export async function executeRecursiveCapabilityPlan(
       if (!operatorResult || operatorResult.capability_id !== capabilityId) return finish(plan, "FAILED", executed, results, capabilityId, `INVALID_OPERATOR_RESULT: ${capabilityId}.`, executed.length, edges, compositions);
       results[capabilityId] = operatorResult;
       executed.push(capabilityId);
+      if (context.persistLineage && context.runId && context.executionId) {
+        await context.persistLineage({ capabilityId, result: operatorResult, dependencyResults });
+      }
     } catch (error) {
       return finish(plan, "FAILED", executed, results, capabilityId, error instanceof Error ? error.message : String(error), executed.length, edges, compositions);
     }
