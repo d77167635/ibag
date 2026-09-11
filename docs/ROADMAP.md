@@ -30,6 +30,8 @@ Correlation ≠ causation.
 - `docs/IRIS_REPORT_PRODUCT_LIBRARY.md` is the report-product catalog/definition library.
 - `docs/IRIS_EXPERIENCE_STANDARD.md` is the consumer-facing product-quality contract.
 - `docs/IRIS_USER_JOURNEY.md` is the full consumer journey contract.
+- `docs/IRIS_VISUAL_INTERACTION_SYSTEM.md` is the visual/interaction contract.
+- `docs/IRIS_SCREEN_MAP.md` is the screen-by-screen consumer product map.
 - Intelligence nodes are internal semantic reasoning objects.
 - Report products are user-facing publications generated from one or more intelligence nodes.
 - A report name should be centered on the most important, material, empowering, explanatory, educational, or actionable supported intelligence contained in that report.
@@ -74,6 +76,8 @@ The face must provide progressive disclosure from human-readable meaning to inte
 - [x] Trust/anti-fabrication UX contract defined.
 - [x] Progressive-disclosure experience model defined.
 - [x] Core consumer intelligence journey surfaces mapped to existing governed routes.
+- [x] Visual interaction system defined, including semantic visual states, graph traversal, timeline, scenario, decision, outcome, learning, accessibility, and failure interaction rules.
+- [x] Screen-by-screen consumer product map defined from arrival through return.
 
 ### Implemented but not certified
 
@@ -83,6 +87,10 @@ The face must provide progressive disclosure from human-readable meaning to inte
 - [x] Consumer home provides direct navigation into evidence, intelligence, behavioral change, reasoning, scenarios, decisions, and report products.
 - [x] Consumer home preserves evidence-qualified report publication gating.
 - [x] Consumer home includes explicit trust, unknown-state, and anti-fabrication presentation.
+- [x] Unified authenticated IRIS shell implemented around the existing consumer surfaces, with persistent responsive navigation and a shared journey rail.
+- [x] Shell maps the consumer journey to existing governed routes without inventing backend capabilities.
+- [x] Shell provides persistent contextual entry points for Evidence, Ask/Understand, and connection flow.
+- [x] Shell preserves the same semantic model across desktop and mobile composition.
 
 ## Report naming principle
 
