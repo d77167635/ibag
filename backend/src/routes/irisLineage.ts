@@ -5,7 +5,7 @@ import { resolveIrisEvidenceReverseLineage } from "../intelligence/irisReverseLi
 
 export const irisLineageRouter = Router();
 
-/** Exact reverse traversal for an evidence record within one governed run. */
+/** Exact reverse traversal for one evidence record within one governed run/execution boundary. */
 irisLineageRouter.get("/iris/lineage/evidence/:evidenceId", requireAuth, async (req: AuthedRequest, res) => {
   try {
     const evidenceId = typeof req.params.evidenceId === "string" ? req.params.evidenceId.trim() : "";
@@ -15,7 +15,7 @@ irisLineageRouter.get("/iris/lineage/evidence/:evidenceId", requireAuth, async (
 
     const dependencies = buildIrisReportDependencyGraph();
     const result = await resolveIrisEvidenceReverseLineage({ userId: req.userId!, runId, executionId, evidenceId, dependencies });
-    return res.json({ ...result, traversal: "evidence -> intelligence -> report", catalog_metadata_is_not_evidence: true });
+    return res.json({ ...result, traversal: "evidence -> intelligence -> transformation_edges -> affected_intelligence -> report", catalog_metadata_is_not_evidence: true });
   } catch (error) {
     console.error("iris/lineage/evidence error:", error);
     return res.status(500).json({ error: "Unable to resolve exact Iris evidence reverse lineage" });
