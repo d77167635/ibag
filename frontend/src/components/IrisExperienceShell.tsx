@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 export type IrisJourneySurface = { page: string; label: string; description: string };
 
@@ -29,6 +29,46 @@ const journey = [
   { page: "iris/action", label: "Action" },
   { page: "iris/outcomes", label: "Outcome" },
 ];
+
+function IrisAssistant({ page, go }: { page: string; go: (page: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const isIntelligence = page === "iris/intelligence";
+  const prompts = isIntelligence
+    ? [
+        { label: "Explain this", action: () => setOpen(true) },
+        { label: "How the hierarchy works", action: () => setOpen(true) },
+        { label: "Explore Intelligence", action: () => go("iris/intelligence") },
+      ]
+    : [
+        { label: "Explain my reports", action: () => go("iris/catalog") },
+        { label: "Show me the evidence", action: () => go("iris/evidence") },
+        { label: "Help me understand", action: () => go("iris/reasoning") },
+      ];
+
+  return (
+    <aside className={`iris-assistant ${open ? "open" : ""}`} aria-label="IRIS assistant">
+      {open && (
+        <div className="iris-assistant-card" role="dialog" aria-label="IRIS assistant help">
+          <div className="iris-assistant-card-head">
+            <div><strong>IRIS</strong><span>{isIntelligence ? "Intelligence guide" : "Your financial-life guide"}</span></div>
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close IRIS assistant">×</button>
+          </div>
+          <p>{isIntelligence
+            ? "I’m here to explain how IRIS observes, connects, reasons, and builds intelligence. This educational experience does not display your financial data."
+            : "I’m here to help you understand what you are seeing, move through your reports, verify evidence, and make sense of your financial life."
+          }</p>
+          <div className="iris-assistant-actions">
+            {prompts.map((prompt) => <button key={prompt.label} type="button" onClick={prompt.action}>{prompt.label}</button>)}
+          </div>
+        </div>
+      )}
+      <button className="iris-assistant-launcher" type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label="Open IRIS assistant">
+        <span className="iris-assistant-orb" aria-hidden="true">I</span>
+        <span><strong>IRIS</strong><small>HELP &amp; ASSIST</small></span>
+      </button>
+    </aside>
+  );
+}
 
 export function IrisExperienceShell({ page, go, children }: Props) {
   const active = [...financialNav, ...intelligenceNav].find((item) => item.page === page)?.page ?? "iris";
@@ -64,6 +104,7 @@ export function IrisExperienceShell({ page, go, children }: Props) {
         {journey.map((item, index) => <span key={item.page} className={page === item.page ? "active" : ""}><button type="button" onClick={() => go(item.page)} aria-current={page === item.page ? "step" : undefined}>{item.label}</button>{index < journey.length - 1 && <i aria-hidden="true">→</i>}</span>)}
       </div>
       <main className="ies-content">{children}</main>
+      <IrisAssistant page={page} go={go} />
     </div>
   );
 }
