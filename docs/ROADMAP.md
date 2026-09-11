@@ -28,6 +28,8 @@ Correlation ≠ causation.
 
 - `docs/IRIS_LIBRARY.md` is the intelligence-definition library.
 - `docs/IRIS_REPORT_PRODUCT_LIBRARY.md` is the report-product catalog/definition library.
+- `docs/IRIS_EXPERIENCE_STANDARD.md` is the consumer-facing product-quality contract.
+- `docs/IRIS_USER_JOURNEY.md` is the full consumer journey contract.
 - Intelligence nodes are internal semantic reasoning objects.
 - Report products are user-facing publications generated from one or more intelligence nodes.
 - A report name should be centered on the most important, material, empowering, explanatory, educational, or actionable supported intelligence contained in that report.
@@ -54,6 +56,33 @@ The intended user experience is an interactive IRIS Library and Report Catalog i
 - experience their financial life as one connected intelligence ecosystem rather than disconnected banking widgets.
 
 Deactivation is a presentation/attention preference. It must not silently delete underlying evidence or intelligence.
+
+## Consumer experience standard
+
+The consumer face and full user journey are first-class product surfaces and are held to a premium consumer-technology standard. The experience must make the intelligence hierarchy feel simple without hiding evidence, uncertainty, lineage, or limitations.
+
+The full journey is governed by:
+
+`Arrival → Evidence Connection → Evidence Formation → First Understanding → Ask → Explore Relationships → Understand Reasoning → Compare Change → Explore Scenarios → Decide → Observe Outcomes → Learn → Return`
+
+The face must provide progressive disclosure from human-readable meaning to intelligence to evidence and must never expose an unavailable capability as if it were completed functionality.
+
+### Defined
+
+- [x] Consumer experience quality standard defined.
+- [x] Full consumer user journey defined.
+- [x] Trust/anti-fabrication UX contract defined.
+- [x] Progressive-disclosure experience model defined.
+- [x] Core consumer intelligence journey surfaces mapped to existing governed routes.
+
+### Implemented but not certified
+
+- [x] Premium IRIS consumer home surface implemented from the canonical governed intelligence endpoint.
+- [x] Consumer home exposes current governed narrative only when supplied by the backend.
+- [x] Consumer home exposes execution/certification boundary without manufacturing financial values.
+- [x] Consumer home provides direct navigation into evidence, intelligence, behavioral change, reasoning, scenarios, decisions, and report products.
+- [x] Consumer home preserves evidence-qualified report publication gating.
+- [x] Consumer home includes explicit trust, unknown-state, and anti-fabrication presentation.
 
 ## Report naming principle
 
@@ -149,6 +178,8 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [ ] Product publication certification.
 - [ ] End-to-end product certification.
 - [ ] Current-commit CI/deployment verification for the latest product-layer changes.
+- [ ] Full IRIS consumer journey certification against real provider evidence.
+- [ ] Premium consumer experience visual/interaction certification across supported device classes.
 
 The previously listed migration-reconciliation blocker is **resolved**: the current repository contains the semantic-proof and transformation-edge migration history, and the live Supabase schema has the corresponding tables/columns with RLS enabled and forced. Those facts establish schema presence only; they do not establish runtime execution or certification.
 
