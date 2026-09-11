@@ -130,6 +130,9 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Arbitrary recursive composition now consumes only those exact execution-scoped graph-node IDs; missing or cross-execution references fail closed instead of selecting a node by capability name.
 - [x] Arbitrary recursive composition provenance records the exact upstream node IDs and upstream node hashes used for the derived composition.
 - [x] Automated backend test covers propagation of exact upstream graph-node IDs through recursive execution.
+- [x] Report runtime-lineage resolution now fails closed on missing/ambiguous capability roots, missing upstream nodes, missing or undeclared transformation edges, transformation hash mismatches, missing recursive ancestors, lineage cycles, and invalid run-bound evidence IDs.
+- [x] Report runtime-lineage resolution requires every report root to be recursively evidence-grounded within the exact user/run/execution boundary.
+- [x] CI verified the recursive report-lineage hardening source commit `627eb8cb41b3bf8c3e6d156ea7df1a02240e1c44`: backend intelligence tests and TypeScript build passed; frontend build passed; continuity refresh passed.
 
 ### Not yet certified
 
