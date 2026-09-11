@@ -21,6 +21,8 @@ const primary: IrisJourneySurface[] = [
   { page: "iris/catalog", label: "Reports", description: "User-controlled products" },
   { page: "iris/decisions", label: "Decisions", description: "Options and tradeoffs" },
   { page: "iris/evidence", label: "Evidence", description: "How Iris knows" },
+  { page: "iris/action", label: "Action", description: "Explicit user-controlled boundary" },
+  { page: "iris/outcomes", label: "Outcomes", description: "Observed results and learning" },
 ];
 
 const journey = [
@@ -31,6 +33,8 @@ const journey = [
   { page: "iris/intelligence", label: "Explore" },
   { page: "iris/simulation", label: "Scenario" },
   { page: "iris/decisions", label: "Decide" },
+  { page: "iris/action", label: "Action" },
+  { page: "iris/outcomes", label: "Outcome" },
 ];
 
 export function IrisExperienceShell({ page, go, children }: Props) {
@@ -66,6 +70,7 @@ export function IrisExperienceShell({ page, go, children }: Props) {
           <div className="ies-top-actions">
             <button type="button" onClick={() => go("iris/evidence")}>Evidence</button>
             <button type="button" onClick={() => go("iris/reasoning")}>Ask / Understand</button>
+            <button type="button" onClick={() => go("iris/action")}>Action boundary</button>
             <button className="ies-connect" type="button" onClick={() => go("iris")}>Connect evidence</button>
           </div>
         </header>
