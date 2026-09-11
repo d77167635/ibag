@@ -11,7 +11,6 @@ const money = (value: unknown) => {
   return Number.isFinite(number) ? `${number < 0 ? "−" : ""}$${Math.abs(number).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
 };
 const label = (value: unknown) => String(value ?? "—").replaceAll("_", " ").replace(/\b\w/g, c => c.toUpperCase());
-const count = (value: unknown) => Array.isArray(value) ? value.length : value && typeof value === "object" ? Object.keys(value as object).length : value == null ? "—" : value;
 
 export function IrisIntelligenceSurface({ go }: Props) {
   const [intel, setIntel] = useState<any>(null);
@@ -36,6 +35,7 @@ export function IrisIntelligenceSurface({ go }: Props) {
   const findings = Array.isArray(recursive?.findings) ? recursive.findings : Array.isArray(recursive?.higher_order_findings) ? recursive.higher_order_findings : [];
   const accounts = Array.isArray(overview?.accounts) ? overview.accounts : [];
   const transactions = Array.isArray(overview?.recent_transactions) ? overview.recent_transactions : [];
+  const dependencyNodeCount = recursive?.dependency_count ?? nodes.length;
 
   return <main className="iris-intelligence-surface">
     <section className="iis-header">
@@ -56,7 +56,7 @@ export function IrisIntelligenceSurface({ go }: Props) {
       <div className="iis-section-head"><div><span className="iis-kicker">RECURSIVE HIERARCHY</span><h2>From direct evidence to higher-order composition</h2></div><p>Semantic depth is not capped here. Runtime budgets constrain an execution; they do not define the intelligence hierarchy.</p></div>
       <div className="iis-metrics">
         <article><span>COMPOSITION DEPTH</span><strong>{recursive?.composition_depth ?? "—"}</strong><small>Observed depth of the current governed synthesis.</small></article>
-        <article><span>DEPENDENCY NODES</span><strong>{recursive?.dependency_count ?? nodes.length || "—"}</strong><small>Recursive capability outputs participating in this synthesis.</small></article>
+        <article><span>DEPENDENCY NODES</span><strong>{dependencyNodeCount || "—"}</strong><small>Recursive capability outputs participating in this synthesis.</small></article>
         <article><span>HIGHER-ORDER FINDINGS</span><strong>{findings.length || "—"}</strong><small>Compositions retained with their evidence state.</small></article>
         <article><span>EVIDENCE COMPLETE</span><strong>{recursive?.evidence_profile?.complete == null ? "—" : recursive.evidence_profile.complete ? "Yes" : "No"}</strong><small>Completeness never converts unknown into zero.</small></article>
       </div>
