@@ -1,22 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/backend";
+import type { IrisReportCatalogProduct } from "../contracts/irisReportCatalog";
+import { IrisReportDetail } from "./IrisReportDetail";
 import "./IrisIntelligenceScreens.css";
 
-type ReportProduct = {
-  reportId: string;
-  analysisId: string;
-  name: string;
-  description: string;
-  family: string;
-  outputType: string;
-  requiredEvidenceInputs: string[];
-};
-
 export function IrisCatalog({ go }: { go?: (page: string) => void }) {
-  const [catalog, setCatalog] = useState<ReportProduct[]>([]);
+  const [catalog, setCatalog] = useState<IrisReportCatalogProduct[]>([]);
   const [active, setActive] = useState<string[]>([]);
   const [family, setFamily] = useState("all");
   const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -38,34 +31,41 @@ export function IrisCatalog({ go }: { go?: (page: string) => void }) {
     (family === "all" || r.family === family) &&
     (!query.trim() || `${r.name} ${r.description} ${r.family} ${r.outputType}`.toLowerCase().includes(query.toLowerCase()))
   ), [catalog, family, query]);
+  const selected = selectedId ? catalog.find((r) => r.reportId === selectedId) ?? null : null;
 
   const toggle = async (reportId: string) => {
-    const next = active.includes(reportId) ? active.filter((id) => id !== reportId) : [...active, reportId];
+    if (saving) return;
+    const previous = active;
+    const next = previous.includes(reportId) ? previous.filter((id) => id !== reportId) : [...previous, reportId];
     setActive(next); setSaving(true); setMessage("");
     try {
-      await api.saveIrisCatalogSelection(next);
+      const result = await api.saveIrisCatalogSelection(next);
+      setActive(result.activation.report_ids);
       setMessage("Report activation saved");
     } catch (e) {
-      setActive(active);
+      setActive(previous);
       setMessage(e instanceof Error ? e.message : "Unable to save report activation.");
     } finally { setSaving(false); }
   };
 
   const reset = async () => {
+    if (saving) return;
     setSaving(true); setMessage("");
     try {
       const data = await api.resetIrisCatalog();
-      setActive(data.activation?.report_ids ?? []);
+      setActive(data.activation.report_ids);
       setMessage("All currently defined report products restored");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Unable to restore report products.");
     } finally { setSaving(false); }
   };
 
+  if (selected) return <IrisReportDetail report={selected} active={active.includes(selected.reportId)} saving={saving} onToggle={() => void toggle(selected.reportId)} onBack={() => setSelectedId(null)} />;
+
   return <div className="iis-screen">
     <div className="iis-hero">
       <div className="iis-hero-top"><span>IRIS · REPORT PRODUCT CATALOG</span>{go && <button type="button" className="iis-back" onClick={() => go("iris")}>← Iris Command</button>}</div>
-      <h1>Choose the reports and analytics you want active</h1>
+      <h1>Explore the reports and analytics Iris can publish</h1>
       <p>The intelligence hierarchy is Iris's internal reasoning system. The products you control are the evidence-grounded reports and analytics that Iris publishes from that hierarchy.</p>
     </div>
 
@@ -80,8 +80,8 @@ export function IrisCatalog({ go }: { go?: (page: string) => void }) {
       <header><div><span>YOUR ACTIVE PRODUCTS</span><h2>Active reports & analytics</h2></div><button type="button" onClick={() => void reset()} disabled={saving}>Restore available products</button></header>
       <p className="iis-note">Activating or deactivating a report controls publication of that product. It does not turn a Plaid product on or off, create financial evidence, or restrict the depth of Iris's underlying intelligence.</p>
       <div className="iis-catalog-grid">
-        {catalog.filter((r) => active.includes(r.reportId)).map((r) => <button type="button" key={r.reportId} className="iis-catalog-card selected" onClick={() => void toggle(r.reportId)}>
-          <div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><em>Active · Tap to deactivate</em>
+        {catalog.filter((r) => active.includes(r.reportId)).map((r) => <button type="button" key={r.reportId} className="iis-catalog-card selected" onClick={() => setSelectedId(r.reportId)}>
+          <div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><em>Active · Open product</em>
         </button>)}
       </div>
       {active.length === 0 && <p className="iis-note">No report products are active. Iris may still retain and reason over governed evidence, but no user report product is published until you activate one.</p>}
@@ -91,8 +91,8 @@ export function IrisCatalog({ go }: { go?: (page: string) => void }) {
       <header><div><span>REPORT PRODUCT CATALOG</span><h2>Explore reports and analytics</h2></div></header>
       <div className="iis-catalog-toolbar"><input aria-label="Search Iris report products" placeholder="Search reports…" value={query} onChange={(e) => setQuery(e.target.value)} /><select aria-label="Filter report family" value={family} onChange={(e) => setFamily(e.target.value)}><option value="all">All families</option>{families.map((f) => <option key={f} value={f}>{f}</option>)}</select></div>
       <div className="iis-catalog-grid">
-        {visible.map((r) => { const isActive = active.includes(r.reportId); return <button type="button" key={r.reportId} className={`iis-catalog-card${isActive ? " selected" : ""}`} onClick={() => void toggle(r.reportId)}>
-          <div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><em>{isActive ? "Active · Tap to deactivate" : "Activate report"}</em>
+        {visible.map((r) => { const isActive = active.includes(r.reportId); return <button type="button" key={r.reportId} className={`iis-catalog-card${isActive ? " selected" : ""}`} onClick={() => setSelectedId(r.reportId)}>
+          <div><span>{r.family} · {r.outputType}</span><b>{r.name}</b></div><small>{r.description}</small><em>{isActive ? "Active · Open product" : "Open product · Activate inside"}</em>
         </button>; })}
       </div>
     </section>
