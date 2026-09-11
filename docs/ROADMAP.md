@@ -122,6 +122,8 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [x] Exact report evidence-boundary evaluator implemented; required evidence keys are never treated as observations, and missing/unknown evidence remains explicit.
 - [x] Conjunctive report certification-gate foundation implemented across execution status, runtime lineage, declared dependency-read proof, and evidence boundary.
 - [x] Regression coverage added for recursive traversal, cycle safety, report semantic consumption, recursive composition, evidence boundaries, and conjunctive certification.
+- [x] Repository certification gate reconciled with the current recursive graph architecture version (`IRIS_RECURSIVE_CAPABILITY_GRAPH_V2`).
+- [x] Report certification gate aligned with the actual governed execution states (`EXECUTED`/`CERTIFIED`, while retaining compatibility with `SUCCEEDED`).
 
 ### Not yet certified
 
@@ -139,7 +141,8 @@ The catalog itself is unbounded in principle. Named report products are stable i
 - [ ] Product publication certification.
 - [ ] End-to-end product certification.
 - [ ] Current-commit CI/deployment verification for the latest product-layer changes.
-- [ ] Reconciliation of repository migration history with the currently referenced semantic-proof/transformation tables before those tables are treated as deployable schema. The current repository visibly contains migration `081_arbitrary_derived_intelligence_graph.sql`, while the expected later migration files were not found at their previously assumed paths; no new schema is being invented until this discrepancy is resolved against the actual source of truth.
+
+The previously listed migration-reconciliation blocker is **resolved**: the current repository contains the semantic-proof and transformation-edge migration history, and the live Supabase schema has the corresponding tables/columns with RLS enabled and forced. Those facts establish schema presence only; they do not establish runtime execution or certification.
 
 These unchecked states are intentional. Documentation does not count as runtime implementation or certification.
 
