@@ -22,6 +22,7 @@ In particular:
 - **Dependency recorded in provenance** does not by itself prove **semantic derivation from that dependency**.
 - **Executable operator** does not mean **evidence-certified result**.
 - **Capability registry entry** does not mean **user intelligence exists**.
+- **Graph persistence** does not mean **semantic composition is certified**.
 - **Conceptual recursive capacity** does not mean **unbounded recursive discovery/composition is implemented**.
 
 ## 1. Continuity and governance
@@ -88,8 +89,13 @@ Capability families/operators are **not user products and are not hierarchy leve
 - [x] Runtime operator registry
 - [x] Recursive dependency planning/execution foundation
 - [x] Generic recursive dependency-path discovery foundation
+- [x] Persisted arbitrary derived-intelligence node foundation independent of the finite capability registry
+- [x] Exact upstream node UUID references and recursive ancestry persistence foundation
+- [x] Deterministic derived-node hashing foundation
+- [x] Derived-node graph-edge and execution-lineage persistence foundation
 - [ ] Make every declared dependency a semantically consumed upstream input where the contract requires it
 - [ ] Persist explicit semantic transformation edges showing how each consumed input produces each output
+- [ ] Replace persistence-time `actual_dependency_consumed` assertions with independently verifiable semantic-consumption evidence
 - [ ] Unify remaining named operators with the richer Iris intelligence engine
 - [ ] Complete recursive composition certification against real provider evidence
 
@@ -196,6 +202,7 @@ A conceptual progression can include observed evidence → canonical state → i
 - [ ] Conversational evidence-grounded reasoning
 - [x] Governed higher-order synthesis foundation consumes persisted dependency outputs without creating financial evidence
 - [x] Generic recursive dependency-path discovery foundation beyond hard-coded pair/triple relationships
+- [x] Arbitrary derived-intelligence persistence foundation for nodes without a registry entry
 - [ ] Higher-order pattern discovery
 - [ ] Emergent intelligence discovery
 - [ ] Recursive composition of newly derived intelligence where evidence/governance/resources/usefulness permit
