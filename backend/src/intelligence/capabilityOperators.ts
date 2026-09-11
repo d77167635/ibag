@@ -9,7 +9,17 @@ import { buildRelationalOntologyExpansion } from "./relationalOntologyExpansion.
 
 export type CapabilityOperatorStatus = "implemented" | "planned";
 export type GovernedCapabilityResult = { layer_metrics?: { provider_domains?: { selected_item_id?: string | null } }; uncertainty?: unknown; evidence_boundary?: string | null; [key: string]: unknown };
-export type CapabilityExecutionContext = { asOf?: string | null; evidenceBoundary?: string | null; runId?: string | null; evidenceManifestHash?: string | null; runEvidenceIds?: string[]; dependencyResults?: Record<string, CapabilityOperatorResult>; scenarioAssumptions?: Array<{ reductionPct: number }> };
+export type CapabilityExecutionContext = {
+  asOf?: string | null;
+  evidenceBoundary?: string | null;
+  runId?: string | null;
+  executionId?: string | null;
+  evidenceManifestHash?: string | null;
+  runEvidenceIds?: string[];
+  dependencyResults?: Record<string, CapabilityOperatorResult>;
+  scenarioAssumptions?: Array<{ reductionPct: number }>;
+  persistLineage?: (input: { capabilityId: string; result: CapabilityOperatorResult; dependencyResults: Record<string, CapabilityOperatorResult> }) => Promise<void>;
+};
 export type CapabilityOperatorResult = { capability_id: string; operator_id: string; operator_version: string; evidence_state: "CALCULATED" | "INFERRED" | "PREDICTED" | "SCENARIO" | "INSUFFICIENT_EVIDENCE"; result: GovernedCapabilityResult };
 export type CapabilityOperator = { capability_id: string; operator_id: string; version: string; status: CapabilityOperatorStatus; execution_stage: string; evidence_state: CapabilityOperatorResult["evidence_state"]; execute?: (userId: string, context?: CapabilityExecutionContext) => Promise<CapabilityOperatorResult> };
 
