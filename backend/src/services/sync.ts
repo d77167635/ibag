@@ -29,8 +29,7 @@ async function productObservation(userId: string, itemId: string, product: strin
 }
 
 async function observeProducts(userId: string, itemId: string, accessToken: string) {
-  const request = { access_token: accessToken };
-  const response = await plaidClient.itemGet(request);
+  const response = await plaidClient.itemGet({ access_token: accessToken });
   await recordPlaidProviderReceipt({ userId, itemId, product: "item", endpoint: "/item/get", request: { endpoint: "/item/get" }, response });
   const billed = new Set(response.data.item.billed_products ?? []);
   const available = new Set(response.data.item.available_products ?? []);
@@ -59,10 +58,7 @@ async function markProductObserved(userId: string, itemId: string, product: stri
 
 async function getDurableTransactionCursor(userId: string, itemId: string) {
   const { data, error } = await supabaseAdmin.from("plaid_transaction_sync_state")
-    .select("cursor,pages_processed")
-    .eq("user_id", userId)
-    .eq("item_id", itemId)
-    .maybeSingle();
+    .select("cursor,pages_processed").eq("user_id", userId).eq("item_id", itemId).maybeSingle();
   if (error) throw error;
   return { cursor: (data?.cursor as string | null | undefined) ?? undefined, pages: Number(data?.pages_processed ?? 0) };
 }
@@ -70,12 +66,7 @@ async function getDurableTransactionCursor(userId: string, itemId: string) {
 async function checkpointDurableTransactionCursor(userId: string, itemId: string, cursor: string | undefined, pages: number) {
   const now = new Date().toISOString();
   const { error } = await supabaseAdmin.from("plaid_transaction_sync_state").upsert({
-    user_id: userId,
-    item_id: itemId,
-    cursor: cursor ?? null,
-    pages_processed: pages,
-    last_checkpoint_at: now,
-    last_success_at: now,
+    user_id: userId, item_id: itemId, cursor: cursor ?? null, pages_processed: pages, last_checkpoint_at: now, last_success_at: now,
   }, { onConflict: "item_id,user_id" });
   if (error) throw error;
 }
@@ -104,25 +95,19 @@ async function normalizeTransaction(userId: string, accountId: string, tx: any) 
 }
 
 async function acquireSyncLease(userId: string, itemDbId: string, owner: string): Promise<boolean> {
-  const { data, error } = await supabaseAdmin.rpc("acquire_plaid_sync_lease", {
-    p_user_id: userId, p_item_id: itemDbId, p_lease_owner: owner, p_lease_seconds: SYNC_LEASE_SECONDS,
-  });
+  const { data, error } = await supabaseAdmin.rpc("acquire_plaid_sync_lease", { p_user_id: userId, p_item_id: itemDbId, p_lease_owner: owner, p_lease_seconds: SYNC_LEASE_SECONDS });
   if (error) throw error;
   return data === true;
 }
 
 async function renewSyncLease(userId: string, itemDbId: string, owner: string): Promise<void> {
-  const { data, error } = await supabaseAdmin.rpc("renew_plaid_sync_lease", {
-    p_user_id: userId, p_item_id: itemDbId, p_lease_owner: owner, p_lease_seconds: SYNC_LEASE_SECONDS,
-  });
+  const { data, error } = await supabaseAdmin.rpc("renew_plaid_sync_lease", { p_user_id: userId, p_item_id: itemDbId, p_lease_owner: owner, p_lease_seconds: SYNC_LEASE_SECONDS });
   if (error) throw error;
   if (data !== true) throw new Error("Plaid sync lease was lost before the provider checkpoint could be renewed");
 }
 
 async function releaseSyncLease(userId: string, itemDbId: string, owner: string): Promise<void> {
-  const { error } = await supabaseAdmin.rpc("release_plaid_sync_lease", {
-    p_user_id: userId, p_item_id: itemDbId, p_lease_owner: owner,
-  });
+  const { error } = await supabaseAdmin.rpc("release_plaid_sync_lease", { p_user_id: userId, p_item_id: itemDbId, p_lease_owner: owner });
   if (error) throw error;
 }
 
@@ -130,7 +115,6 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
   const leaseOwner = randomUUID();
   const leaseAcquired = await acquireSyncLease(userId, itemDbId, leaseOwner);
   if (!leaseAcquired) throw new Error("Plaid Item sync already in progress; retry after the active sync releases its lease");
-
   try {
     const key = idempotencyKey ?? `plaid-sync:${itemDbId}:${randomUUID()}`;
     const { data: run, error } = await supabaseAdmin.rpc("begin_sync_run", { p_user_id: userId, p_item_id: itemDbId, p_idempotency_key: key });
@@ -144,8 +128,7 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       const providerProducts = await observeProducts(userId, itemDbId, accessToken);
       await updateSyncRun(runId, { state: "started" });
 
-      const accountsRequest = { access_token: accessToken };
-      const accountsResp = await plaidClient.accountsGet(accountsRequest);
+      const accountsResp = await plaidClient.accountsGet({ access_token: accessToken });
       await recordPlaidProviderReceipt({ userId, itemId: itemDbId, product: "accounts", endpoint: "/accounts/get", request: { endpoint: "/accounts/get" }, response: accountsResp });
       const accountMap = new Map<string, string>();
       await updateSyncRun(runId, { state: "receiving" });
@@ -158,24 +141,17 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
         accountMap.set(acct.account_id, row.id);
       }
 
-      const balanceRequest = { access_token: accessToken };
-      const balanceResp = await (plaidClient as any).accountsBalanceGet(balanceRequest);
+      const balanceResp = await (plaidClient as any).accountsBalanceGet({ access_token: accessToken });
       await recordPlaidProviderReceipt({ userId, itemId: itemDbId, product: "balance", endpoint: "/accounts/balance/get", request: { endpoint: "/accounts/balance/get" }, response: balanceResp });
       const returnedBalanceIds = new Set<string>();
       for (const acct of balanceResp.data.accounts ?? []) {
         const localAccountId = accountMap.get(acct.account_id);
         if (!localAccountId) throw new Error(`Plaid balance response references account ${acct.account_id} not returned by accountsGet`);
         returnedBalanceIds.add(acct.account_id);
-        const { error: accountBalanceError } = await supabaseAdmin.from("plaid_accounts").update({
-          current_balance: acct.balances.current,
-          available_balance: acct.balances.available,
-          credit_limit: acct.balances.limit,
-          balance_updated_at: new Date().toISOString(),
-        }).eq("id", localAccountId).eq("user_id", userId);
+        const { error: accountBalanceError } = await supabaseAdmin.from("plaid_accounts").update({ current_balance: acct.balances.current, available_balance: acct.balances.available, credit_limit: acct.balances.limit, balance_updated_at: new Date().toISOString() }).eq("id", localAccountId).eq("user_id", userId);
         if (accountBalanceError) throw accountBalanceError;
         const now = new Date().toISOString();
-        const { error: retireBalanceError } = await supabaseAdmin.from("plaid_raw_balances").update({ is_current: false })
-          .eq("user_id", userId).eq("account_id", localAccountId).eq("is_current", true);
+        const { error: retireBalanceError } = await supabaseAdmin.from("plaid_raw_balances").update({ is_current: false }).eq("user_id", userId).eq("account_id", localAccountId).eq("is_current", true);
         if (retireBalanceError) throw retireBalanceError;
         const { error: balanceError } = await supabaseAdmin.from("plaid_raw_balances").insert({
           user_id: userId, account_id: localAccountId, raw_response: acct, provider_object_id: acct.account_id,
@@ -194,8 +170,7 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       while (hasMore) {
         await renewSyncLease(userId, itemDbId, leaseOwner);
         await updateSyncRun(runId, { state: "provider_fetching", cursor });
-        const transactionRequest = { access_token: accessToken, cursor };
-        const response = await plaidClient.transactionsSync(transactionRequest);
+        const response = await plaidClient.transactionsSync({ access_token: accessToken, cursor });
         await recordPlaidProviderReceipt({ userId, itemId: itemDbId, product: "transactions", endpoint: "/transactions/sync", request: { endpoint: "/transactions/sync", cursor: cursor ?? null }, response, pageCursor: cursor ?? null, pageNumber: pages + 1 });
         await updateSyncRun(runId, { state: "validating" });
         for (const tx of response.data.added ?? []) { const accountId = accountMap.get(tx.account_id); if (!accountId) throw new Error(`Plaid transaction ${tx.transaction_id} references account ${tx.account_id} not returned by accountsGet`); await normalizeTransaction(userId, accountId, tx); added++; }
@@ -220,16 +195,26 @@ export async function fullSyncForItem(itemDbId: string, userId: string, accessTo
       await updateSyncRun(runId, { state: "reconciling" });
       const liabilityResult = await syncLiabilitiesForItem(userId, itemDbId, accessToken);
       if (liabilityResult.observed) await markProductObserved(userId, itemDbId, "liabilities", "plaid.liabilitiesGet");
-      for (const accountId of accountMap.values()) await recomputeRoundupsForAccount(userId, accountId, accessToken);
-      await detectRecurringSeriesEvidenceBounded(userId);
-      await updateSyncRun(runId, { state: "intelligence_refresh" });
+
+      // The provider -> Supabase source path is complete here. Roundups, recurring
+      // detection and intelligence refresh are downstream consumers and must never
+      // invalidate an otherwise complete provider ingestion run.
       const now = new Date().toISOString();
       const { error: itemError } = await supabaseAdmin.from("plaid_items").update({ last_synced_at: now, status: "active" }).eq("id", itemDbId).eq("user_id", userId);
       if (itemError) throw itemError;
       await updateSyncRun(runId, { state: "validated", completed_at: now, last_checkpoint_at: now, added_count: added, modified_count: modified, removed_count: removed });
       await updateSyncRun(runId, { state: "completed" });
+
+      // Downstream work is deliberately best-effort. It consumes already-persisted
+      // provider observations and cannot rewrite their evidence state.
+      try {
+        for (const accountId of accountMap.values()) await recomputeRoundupsForAccount(userId, accountId, accessToken);
+        await detectRecurringSeriesEvidenceBounded(userId);
+      } catch (downstreamError) {
+        console.error("Plaid source sync completed; downstream reconciliation failed:", downstreamError);
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown sync failure";
+      const message = error instanceof Error ? error.message : JSON.stringify(error) || "Unknown sync failure";
       try { await updateSyncRun(runId, { state: "retryable", error_message: message, completed_at: new Date().toISOString() }); } catch (checkpointError) { console.error("Unable to checkpoint failed sync:", checkpointError); }
       throw error;
     }
