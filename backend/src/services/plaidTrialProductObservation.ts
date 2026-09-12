@@ -19,6 +19,26 @@ async function fetchAssets(accessToken: string, userId: string, itemId: string) 
       return getResponse;
     } catch (err: any) {
       lastError = err;
+
+      // Preserve the actual provider error response as a receipt when Plaid returned
+      // one. This is diagnostic evidence only; it must never be promoted to an
+      // observed raw Asset Report or used as successful domain evidence.
+      if (err?.response?.data) {
+        try {
+          await recordPlaidProviderReceipt({
+            userId,
+            itemId,
+            product: "assets",
+            endpoint: "/asset_report/get",
+            request: { endpoint: "/asset_report/get" },
+            response: { data: err.response.data, status: err.response.status ?? null },
+            httpStatus: err.response.status ?? null,
+          });
+        } catch (receiptError) {
+          console.error(`Iris Plaid asset provider-error receipt failed for ${itemId}:`, receiptError);
+        }
+      }
+
       const code = err?.response?.data?.error_code ?? err?.code;
       if (code !== "PRODUCT_NOT_READY") throw err;
       await sleep(1000);
