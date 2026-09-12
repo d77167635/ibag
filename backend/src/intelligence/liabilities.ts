@@ -1,11 +1,13 @@
 import { plaidClient } from "../plaid/client.js";
 import { supabaseAdmin } from "../config/supabase.js";
+import { recordPlaidProviderReceipt } from "../services/plaidProviderReceipt.js";
 
 /** Observe liabilities for exactly one owned Plaid Item. */
 export async function syncLiabilitiesForItem(userId: string, itemId: string, accessToken: string): Promise<{ observed: boolean; liabilityCount: number }> {
   let response;
   try {
     response = await plaidClient.liabilitiesGet({ access_token: accessToken });
+    await recordPlaidProviderReceipt({ userId, itemId, product: "liabilities", endpoint: "/liabilities/get", request: { endpoint: "/liabilities/get" }, response });
   } catch (err: any) {
     console.warn("liabilitiesGet unavailable for item:", err?.response?.data?.error_code ?? err?.code ?? err?.message ?? err);
     return { observed: false, liabilityCount: 0 };
@@ -23,17 +25,14 @@ export async function syncLiabilitiesForItem(userId: string, itemId: string, acc
   const providerAdded = new Set(itemEvidence?.products ?? []);
 
   const now = new Date().toISOString();
-  const { error: rawProductRetireError } = await supabaseAdmin
-    .from("plaid_raw_product_observations")
-    .update({ is_current: false })
-    .eq("user_id", userId).eq("item_id", itemId).eq("product", "liabilities").eq("is_current", true);
+  const { error: rawProductRetireError } = await supabaseAdmin.from("plaid_raw_product_observations")
+    .update({ is_current: false }).eq("user_id", userId).eq("item_id", itemId).eq("product", "liabilities").eq("is_current", true);
   if (rawProductRetireError) throw rawProductRetireError;
 
   const { error: rawProductError } = await supabaseAdmin.from("plaid_raw_product_observations").insert({
-    user_id: userId, item_id: itemId, product: "liabilities", raw_response: response.data,
-    provider_object_id: itemId, acquired_at: now, effective_at: now, evidence_state: "observed",
-    provenance: { source: "plaid.liabilitiesGet", observation: "live", provider: "plaid", item_id: itemId, response_received: true },
-    is_current: true,
+    user_id: userId, item_id: itemId, product: "liabilities", raw_response: response.data, provider_object_id: itemId,
+    acquired_at: now, effective_at: now, evidence_state: "observed",
+    provenance: { source: "plaid.liabilitiesGet", endpoint: "/liabilities/get", observation: "live", provider: "plaid", item_id: itemId, response_received: true }, is_current: true,
   });
   if (rawProductError) throw rawProductError;
 
@@ -41,13 +40,12 @@ export async function syncLiabilitiesForItem(userId: string, itemId: string, acc
     p_user_id: userId, p_item_id: itemId, p_product: "liabilities", p_lifecycle_state: "observed",
     p_billed: billed.has("liabilities"), p_available: available.has("liabilities"), p_authorized: true,
     p_requested: false, p_provider_added: providerAdded.has("liabilities"),
-    p_provenance: { source: "plaid.liabilitiesGet", observation: "live", provider: "plaid", response_received: true },
-    p_evidence_state: "observed",
+    p_provenance: { source: "plaid.liabilitiesGet", endpoint: "/liabilities/get", observation: "live", provider: "plaid", response_received: true }, p_evidence_state: "observed",
   });
   if (observationError) throw observationError;
 
-  const { data: accountIdRows, error: accountError } = await supabaseAdmin
-    .from("plaid_accounts").select("id, plaid_account_id").eq("user_id", userId).eq("item_id", itemId);
+  const { data: accountIdRows, error: accountError } = await supabaseAdmin.from("plaid_accounts")
+    .select("id, plaid_account_id").eq("user_id", userId).eq("item_id", itemId);
   if (accountError) throw accountError;
   const idMap = new Map((accountIdRows ?? []).map((a) => [a.plaid_account_id, a.id]));
 
@@ -60,14 +58,12 @@ export async function syncLiabilitiesForItem(userId: string, itemId: string, acc
   for (const { type, raw } of allLiabilityAccounts) {
     const localAccountId = idMap.get((raw as any).account_id);
     if (!localAccountId) continue;
-
     const { error: retireError } = await supabaseAdmin.from("plaid_raw_liabilities")
       .update({ is_current: false }).eq("user_id", userId).eq("account_id", localAccountId).eq("is_current", true);
     if (retireError) throw retireError;
-
     const { error: rawError } = await supabaseAdmin.from("plaid_raw_liabilities").insert({
       user_id: userId, account_id: localAccountId, raw_response: raw, provider_object_id: (raw as any).account_id,
-      acquired_at: now, effective_at: now, evidence_state: "observed", provenance: { source: "plaid.liabilitiesGet", item_id: itemId, provider: "plaid" }, is_current: true,
+      acquired_at: now, effective_at: now, evidence_state: "observed", provenance: { source: "plaid.liabilitiesGet", endpoint: "/liabilities/get", item_id: itemId, provider: "plaid" }, is_current: true,
     });
     if (rawError) throw rawError;
 
@@ -121,8 +117,7 @@ export async function computeDebtCostIntelligence(userId: string, runId?: string
     accountsWithKnownApr: 0, accountsWithoutAprData: 0, evidence: "insufficient_evidence",
     basis: "Debt-cost provider observations are withheld from run-bound intelligence until liability evidence is explicitly bound to the exact run manifest."
   };
-  const { data: rows, error } = await supabaseAdmin
-    .from("liability_details")
+  const { data: rows, error } = await supabaseAdmin.from("liability_details")
     .select("apr_percentage, minimum_payment_amount, plaid_accounts!liability_details_account_user_fk(current_balance)")
     .eq("user_id", userId).eq("liability_type", "credit");
   if (error) throw error;
