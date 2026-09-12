@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { IrisMark } from "./IrisMark";
+import { PlaidLinkButton } from "./PlaidLink";
 import { api } from "../api/backend";
 import "./IrisEvidenceAccess.css";
 
 type Props = { go?: (page: string) => void };
 
 /**
- * Pre-Plaid certification boundary.
- * The surface may inspect persisted provider evidence, but it cannot initiate
- * a new provider connection until the pre-Plaid UI/interaction gate passes.
+ * Evidence connection surface.
+ * Existing provider Items remain persisted and untouched. A new connection
+ * uses the governed Plaid Link flow already used by the application.
  */
 export function IrisEvidenceAccess({ go }: Props) {
   const [items, setItems] = useState<any[]>([]);
@@ -52,25 +53,25 @@ export function IrisEvidenceAccess({ go }: Props) {
           <p>IRIS uses provider observations that are actually returned and persisted. The eight authoritative domains remain independently governed; an available or consented product is never presented as observed data.</p>
         </div>
         <aside className="iea-panel">
-          <div className="iea-panel-kicker">PRE-PLAID CERTIFICATION BOUNDARY</div>
-          <h2>Provider connection is intentionally locked</h2>
-          <p>The Financial Life screens and interactions must pass their pre-Plaid certification gate before IRIS initiates a new provider connection. This prevents an unverified UI from becoming the path into live financial evidence.</p>
-          <button type="button" className="iea-later" disabled aria-disabled="true">Connect provider · locked until certification</button>
+          <div className="iea-panel-kicker">PROVIDER CONNECTION</div>
+          <h2>Connect a financial institution</h2>
+          <p>New provider connections use the governed Plaid Link flow. Existing Plaid Items remain persisted and are not replaced or deleted by opening a new connection.</p>
+          <PlaidLinkButton onSuccess={() => void loadItems()} />
           <button type="button" className="iea-later" onClick={() => void resync()} disabled={refreshing}>{refreshing ? "Refreshing existing evidence…" : "Refresh existing evidence"}</button>
           <div className="iea-boundary">
             <div><b>OBSERVED</b><span>Provider responses become evidence only after they are actually received and persisted.</span></div>
             <div><b>GOVERNED</b><span>Evidence stays tied to the authenticated user and exact Item boundary.</span></div>
             <div><b>READ-ONLY</b><span>No financial movement is initiated by evidence formation.</span></div>
-            <div><b>CERTIFICATION</b><span>Pre-Plaid UI/interaction proof precedes live provider connection.</span></div>
+            <div><b>CERTIFICATION</b><span>Provider connection uses the existing authenticated Plaid Link and exchange path.</span></div>
           </div>
         </aside>
       </section>
       <section className="iea-items">
-        <div><span className="iea-kicker">CONNECTED ITEMS</span><h2>Persisted provider evidence, if any</h2><p>Existing persisted Items may be inspected without creating new provider connections. Statements remain deferred until the real-banking phase.</p></div>
+        <div><span className="iea-kicker">CONNECTED ITEMS</span><h2>Persisted provider evidence, if any</h2><p>Existing persisted Items remain available for inspection. Statements remain deferred until the real-banking phase.</p></div>
         {loadingItems ? <div className="iea-item-empty">Reading persisted connected Items…</div> : items.length === 0 ? <div className="iea-item-empty">No connected Plaid Items are currently persisted.</div> : items.map((item: any) => <article className="iea-item" key={item.item_id}><div><strong>{item.institution_name ?? "Institution name unavailable"}</strong><span>{item.status ?? "Status unavailable"}{item.last_synced_at ? ` · last synced ${new Date(item.last_synced_at).toLocaleString()}` : ""}</span></div><b>Statements deferred until real banking</b></article>)}
       </section>
       <section className="iea-items">
-        <div><span className="iea-kicker">CONTINUE</span><h2>Keep certifying the experience before provider activation.</h2><p>Use the Financial Life, Reports and Intelligence/Education surfaces to verify navigation, states, controls and truthful empty conditions without manufacturing provider evidence.</p></div>
+        <div><span className="iea-kicker">CONTINUE</span><h2>Continue through your financial life.</h2><p>Use the Financial Life, Reports and Intelligence surfaces to inspect persisted provider evidence and governed results.</p></div>
         <div className="iris-journey-actions"><button type="button" onClick={() => go?.("iris")}>Financial Life →</button><button type="button" onClick={() => go?.("iris/catalog")}>Reports →</button><button type="button" onClick={() => go?.("iris/intelligence")}>Intelligence Education →</button></div>
       </section>
     </main>
