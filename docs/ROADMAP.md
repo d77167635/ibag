@@ -1,84 +1,196 @@
 # IRIS Capability & Product Roadmap
 
-This is the engineering-state roadmap for IRIS. It is a source-of-truth companion to the architecture, not a checklist of files and not a finite feature list.
+This roadmap is the engineering source of truth for the IRIS build. It tracks **capability state and proof state**, not artifact count, page count, endpoint count, or a percentage-complete impression.
 
-> **Build the architecture first, then make the consumer experience an accurate expression of it.**
+The roadmap exists specifically to prevent the build from drifting back into an upside-down order.
 
-## 1. Product identity
+> **Corrected build priority:** build the complete Financial Life / Results / User Journey consumer experience first, while preserving the existing Intelligence/Education work as Priority #2. Both remain equal views of one recursive IRIS hierarchy/graph/system.
+
+---
+
+# 0. Authoritative correction — read this before every build block
+
+## 0.1 IRIS is one system
 
 IRIS is a **Relational Financial Intelligence Operating System**.
 
-The person's financial life is the reality IRIS observes. The intelligence hierarchy is how IRIS understands that reality. The Financial Life / Results experience is how the user encounters what IRIS can validly derive from that reality. The Intelligence / Education experience explains the same reasoning machinery without user data.
+There are two primary user-facing experiences over the same governed system:
 
-These are two connected experiences over one system. **They must be equal in semantic and exploratory depth.** The distinction is purpose and data boundary, not architectural depth, intelligence capacity, or the amount of user interaction available.
+- **Priority #1 — Financial Life / Results / User Journey:** actual user-specific financial reality/state and the results IRIS can validly derive from it.
+- **Priority #2 — IRIS Intelligence / Education:** the educational explanation of the same intelligence machinery without user-specific financial data for now.
+
+They are not two products.
+
+They are not two architectures.
+
+They are not two separate intelligence systems.
+
+They are not a Financial Life side + Intelligence side + a third Journey layer.
+
+The journey is the user's movement through the Financial Life/results experience. It is not the Financial Life itself and it is not a third architectural component.
+
+## 0.2 Financial Life is actual user reality/state/results
+
+Financial Life means the actual user-specific financial reality/state that IRIS is permitted to observe and derive from governed evidence.
+
+It includes, when evidence supports them:
+
+- accounts;
+- transactions;
+- balances;
+- identity;
+- assets;
+- liabilities;
+- investments;
+- statements;
+- income;
+- cash flow;
+- spending;
+- merchants/domains/categories/entities;
+- recurring activity;
+- obligations;
+- debt;
+- temporal state;
+- changes;
+- relationships;
+- user-specific intelligence;
+- reports;
+- analytics;
+- comparisons;
+- scenarios;
+- decisions;
+- actions within the permitted phase boundary;
+- outcomes;
+- learning; and
+- education/empowerment grounded in the actual state.
+
+Navigation labels such as `Life`, `Change`, `Understand`, `Verify`, `Reports`, `Scenario`, `Decide`, `Action` and `Outcome` describe **experience/journey destinations**. They are not substitutes for the underlying Financial Life state.
+
+## 0.3 Intelligence is how IRIS understands Financial Life
+
+The Intelligence Hierarchy is the graph of reasoning, transformations, relationships, dependencies and derived intelligence through which IRIS understands governed Financial Life evidence/state.
+
+It must explain not only **what** result IRIS produced but **how** the hierarchy produced it.
+
+## 0.4 The two-way contract
+
+Forward:
+
+```text
+provider observation
+→ governed evidence
+→ canonical Financial Life State
+→ relational/temporal/statistical/behavioral intelligence
+→ recursive intelligence
+→ qualified report/result
+→ Financial Life user experience
+```
+
+Reverse:
+
+```text
+Financial Life result/report
+→ producing intelligence
+→ upstream intelligence/dependencies
+→ canonical state
+→ exact governed evidence
+→ source-field observation
+→ provider observation
+```
+
+Both directions are required. Exact factual reverse traversal requires exact persisted lineage.
+
+---
+
+# 1. Governing execution and certification chain
+
+Every capability is tracked through the following chain:
+
+`Architecture Defined → Contract Defined → Schema Implemented → Runtime Implemented → Independently Executable → Evidence Verified → Exact Evidence Boundary Verified → Semantic Lineage Verified → Report Product Defined → Report Product User-Controlled → Report Product Surfaced → Interaction Verified → Deployment Verified → End-to-End Certified`
+
+A later state never implies an earlier state is certified.
+
+A file, table, endpoint, component, route, successful build or persisted row is not certification.
+
+Certification requires the corresponding proof.
+
+---
+
+# 2. Build-order reset
+
+The previous visible build became too heavily weighted toward the Intelligence/Education side before the Financial Life/user-data side was complete.
+
+That is the specific sequencing error this roadmap corrects.
+
+## 2.1 New consumer build priority
+
+### Priority #1 — Financial Life / Results / User Journey
+
+Build the complete user-specific experience first:
+
+1. consistent IRIS shell;
+2. correct navigation;
+3. actual Financial Life state surfaces;
+4. evidence states;
+5. all supported domain surfaces;
+6. reports and analytics;
+7. explanations and relationships;
+8. questions and exploration;
+9. comparisons;
+10. scenarios;
+11. decisions;
+12. actions within the read-only boundary;
+13. outcomes;
+14. learning;
+15. education and empowerment;
+16. controls;
+17. exact forward/reverse traversal;
+18. complete user journey verification.
+
+### Priority #2 — IRIS Intelligence / Education
+
+Continue improving the Intelligence/Education side after the Priority #1 foundation is corrected and built.
+
+It remains fully recursive and semantically unbounded. Priority #2 is a UI/data-boundary priority, not an intelligence-depth limitation.
+
+## 2.2 Dependency rule
+
+“Priority #1” does **not** mean bypassing architecture dependencies.
+
+Financial Life surfaces must still be built on correct contracts and governed state boundaries.
+
+The corrected sequence means we are no longer spending the primary consumer-build effort polishing the educational intelligence surface while the actual user Financial Life experience remains incomplete.
+
+---
+
+# 3. Non-negotiable architecture
+
+## 3.1 One IRIS graph
 
 ```text
                          IRIS
                           │
-             ┌────────────┴────────────┐
-             │                         │
-       FINANCIAL LIFE              INTELLIGENCE
-       / USER JOURNEY              / EDUCATION
-             │                         │
-       user's observed             reasoning machinery
-          reality                    and concepts
-             │                         │
-       results/reports             hierarchy/graph
-             │                         │
-       relationships               relationships
-             │                         │
-       questions                   questions
-             │                         │
-       scenarios                   scenarios
-             │                         │
-       decisions                   reasoning
-             │                         │
-       outcomes                    lineage
-             │                         │
-       learning                    recursion
-             │                         │
-             └───────────┬─────────────┘
-                         │
-                  ONE IRIS SYSTEM
+                governed hierarchy/graph
+                          │
+          ┌───────────────┴───────────────┐
+          │                               │
+ Financial Life / Results        Intelligence / Education
+      Priority #1                     Priority #2
+          │                               │
+ user-specific reality/results     educational reasoning
+          │                               │
+ reports / analytics               hierarchy / graph
+ relationships                     lineage
+ changes                           recursion
+ questions                         uncertainty
+ scenarios                         evidence concepts
+ decisions                         causality boundaries
+ outcomes                          higher-order composition
+          │                               │
+          └──────────── same IRIS ────────┘
 ```
 
-## 2. Priorities
-
-### Priority 1 — Financial Life / Results / User Journey
-
-This is the primary consumer product and current implementation priority.
-
-It includes, as evidence and runtime permit:
-
-- arrival and orientation;
-- evidence connection and formation;
-- observed financial reality;
-- canonical financial state;
-- change and behavior;
-- relationships and explanations;
-- evidence and provenance;
-- the report/analytics product catalog;
-- user-specific intelligence results;
-- comparisons;
-- scenarios and counterfactuals;
-- decisions and recommendations;
-- action-oriented results;
-- outcomes and learning;
-- controls and activation/deactivation;
-- search and exploration; and
-- persistent IRIS assistance.
-
-The catalog is a major product surface. It is not a fixed report count, fixed screen count, or substitute for the intelligence hierarchy.
-
-### Priority 2 — IRIS Intelligence / Education
-
-Read-only educational experience. No user financial data, user-specific balances, transactions, reports or intelligence results. It teaches hierarchy, graph structure, evidence states, lineage, recursive composition, uncertainty, causality, prediction, scenarios and higher-order intelligence.
-
-Priority 2 does not reduce or cap the underlying intelligence architecture. **Priority 2 also does not receive a shallower consumer experience merely because it is educational.**
-
-## 3. Eight architectural domains; seven current Sandbox domains
-
-The eight authoritative domains are:
+## 3.2 Eight authoritative domains
 
 1. Authentication
 2. Transactions
@@ -89,7 +201,9 @@ The eight authoritative domains are:
 7. Investments
 8. Statements
 
-The current executable/certifiable Sandbox boundary is **seven domains**:
+## 3.3 Current executable/certifiable Sandbox boundary
+
+The current Sandbox boundary is seven domains:
 
 1. Authentication
 2. Transactions
@@ -99,21 +213,43 @@ The current executable/certifiable Sandbox boundary is **seven domains**:
 6. Liabilities
 7. Investments
 
-Statements is Domain 8 architecturally but is deferred until real banking. It must not be requested, simulated, fabricated or presented as current Sandbox evidence.
+Statements is architecturally Domain 8 but is deferred until real banking.
 
-## 4. Intelligence hierarchy contract
+Statements must not be requested, simulated, fabricated, displayed as observed, or used as a current Sandbox evidence requirement.
 
-Level 1 is IRIS. Level 2 is the eight authoritative domains. Level 3 and beyond is recursively generated intelligence.
+## 3.4 Recursive intelligence
 
-There is no artificial semantic depth ceiling. The intelligence structure is a graph, not a fixed tree. Nodes may have multiple upstream parents, cross domains, participate in temporal and semantic relationships, and become inputs to higher-order compositions.
+Level 1 = IRIS.
 
-Capability families/operators are internal composition machinery, not hierarchy levels and not a ceiling.
+Level 2 = the eight authoritative domains.
 
-Arbitrary derived-intelligence graph nodes must support exact upstream identities, recursive ancestry, transformation identity, evidence binding, provenance, uncertainty/limitations and certification state. Persistence is not semantic proof.
+Level 3 onward = recursively generated intelligence.
 
-## 5. Evidence-state contract
+The intelligence hierarchy is a graph, not a fixed tree.
 
-The following states remain distinct:
+There is no artificial semantic depth ceiling.
+
+Capability families/operators are composition machinery, not hierarchy levels.
+
+Arbitrary derived-intelligence nodes must support:
+
+- exact upstream node identity;
+- recursive ancestry;
+- transformation identity;
+- evidence binding;
+- provenance;
+- uncertainty/limitations;
+- execution/run boundary;
+- user boundary; and
+- certification state.
+
+Persistence is not semantic proof.
+
+---
+
+# 4. Evidence-state contract
+
+These states must remain separate everywhere:
 
 ```text
 available
@@ -127,7 +263,7 @@ available
 ≠ intelligence consumed
 ```
 
-Epistemic states remain distinct:
+Epistemic states must remain separate:
 
 ```text
 unknown
@@ -140,515 +276,713 @@ unknown
 ≠ observed
 ```
 
-Unknown is never silently converted to zero.
+Unknown is never zero.
 
-## 6. Non-fabrication and read-only boundaries
+No evidence means no factual value.
 
-No production financial fact may be invented to make the interface look complete.
+No observation means no fabricated observation.
 
-Never introduce fake balances, transactions, accounts, financial results, confidence values, outcomes or provider observations. Plaid Sandbox synthetic observations may be used only as controlled Sandbox testing and never as production truth.
+Prediction is not observation.
 
-Catalog definitions are not financial observations. A catalog definition may exist without Plaid user data.
+Scenario is not observation.
 
-Phase 1 remains read-only. Do not implement or imply ACH, RTP, FedNow, card movement, transfers, withdrawals, trades, deposits or other money movement.
+Correlation is not causation.
 
-## 7. Forward and reverse traversal
+Persistence is not semantic proof.
 
-Forward:
+Dependency readability is not proof of semantic consumption.
+
+---
+
+# 5. Products versus Reports — mandatory distinction
+
+This is a permanent architectural rule.
+
+## 5.1 Provider products
+
+A provider product is a source capability that can potentially contribute observations/evidence.
+
+Its lifecycle can include:
+
+```text
+provider product universe
+→ catalog
+→ capability
+→ availability
+→ institution support
+→ consent
+→ authorization
+→ plan entitlement
+→ commercial cost
+→ provider response
+→ persisted observation
+```
+
+## 5.2 IRIS Report Products
+
+An IRIS Report Product is a user-facing publication definition over the IRIS intelligence graph.
+
+A report product may depend on:
+
+- multiple provider products;
+- multiple evidence domains;
+- multiple intelligence nodes;
+- temporal relationships;
+- recursive dependencies;
+- scenarios;
+- verified outcomes; and
+- higher-order compositions.
+
+Therefore:
+
+```text
+Provider Product count ≠ Report Product count
+Report Product count ≠ produced result count
+produced result count ≠ certified result count
+```
+
+The UI must never manufacture matching counts.
+
+Each count must come from its own governed runtime/catalog source.
+
+---
+
+# 6. Priority #1 — Financial Life build program
+
+This is the active build program until its gates are complete.
+
+## P1.0 — Full UI/route audit and identity correction
+
+- [ ] Audit every reachable Financial Life route against the current repository.
+- [ ] Inventory every screen, route, modal, drawer, tab, button, link and interactive control.
+- [ ] Identify every stale/legacy product term.
+- [ ] Remove incorrect legacy product identity from user-facing surfaces.
+- [ ] Correct all incorrect terminology, including any remaining `cognity`/legacy terminology if present in the actual source.
+- [ ] Ensure IRIS is the only current user-facing product identity.
+- [ ] Confirm every screen has an explicit architectural purpose.
+- [ ] Remove or quarantine surfaces that contradict the one-system IRIS architecture.
+- [ ] Ensure no screen invents financial facts to make itself appear complete.
+
+## P1.1 — Visual system normalization
+
+- [ ] Establish one authoritative visual grammar.
+- [ ] Normalize typography.
+- [ ] Normalize spacing.
+- [ ] Normalize containers/cards/panels.
+- [ ] Normalize headings and hierarchy.
+- [ ] Normalize buttons and button states.
+- [ ] Normalize inputs and controls.
+- [ ] Normalize badges/status indicators.
+- [ ] Normalize loading states.
+- [ ] Normalize empty states.
+- [ ] Normalize insufficient-evidence states.
+- [ ] Normalize unavailable/deferred states.
+- [ ] Normalize error/retry states.
+- [ ] Normalize responsive behavior.
+- [ ] Remove screen-specific styling that contradicts the system unless explicitly justified by the experience contract.
+- [ ] Independently verify visual consistency across all supported screens.
+
+## P1.2 — Interaction correctness
+
+- [ ] Inventory all interactive controls.
+- [ ] Ensure every user-facing button has a real supported behavior.
+- [ ] Ensure navigation controls route to real supported destinations.
+- [ ] Ensure disabled controls explain why they are disabled where appropriate.
+- [ ] Ensure unsupported actions do not appear executable.
+- [ ] Ensure retry controls invoke the correct retry behavior.
+- [ ] Ensure activation/deactivation controls persist only where their contracts permit.
+- [ ] Ensure search/filter controls actually filter the governed source.
+- [ ] Ensure modal/drawer close behavior is correct.
+- [ ] Ensure back/return behavior preserves context.
+- [ ] Verify keyboard/accessibility interaction.
+- [ ] Verify mobile interaction.
+- [ ] Verify desktop interaction.
+
+## P1.3 — Financial Life shell and journey
+
+Build the user journey as one coherent experience:
+
+`Arrival → Evidence Connection → Evidence Formation → First Understanding → Ask → Explore Relationships → Understand Reasoning → Compare → Change → Explore → Scenarios → Decide → Action → Observe Outcomes → Learn → Return`
+
+The primary navigation may expose a concise set of destinations such as:
+
+`Life → Change → Understand → Verify → Reports → Scenario → Decide → Action → Outcome`
+
+These labels are journey destinations, not substitutes for Financial Life state.
+
+- [ ] Arrival/orientation.
+- [ ] Financial Life state overview.
+- [ ] Evidence connection.
+- [ ] Evidence formation status.
+- [ ] First-understanding experience.
+- [ ] Ask.
+- [ ] Explore relationships.
+- [ ] Understand reasoning.
+- [ ] Compare.
+- [ ] Change.
+- [ ] Explore.
+- [ ] Scenarios.
+- [ ] Decide.
+- [ ] Action planning within the read-only boundary.
+- [ ] Outcome observation where supported.
+- [ ] Learning where independently qualified.
+- [ ] Return/context preservation.
+
+## P1.4 — Eight-domain Financial Life surfaces
+
+Each domain must have an explicit state model and must never imply evidence that has not been observed/certified.
+
+### Authentication
+
+- [ ] User identity/authentication state.
+- [ ] Connection authorization state.
+- [ ] Evidence boundary state.
+- [ ] Forward/reverse lineage entry points.
+- [ ] Runtime gate.
+
+### Transactions
+
+- [ ] Transaction observation surface.
+- [ ] Transaction semantics.
+- [ ] Direction/economic role.
+- [ ] Classification.
+- [ ] Merchant/domain/category/entity relationships.
+- [ ] Temporal relationships.
+- [ ] Change/trend surfaces.
+- [ ] Evidence inspection.
+- [ ] Runtime gate.
+
+### Balance
+
+- [ ] Balance observation/state.
+- [ ] Temporal balance context.
+- [ ] Account relationship.
+- [ ] Liquidity relationships where supported.
+- [ ] Evidence inspection.
+- [ ] Runtime gate.
+
+### Identity
+
+- [ ] Observed identity state.
+- [ ] Identity evidence/provenance.
+- [ ] Cross-domain relationships where supported.
+- [ ] Runtime gate.
+
+### Assets
+
+- [ ] Observed asset state.
+- [ ] Asset relationships.
+- [ ] Evidence/coverage state.
+- [ ] Runtime gate.
+
+### Liabilities
+
+- [ ] Observed liability state.
+- [ ] Debt relationships.
+- [ ] Obligation relationships.
+- [ ] Evidence/coverage state.
+- [ ] Runtime gate.
+
+### Investments
+
+- [ ] Observed investment state.
+- [ ] Investment relationships.
+- [ ] Evidence/coverage state.
+- [ ] Runtime gate.
+
+### Statements
+
+- [ ] Architectural surface exists.
+- [ ] Deferred state is explicit.
+- [ ] No Sandbox request.
+- [ ] No simulated statement evidence.
+- [ ] No fabricated statement display.
+- [ ] Real-banking implementation remains a future gate.
+
+## P1.5 — Financial Life state model
+
+- [ ] Canonical account semantics across supported domains.
+- [ ] Canonical transaction semantics.
+- [ ] Classification/economic semantics.
+- [ ] Temporal state.
+- [ ] Observation span/activity density.
+- [ ] Economic flow state.
+- [ ] Unknown/insufficient-evidence semantics.
+- [ ] Merchant/domain concentration/topology.
+- [ ] Evidence-gated income.
+- [ ] Recurring activity.
+- [ ] Obligation candidates distinct from verified obligations.
+- [ ] Verified obligations where evidence supports them.
+- [ ] Liability/debt state.
+- [ ] Asset/investment state.
+- [ ] Historical provider lifecycle.
+- [ ] Field-level evidence lineage.
+- [ ] Freshness state.
+- [ ] Cross-domain relational state.
+- [ ] Exact state-to-intelligence bindings.
+
+## P1.6 — Reports and analytics
+
+Reports belong to the Financial Life / Results side.
+
+- [ ] Complete report product catalog surface.
+- [ ] Distinct product/report data models.
+- [ ] Runtime-driven product counts.
+- [ ] Runtime-driven report counts.
+- [ ] Search.
+- [ ] Family filtering.
+- [ ] Output-type filtering.
+- [ ] Product purpose/description.
+- [ ] Evidence requirements.
+- [ ] Intelligence dependencies.
+- [ ] Qualification state.
+- [ ] Runtime-produced state.
+- [ ] Certification state.
+- [ ] Activation/deactivation.
+- [ ] Related reports.
+- [ ] Evidence limitations.
+- [ ] Report → intelligence → evidence traversal.
+- [ ] Evidence → intelligence → eligible report traversal.
+- [ ] Question-driven report discovery.
+- [ ] Comparison where supported.
+- [ ] Contextual explanations.
+- [ ] Persistent Financial Life assistance.
+
+## P1.7 — Questions, relationships and exploration
+
+- [ ] Question-driven exploration.
+- [ ] Relationship explorer.
+- [ ] Entity/subdomain/domain traversal.
+- [ ] Temporal traversal.
+- [ ] Cross-domain traversal.
+- [ ] Change explanations.
+- [ ] Intelligence explanation.
+- [ ] Evidence inspection.
+- [ ] Context-preserving backtracking.
+- [ ] Forward traversal.
+- [ ] Reverse traversal.
+
+## P1.8 — Scenario, decision, action, outcome and learning
+
+Only expose each capability when its evidence and execution gates support it.
+
+- [ ] Scenario workspace.
+- [ ] Counterfactual distinction from observation.
+- [ ] Constraint-aware decision support.
+- [ ] Recommendation boundaries.
+- [ ] Action planning that remains read-only.
+- [ ] Outcome observation model.
+- [ ] Verified outcome learning boundary.
+- [ ] Cross-domain consequence analysis.
+- [ ] Higher-order learning where evidence supports it.
+
+---
+
+# 7. Priority #1 report publication contract
+
+A report definition is not a report result.
+
+Required states remain independent:
+
+```text
+defined
+available
+insufficient evidence
+unavailable
+historical
+not applicable
+not yet implemented
+evidence-qualified
+intelligence-qualified
+runtime-produced
+certified
+active
+published
+deferred
+```
+
+Required lifecycle:
+
+```text
+Define
+→ declare evidence/dependencies
+→ qualify evidence boundary
+→ execute intelligence
+→ persist exact runtime
+→ persist exact lineage
+→ prove semantic transformation
+→ validate
+→ certify
+→ publish
+→ user explores
+→ observe outcomes where supported
+→ learn where independently qualified
+```
+
+No missing stage may be replaced by invented values.
+
+---
+
+# 8. Priority #1 forward/reverse certification
+
+## Forward certification
+
+For every current domain, prove:
 
 ```text
 provider observation
 → source field
 → governed evidence
 → canonical state
-→ interpretation/classification
-→ temporal/statistical/relational/behavioral intelligence
-→ patterns / baselines / anomalies
-→ causal reasoning where supported
-→ prediction
-→ scenario / counterfactual
-→ risk / opportunity
-→ decision / recommendation
-→ consequence
-→ outcome
-→ learning
-→ cross-domain synthesis
-→ higher-order intelligence
-→ recursive composition
+→ intelligence input
+→ intelligence execution
+→ derived node
 → report/result
 ```
 
-Reverse:
+The proof must identify the exact evidence/run boundary and exact derived-node identity.
+
+## Reverse certification
+
+For every published user-specific result, prove:
 
 ```text
 report/result
-→ headline intelligence
-→ contributing intelligence nodes
-→ transformations / relationships
-→ canonical state
-→ exact governed evidence
-→ source-field observation
+→ exact intelligence node
+→ exact upstream dependencies
+→ exact canonical state
+→ exact evidence
+→ exact source-field observation
 → provider observation
 ```
 
-Factual reverse edges require actual persisted lineage. Conceptual educational relationships must remain explicitly conceptual.
+If an exact edge cannot be proven, the UI must not imply that factual lineage exists.
 
-## 8. Financial Life user journey
+---
 
-The governing journey is:
+# 9. Priority #2 — Intelligence / Education hardening
 
-`Arrival → Evidence Connection → Evidence Formation → First Understanding → Ask → Explore Relationships → Understand Reasoning → Compare Change → Explore Scenarios → Decide → Observe Outcomes → Learn → Return`
+This is the second consumer-build priority, not a reduction in architecture.
 
-The current primary navigation expresses the core journey as:
+- [ ] Verify Intelligence/Education never loads user financial data.
+- [ ] Verify Intelligence/Education never calls user-specific financial endpoints.
+- [ ] Verify educational examples are clearly conceptual and never presented as user observations.
+- [ ] Complete hierarchy/domain/subdomain/entity traversal.
+- [ ] Complete graph traversal.
+- [ ] Complete conceptual forward reasoning traversal.
+- [ ] Complete conceptual reverse lineage explanation.
+- [ ] Explain evidence-state distinctions.
+- [ ] Explain uncertainty/epistemology.
+- [ ] Explain causality boundaries.
+- [ ] Explain prediction boundaries.
+- [ ] Explain scenario boundaries.
+- [ ] Explain recursive composition.
+- [ ] Explain higher-order intelligence.
+- [ ] Explain certification states.
+- [ ] Improve educational assistant behavior.
+- [ ] Preserve equal exploratory depth with Financial Life.
 
-`Life → Change → Understand → Verify → Reports → Scenario → Decide → Action → Outcome`
+Priority #2 must remain connected to the same architectural graph while maintaining the user-data boundary.
 
-`Connect` is the evidence-building control surface.
+---
 
-The UI should use progressive disclosure:
+# 10. Recursive intelligence execution
+
+Existing recursive foundations are retained, but no foundation is automatically certified.
+
+- [ ] Governed aggregate execution boundary.
+- [ ] Persist execution-scoped node identity.
+- [ ] Persist exact upstream node references.
+- [ ] Persist recursive ancestry.
+- [ ] Enforce user/run/execution boundaries.
+- [ ] Fail closed on missing upstream nodes.
+- [ ] Fail closed on cross-execution upstream references.
+- [ ] Persist transformation identity.
+- [ ] Persist input/output field lineage.
+- [ ] Persist exact evidence binding.
+- [ ] Prove semantic dependency consumption.
+- [ ] Prove output semantic sufficiency.
+- [ ] Verify every persisted execution artifact.
+- [ ] Verify independent execution.
+- [ ] Verify queryable certified result.
+- [ ] Certify recursive dependency composition.
+- [ ] Certify cross-domain recursive composition.
+- [ ] Certify arbitrary derived-node persistence beyond finite registry assumptions.
+- [ ] Certify recursive traversal without artificial semantic depth ceiling.
+
+---
+
+# 11. Provider/Plaid architecture
+
+Plaid remains a provider/source capability layer, not the Financial Life itself and not the intelligence product.
+
+The provider capability chain is:
 
 ```text
-human-readable meaning
-  ↓
-intelligence / reasoning
-  ↓
-evidence / provenance
+Plaid Product Universe
+→ Product Catalog
+→ Capability Matrix
+→ Availability
+→ Institution Support
+→ Consent
+→ Authorization
+→ Plan Entitlement
+→ Commercial Cost
+→ Evidence
+→ Canonical Financial Life State
+→ Intelligence
 ```
 
-The user must be able to move deeper without losing context and move backward from a result toward its reasoning and evidence whenever exact lineage exists.
+IRIS should determine which provider capabilities are useful based on evidence needs and intelligence needs, subject to the user's subscribed plan and actual availability.
 
-## 9. Financial Life catalog contract
+The user should not have to become a provider-product architect.
 
-The **IRIS Report Product Catalog** is the user-facing publication inventory over the intelligence graph.
+If required evidence is unavailable, IRIS must say that it cannot currently evaluate the corresponding aspect. It must never pretend the evidence exists.
 
-### Critical boundary
+---
 
-A catalog product can be defined and named without Plaid user data. That is valid and intentional.
+# 12. Plaid connection gate — DO NOT CROSS EARLY
 
-But:
+**Real Plaid connection is not the current build accelerator. It is a later verification gate.**
+
+Before connecting Plaid to the consumer experience, all pre-Plaid gates below must pass:
+
+- [ ] All supported Financial Life screens have consistent appearance.
+- [ ] All supported navigation works.
+- [ ] All supported buttons/controls work.
+- [ ] All visible terminology is correct.
+- [ ] No stale/legacy product identity remains in supported user-facing surfaces.
+- [ ] Products and Reports are separate.
+- [ ] Product count is runtime-sourced.
+- [ ] Report count is runtime-sourced.
+- [ ] No fabricated financial numbers are present.
+- [ ] Empty/insufficient evidence states are correct.
+- [ ] Unavailable/deferred states are correct.
+- [ ] Connection ≠ observation.
+- [ ] Observation ≠ certification.
+- [ ] All supported Financial Life routes have explicit evidence boundaries.
+- [ ] Financial Life forward traversal is structurally complete.
+- [ ] Financial Life reverse traversal is structurally complete.
+- [ ] Intelligence/Education data boundary is enforced.
+- [ ] Build/test passes.
+- [ ] UI interaction verification passes.
+
+Only after these gates are satisfied should real provider evidence become the next verification step.
+
+---
+
+# 13. Eight runtime gates
+
+Each authoritative domain requires an independent gate.
+
+A domain passes only when all applicable stages can be proven:
 
 ```text
-catalog definition
-≠ evidence
-≠ intelligence result
-≠ published user report
+1. domain capability is defined
+2. required provider capability is available
+3. user consent/authorization is valid
+4. provider response is actually received
+5. observation is persisted
+6. exact evidence boundary is established
+7. canonical state is produced from that evidence
+8. intelligence consumption is semantically proven
+9. forward lineage is proven
+10. reverse lineage is proven
+11. user-facing result is correctly state-labeled
 ```
 
-The current persisted catalog count is a database/runtime observation only. It must be queried rather than hardcoded and must never be described as the number of reports IRIS can ultimately produce.
+One domain passing never implies another domain passed.
 
-### No conceptual ceiling
+Statements remains architecturally defined but outside the current Sandbox gate.
 
-The catalog has no artificial maximum. Valid products can emerge from:
+---
 
-- new intelligence;
-- new relationships;
-- new temporal contexts;
-- user questions;
-- scenarios;
-- verified outcomes; and
-- recursive compositions.
+# 14. UI state contract
 
-The runtime may constrain what can be materialized at a moment. That is an operational constraint, not a semantic ceiling.
+Every Financial Life surface must distinguish, as applicable:
 
-### Product lifecycle
-
-```text
-Define
-  ↓
-Declare evidence/dependencies
-  ↓
-Qualify actual evidence boundary
-  ↓
-Execute governed intelligence
-  ↓
-Persist exact runtime and lineage
-  ↓
-Prove semantic transformation
-  ↓
-Validate / certify
-  ↓
-Publish qualified result
-  ↓
-User explores / asks / compares / acts
-  ↓
-Observe outcomes where supported
-  ↓
-Learn where independently qualified
-```
-
-A missing stage cannot be replaced with a fabricated value.
-
-### Product states
-
-Track independently where applicable:
-
-- defined;
-- available;
-- evidence-qualified;
-- intelligence-qualified;
+- loading;
+- no connection;
+- connection requested;
+- connection authorized;
+- provider response pending;
+- evidence incomplete;
+- evidence persisted;
+- evidence certified;
+- insufficient evidence;
+- unavailable;
+- historical;
+- not applicable;
+- not yet implemented;
 - runtime-produced;
 - certified;
 - active;
-- published;
-- limited;
-- unavailable; and
-- deferred.
+- disabled; and
+- error/retry.
 
-Do not collapse these states into one generic “working” flag.
+Never use a single generic “working” state.
 
-### Product naming
+Never use zero as a substitute for unknown.
 
-Names must communicate the strongest defensible meaning while preserving epistemic state. Contextual titles may use only actual runtime-supplied period, entity, domain and other verified context.
+Never display a factual result solely because a report definition exists.
 
-Prediction cannot be titled as certainty. Possible causal explanation cannot be titled as proven causation. Insufficient evidence cannot be presented as a completed factual report.
+---
 
-## 10. Report experience requirements
+# 15. UI consistency and interaction certification
 
-The Priority 1 catalog should support:
+This is a hard gate, not polish.
 
-- full catalog browsing;
-- search;
-- family and output-type filtering;
-- product purpose and description;
-- dependency inspection;
-- evidence requirements;
-- current product qualification state;
-- runtime-produced state;
-- certification state;
-- activation/deactivation;
-- related-product discovery;
-- evidence limitations;
-- runtime lineage;
-- report → intelligence → evidence traversal;
-- evidence → intelligence → eligible report traversal where exact mappings exist;
-- question-driven report discovery;
-- comparison where supported;
-- contextual explanations; and
-- persistent IRIS assistance.
+- [ ] Screen-by-screen visual audit.
+- [ ] Screen-by-screen semantic audit.
+- [ ] Screen-by-screen interaction audit.
+- [ ] Screen-by-screen responsive audit.
+- [ ] Screen-by-screen accessibility audit.
+- [ ] Button inventory complete.
+- [ ] Button behavior verification complete.
+- [ ] Navigation inventory complete.
+- [ ] Navigation behavior verification complete.
+- [ ] Modal/drawer behavior verification complete.
+- [ ] Search/filter behavior verification complete.
+- [ ] Form validation behavior verification complete.
+- [ ] Retry behavior verification complete.
+- [ ] Activation/deactivation verification complete.
+- [ ] Context-preserving back behavior verification complete.
+- [ ] Product/report count verification complete.
+- [ ] Empty/unknown/insufficient evidence verification complete.
 
-A report definition must never be rendered as a user-specific financial result merely because it is present in the catalog.
+A screen is complete only after behavior is verified, not merely after visual rendering.
 
-## 11. User experience scale
+---
 
-Do not solve scale by creating a permanent top-level screen for every report or intelligence node.
+# 16. Verification and clean release
 
-A relatively small set of comprehensible primary navigation surfaces should open into a potentially enormous nested universe. **This rule applies equally to both IRIS experiences.**
+- [ ] Backend/frontend contract synchronization.
+- [ ] Provider → database reconciliation.
+- [ ] Evidence lineage verification.
+- [ ] RLS/ownership/security verification.
+- [ ] Durable sync cursor/update/remove lifecycle verification.
+- [ ] Durable webhook verification/retry verification.
+- [ ] Round-Up feature certification.
+- [ ] Intelligence sufficiency/accuracy regression suite.
+- [ ] Supabase migration/runtime reconciliation with repository history.
+- [ ] Seven-domain Sandbox end-to-end verification.
+- [ ] Real-banking Statements implementation when that phase begins.
+- [ ] Full observable Financial Life user-journey certification.
+- [ ] Full report-product certification.
+- [ ] Bidirectional report/intelligence/evidence certification.
+- [ ] Deployment verification.
+- [ ] End-to-end certification.
 
-### 11.1 Equal-depth experience contract
+---
 
-Financial Life and Intelligence/Education are two traversable dimensions of the same IRIS system. They must be designed and implemented with equivalent ability to disclose depth, relationships and context.
+# 17. Current implementation interpretation
 
-Financial Life may open into:
+The repository contains substantial existing foundations across evidence, canonical state, recursive intelligence, feature/product contracts and frontend surfaces.
 
-- observed reality;
-- changes;
-- explanations;
-- evidence;
-- reports;
-- report instances;
-- relationships;
-- questions;
-- comparisons;
+Those foundations are **not discarded** merely because the consumer build priority is being corrected.
+
+They are treated as reusable infrastructure that must now be reconciled with the corrected Financial Life-first experience.
+
+The following interpretation is mandatory:
+
+- Existing intelligence foundations remain.
+- Existing recursive graph foundations remain.
+- Existing evidence foundations remain.
+- Existing report/product foundations remain where they conform to the corrected separation.
+- Existing UI is not assumed correct merely because it exists.
+- Existing route/component count is not completion.
+- Existing capability registration is not certification.
+- Existing catalog count is not report-result count.
+- Existing Intelligence/Education UI is not the Priority #1 consumer experience.
+- Existing implementation claims must be re-audited against this roadmap before being marked certified.
+
+---
+
+# 18. No-fake-data rule
+
+Never add:
+
+- fake balances;
+- fake accounts;
+- fake transactions;
+- fake income;
+- fake liabilities;
+- fake investments;
+- fake reports;
+- fake intelligence results;
+- fake confidence/probability values;
+- fake outcomes;
+- seeded production observations;
+- hardcoded financial values presented as user data; or
+- placeholder values that could be mistaken for actual financial truth.
+
+Controlled Plaid Sandbox synthetic records are acceptable only for Sandbox testing and never as production truth.
+
+When evidence is absent, use a truthful state such as insufficient evidence, unavailable, not observed, not applicable, historical, or not yet implemented as appropriate.
+
+---
+
+# 19. Completion definition
+
+IRIS is complete only when the implemented system can continuously transform governed provider evidence into:
+
+- an accurate canonical Financial Life State;
+- explainable intelligence;
+- recursively composable intelligence without an artificial semantic depth ceiling;
+- exact forward and reverse lineage;
+- user-controllable report products;
+- user-specific results where evidence supports them;
+- a complete Financial Life user journey;
+- education and empowerment;
 - scenarios;
 - decisions;
-- consequences;
-- outcomes; and
-- learning.
+- actions within the permitted boundary;
+- observed outcomes;
+- independently qualified learning; and
+- higher-order intelligence.
 
-Intelligence/Education may open into:
+The Intelligence/Education experience must simultaneously provide an equally deep conceptual view of the same reasoning machinery without crossing into user-specific financial data.
 
-- hierarchy;
-- domains;
-- evidence concepts;
-- intelligence nodes;
-- relationships;
-- forward reasoning;
-- reverse lineage;
-- recursive composition;
-- uncertainty/epistemology;
-- scenarios and counterfactual concepts;
-- certification;
-- higher-order intelligence; and
-- conceptual graph traversal.
+Completion is therefore not a finite number of screens, products, reports, capabilities, nodes or endpoints.
 
-Neither side is measured by its number of top-level pages. Both must support deep nested exploration and contextual return paths.
+Completion means the architecture, evidence, runtime, lineage, user controls, interaction, deployment and end-to-end behavior are all proven at the applicable boundaries.
 
-### 11.2 Shared traversal model
+---
 
-The same underlying graph contract governs both experiences:
+# 20. Final build rule
+
+**Build continuously. Audit continuously. Do not stop for cosmetic milestones. Do not skip dependencies. Do not manufacture evidence. Do not certify unproven work.**
+
+The immediate direction is:
 
 ```text
-Financial Life result
-  ↕
-user-specific intelligence
-  ↕
-exact governed evidence
-
-Intelligence/Education concept
-  ↕
-conceptual reasoning model
-  ↕
-conceptual lineage examples
+CORRECT THE CONSUMER ORDER
+        ↓
+FINANCIAL LIFE / RESULTS / USER JOURNEY
+        ↓
+actual user state + complete journey
+        ↓
+reports + analytics + relationships + explanations
+        ↓
+forward/reverse lineage
+        ↓
+pre-Plaid UI/interaction certification
+        ↓
+REAL PROVIDER EVIDENCE
+        ↓
+independent domain gates
+        ↓
+qualified user-specific intelligence/results
+        ↓
+HARDEN INTELLIGENCE / EDUCATION
+        ↓
+recursive bidirectional certification
+        ↓
+scenarios → decisions → outcomes → learning
+        ↓
+higher-order recursive intelligence
+        ↓
+END-TO-END CERTIFICATION
 ```
 
-The Financial Life side may traverse actual user-specific evidence and results. The educational side may explain the reasoning model but must not cross the boundary into user-specific data.
-
-### 11.3 Depth is not page count
-
-A primary surface is a doorway, not a depth limit. A route may open a contextual explorer containing nested nodes, relationships, evidence, reasoning, related products, questions, scenarios or lineage. The semantic graph remains unbounded even when UI rendering is paginated, virtualized or otherwise operationally bounded.
-
-The engineering roadmap therefore measures **depth capability and traversal certification**, not a fixed number of pages.
-
-## 12. Persistent assistant
-
-IRIS must be present throughout supported authenticated Financial Life pages.
-
-Financial Life mode may use governed user-specific APIs and actual evidence/results. It must retain uncertainty, evidence state and provenance and must never invent financial facts.
-
-Intelligence/Education mode is educational-only and must not load, query, display or infer user financial data.
-
-## 13. Current implementation state
-
-### Architecture and contracts — Defined
-
-- [x] IRIS identity.
-- [x] Priority 1 Financial Life / Results / User Journey.
-- [x] Priority 2 IRIS Intelligence / Education.
-- [x] One-system/two-experience boundary.
-- [x] Equal-depth two-experience contract.
-- [x] Eight authoritative domains.
-- [x] Seven-domain current Sandbox boundary.
-- [x] Statements deferred until real banking.
-- [x] Unbounded recursive hierarchy.
-- [x] Graph rather than fixed tree.
-- [x] Evidence-state distinctions.
-- [x] Anti-fabrication rules.
-- [x] Forward/reverse traversal model.
-- [x] Arbitrary derived-intelligence requirement.
-- [x] Report/intelligence separation.
-- [x] Report publication boundary.
-- [x] Financial Life journey.
-- [x] Equal-depth user-experience principle.
-- [x] Catalog definition/result distinction.
-
-### Consumer experience — Implemented, not certified
-
-- [x] Unified authenticated IRIS shell.
-- [x] Financial Life journey navigation.
-- [x] Financial Life home/journey foundation.
-- [x] Report catalog surface.
-- [x] Report detail/exploration surface.
-- [x] Catalog search/family/output filtering.
-- [x] Report activation/deactivation controls.
-- [x] Evidence and lineage presentation foundations.
-- [x] Persistent Financial Life assistant foundation.
-- [x] Separate educational Intelligence route.
-- [x] Educational assistant mode without user-data calls.
-- [ ] Independent verification of every supported authenticated route.
-- [ ] Responsive visibility/interaction certification.
-- [ ] Equal-depth Financial Life exploratory traversal.
-- [ ] Equal-depth Intelligence educational traversal.
-- [ ] Shared contextual traversal/return behavior.
-- [ ] Full Financial Life journey end-to-end certification against real provider evidence.
-- [ ] Full report inventory runtime certification.
-- [ ] User-specific report publication certification.
-
-### Intelligence graph — Foundations implemented, not fully certified
-
-- [x] Recursive graph architecture.
-- [x] Execution-scoped runtime node identity.
-- [x] Arbitrary derived-node persistence foundation.
-- [x] Exact upstream node references.
-- [x] Recursive ancestry metadata.
-- [x] Cycle-safe bidirectional traversal foundation.
-- [x] Execution/run/user boundary checks.
-- [x] Root capability persistence for evidence-bound roots.
-- [x] Fail-closed missing/cross-execution upstream references.
-- [ ] Complete recursive semantic lineage certification.
-- [ ] Exact input/output field lineage certification for every operator.
-- [ ] Independent proof every persisted execution artifact was semantically consumed.
-- [ ] Complete forward traversal certification across current domains.
-- [ ] Complete reverse traversal certification across current domains.
-- [ ] Cross-domain recursive composition certification.
-- [ ] Higher-order recursive composition certification without artificial semantic depth limits.
-
-### Provider/evidence — Seven-domain Sandbox target
-
-- [x] Provider evidence model.
-- [x] Exact user/run/execution evidence boundary model.
-- [x] Seven-domain canonical Item selection.
-- [x] Statements removed from Sandbox execution requirement.
-- [x] Durable sync lease repair.
-- [x] Transaction source-field lineage repair.
-- [x] Numeric finiteness repair.
-- [ ] Independent seven-domain runtime gate certification.
-- [ ] Independent forward traversal certification for each current domain.
-- [ ] Independent reverse traversal certification for each current domain.
-- [ ] Evidence-to-intelligence semantic sufficiency certification.
-- [ ] Real-banking Statements implementation/certification.
-
-### Report product system — Foundations implemented, not certified
-
-- [x] Intelligence/report boundary.
-- [x] Report product definition library.
-- [x] Catalog API boundary.
-- [x] Search/family filtering.
-- [x] Activation/deactivation persistence path.
-- [x] Report detail surface.
-- [x] Dependency-definition graph.
-- [x] Runtime lineage resolver foundation.
-- [x] Exact execution/run publication boundary.
-- [x] Runtime headline binding requires persisted intelligence-node identity.
-- [x] Evidence → intelligence → report reverse-lineage endpoint foundation.
-- [x] Semantic dependency-consumption evaluator.
-- [x] Exact report evidence-boundary evaluator.
-- [x] Conjunctive report certification-gate foundation.
-- [x] Authoritative run-bound evidence resolver.
-- [x] Fail-closed runtime lineage validation.
-- [ ] Persisted product catalog schema certification.
-- [ ] Product-to-intelligence dependency certification.
-- [ ] Semantic sufficiency certification for every report mapping.
-- [ ] Dynamic report-name generation certification.
-- [ ] Complete report → intelligence → evidence certification.
-- [ ] Complete evidence → intelligence → report certification.
-- [ ] Product publication certification.
-- [ ] End-to-end product certification.
-- [ ] Subscription entitlement runtime certification.
-- [ ] User activation/deactivation end-to-end certification.
-
-## 14. Priority 1 build program
-
-The next Financial Life implementation must proceed in this order:
-
-### P1 — Financial Life foundation
-
-- [ ] Audit every currently reachable Financial Life route against the actual repository.
-- [ ] Remove or quarantine legacy consumer surfaces that conflict with the IRIS identity/product boundary.
-- [ ] Ensure every supported route has an explicit purpose and evidence boundary.
-- [ ] Establish consistent loading, empty, limited, unavailable and error states.
-- [ ] Ensure unknown values are never rendered as zero.
-- [ ] Ensure every factual user value identifies its evidence state.
-- [ ] Ensure the persistent assistant is present and correctly scoped.
-
-### P2 — Financial Life orientation
-
-- [ ] Make arrival clearly communicate what IRIS currently observes.
-- [ ] Show actual observed account/evidence state without synthetic filler.
-- [ ] Make missing evidence understandable rather than merely empty.
-- [ ] Provide direct transitions from observed reality to change, understanding, evidence and reports.
-
-### P3 — Change and understanding
-
-- [ ] Connect What Changed to actual qualified intelligence outputs.
-- [ ] Provide relationship-first exploration rather than isolated metrics.
-- [ ] Make explanations distinguish observation, calculation, inference, prediction and hypothetical scenario.
-- [ ] Provide exact backward traversal where lineage exists.
-
-### P4 — Evidence
-
-- [ ] Make evidence inspectable from every relevant result.
-- [ ] Show provider/source boundary, freshness, observation state and lineage.
-- [ ] Keep the seven-domain Sandbox boundary explicit.
-- [ ] Keep Statements deferred until real banking.
-
-### P5 — Report catalog
-
-- [ ] Treat persisted catalog definitions as product inventory, not results.
-- [ ] Surface product state dimensions independently.
-- [ ] Improve catalog discovery and family navigation.
-- [ ] Add related-product and question-driven discovery.
-- [ ] Make dependencies/evidence requirements understandable to users.
-- [ ] Surface runtime-produced/certified state only from actual governed runtime records.
-- [ ] Prevent catalog definitions from appearing as produced reports.
-
-### P6 — Dynamic product expansion
-
-- [ ] Define runtime identity for valid dynamically composed report products.
-- [ ] Bind dynamic products to exact intelligence-node identities.
-- [ ] Resolve recursive ancestry and evidence lineage.
-- [ ] Require semantic transformation proof.
-- [ ] Preserve uncertainty/applicability/freshness.
-- [ ] Publish only after applicable certification gates pass.
-- [ ] Never create dynamic products as a workaround for missing evidence.
-
-### P7 — Scenario / decision / outcome journey
-
-- [ ] Connect scenario inputs to explicitly hypothetical state.
-- [ ] Keep scenario output separate from observed history.
-- [ ] Connect qualified scenarios to decisions without implying execution.
-- [ ] Keep action surfaces read-only in Phase 1.
-- [ ] Record outcomes only when actual outcomes can be observed/governed.
-- [ ] Enable learning only after independent outcome evidence and lineage are established.
-
-## 15. Equal-depth experience build program
-
-This program applies to **both** Priority 1 Financial Life and Priority 2 Intelligence/Education. It does not replace the priority order; it prevents the two experiences from becoming architecturally unbalanced.
-
-### E1 — Shared experience grammar
-
-- [ ] Define shared contextual navigation primitives for both experiences.
-- [ ] Define shared node/detail/relationship/evidence/lineage presentation contracts.
-- [ ] Define shared deep-link and return-context behavior.
-- [ ] Define shared progressive-disclosure levels without making either side shallow.
-
-### E2 — Financial Life deep exploration
-
-- [ ] Expand each primary journey surface into contextual nested exploration.
-- [ ] Allow a user result to open related results, questions, evidence, reasoning and scenarios.
-- [ ] Preserve the user's current entity/time/question context during traversal.
-- [ ] Provide exact reverse traversal whenever governed lineage exists.
-- [ ] Keep report inventory and dynamic product discovery inside this deep exploration model.
-
-### E3 — Intelligence educational deep exploration
-
-- [ ] Expand the educational Intelligence surface into an actual navigable hierarchy/graph experience.
-- [ ] Provide conceptual domain → evidence → intelligence → composition traversal.
-- [ ] Provide conceptual forward and reverse traversal without user financial data.
-- [ ] Provide recursive composition exploration and higher-order intelligence education.
-- [ ] Provide uncertainty, causality, prediction, scenario and certification education.
-- [ ] Preserve educational boundary at every nested interaction.
-
-### E4 — Cross-surface correspondence
-
-- [ ] Define explicit conceptual correspondence between Financial Life exploration and Intelligence education.
-- [ ] Allow Financial Life concepts to explain which reasoning machinery applies without exposing protected educational implementation details unnecessarily.
-- [ ] Allow Intelligence education to demonstrate conceptual examples without importing user-specific records.
-- [ ] Ensure both surfaces describe the same underlying graph semantics.
-
-### E5 — Depth certification
-
-- [ ] Independently traverse multiple nested depths on both surfaces.
-- [ ] Verify forward and reverse navigation at each supported depth.
-- [ ] Verify context preservation when moving deeper and returning.
-- [ ] Verify no top-level page count is treated as semantic capacity.
-- [ ] Verify operational rendering limits do not become architecture limits.
-- [ ] Verify the Financial Life and Intelligence experiences remain equal in exploratory capability.
-
-## 16. Certification chain
-
-The governing certification chain remains:
-
-`Architecture Defined → Contract Defined → Schema Implemented → Runtime Implemented → Independently Executable → Evidence Verified → Exact Evidence Boundary Verified → Semantic Lineage Verified → Report Product Defined → Report Product User-Controlled → Report Product Surfaced → Interaction Verified → Deployment Verified → End-to-End Certified`
-
-For the two consumer experiences, **equal-depth traversal is a certification concern**, not an assumption from having two routes or two panels.
-
-A feature being visible in the UI never proves that its underlying intelligence, evidence, lineage, or publication state is certified.
-
-## 17. Current hard boundaries
-
-- IRIS is the product identity.
-- Financial Life / Results is Priority 1.
-- Intelligence / Education is Priority 2.
-- Both are connected experiences over one system and must be equal in semantic/exploratory depth.
-- Intelligence/Education has no user financial data.
-- Statements is architecturally Domain 8 but deferred from current Sandbox execution.
-- Current Sandbox runtime/certification boundary is seven domains, not eight.
-- No fabricated production financial data.
-- No synthetic UI values used to imply observations.
-- No money movement in Phase 1.
-- No finite report count or intelligence depth ceiling.
-- Runtime/materialization limits may exist but are not semantic limits.
-- Catalog definitions are not user-specific results.
-- Persistence is not proof of semantic correctness.
-- Conceptual educational lineage must not be represented as actual user lineage.
-- Exact user-specific lineage requires actual persisted governed evidence and runtime records.
+The graph remains unbounded. The consumer build priority does not change that.
