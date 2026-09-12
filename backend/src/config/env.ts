@@ -13,10 +13,7 @@ function required(key: string): string {
   throw new Error(`Missing required environment variable: ${key}`);
 }
 
-// These are actual Plaid Link Products. Liabilities is intentionally absent:
-// Plaid exposes liabilities through its API after the Item has the applicable
-// data access; it is not a valid Link `Products` enum value.
-const TRIAL_PRODUCTS = "auth,transactions,identity,assets,investments,statements";
+const TRIAL_PRODUCTS = "auth,transactions,identity,assets,liabilities,investments,statements";
 
 export const env = {
   port: Number(process.env.PORT ?? 4000),
@@ -26,8 +23,8 @@ export const env = {
   plaidSecret: required("PLAID_SECRET"),
   plaidEnv: (process.env.PLAID_ENV ?? "sandbox") as "sandbox" | "development" | "production",
   // Balance is automatic in Plaid and is intentionally never requested here.
-  // The explicit Link products are requested; Balance is observed through
-  // /accounts/balance/get, while Liabilities is observed through /liabilities/get.
+  // The seven explicit Trial products are requested; the eighth evidence
+  // domain is Balance, observed from the account/balance response itself.
   plaidProducts: (process.env.PLAID_PRODUCTS ?? TRIAL_PRODUCTS)
     .split(",")
     .map((s) => s.trim())
