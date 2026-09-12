@@ -60,7 +60,7 @@ export function PlaidLinkButton({ onSuccess }: Props) {
         type="button"
         className="btn-accent plaid-connect-button"
         onClick={() => void loadToken()}
-        disabled={connecting || loadingToken}
+        disabled={connecting}
         aria-busy={connecting || loadingToken}
       >
         {connecting ? "Connecting…" : loadingToken ? "Preparing secure connection…" : "Connect financial institution"}
